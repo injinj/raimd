@@ -1,0 +1,1866 @@
+#include <stdio.h>
+#include <stdarg.h>
+#include <ctype.h>
+#include <time.h>
+#include <raimd/md_field_iter.h>
+#include <raimd/md_msg.h>
+#include <raimd/sass.h>
+#include <raimd/hex_dump.h>
+
+using namespace rai;
+using namespace md;
+
+const char * MDMsg::get_proto_string( void ) { return "NO PROTOCOL"; }
+int MDMsg::get_field_iter( MDFieldIter *&iter ) { iter = NULL; return Err::INVALID_MSG; }
+int MDMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg ) { msg = NULL; return Err::INVALID_MSG; }
+int MDMsg::get_reference( MDReference &mref ) { mref.zero(); return Err::INVALID_MSG; }
+int MDMsg::get_array_ref( MDReference &mref,  size_t i,  MDReference &aref ) { aref.zero(); return Err::INVALID_MSG; }
+
+int MDFieldIter::get_name( MDName &name ) { name.zero(); return Err::INVALID_MSG; }
+int MDFieldIter::get_reference( MDReference &mref ) { mref.zero(); return Err::INVALID_MSG; }
+int MDFieldIter::get_hint_reference( MDReference &mref ) { mref.zero(); return Err::INVALID_MSG; }
+int MDFieldIter::find( const char *name ) { return Err::INVALID_MSG; }
+int MDFieldIter::first( void ) { return Err::INVALID_MSG; }
+int MDFieldIter::next( void ) { return Err::INVALID_MSG; }
+
+int
+MDDecimal::get_decimal( const MDReference &mref )
+{
+  switch ( mref.ftype ) {
+    case MD_DECIMAL:
+      if ( mref.fsize == sizeof( MDDecimal ) ||
+           mref.fsize == sizeof( int64_t ) + sizeof( int8_t ) ) {
+        this->ival = get_int<int64_t>( mref.fptr, mref.fendian );
+        this->hint = mref.fptr[ sizeof( int64_t ) ];
+        return 0;
+      }
+    default:
+      return Err::BAD_DECIMAL;
+
+    case MD_INT:
+    case MD_UINT:
+    case MD_BOOLEAN:
+      this->ival = get_int<int64_t>( mref );
+      this->hint = MD_DEC_INTEGER;
+      return 0;
+
+    case MD_STRING:
+      return this->parse( (const char *) mref.fptr, mref.fsize );
+
+    case MD_REAL: {
+      double fval = get_float<double>( mref );
+      this->set_real( fval );
+      return 0;
+    }
+  }
+}
+
+int
+MDTime::get_time( const MDReference &mref )
+{
+  if ( mref.ftype == MD_TIME ) {
+    if ( mref.fsize == sizeof( MDTime ) ) {
+      this->hour       = mref.fptr[ 0 ];
+      this->min        = mref.fptr[ 1 ];
+      this->sec        = mref.fptr[ 2 ];
+      this->resolution = mref.fptr[ 3 ];
+      this->fraction   = get_int<uint32_t>( &mref.fptr[ 4 ], mref.fendian );
+      return 0;
+    }
+    else if ( mref.fsize == sizeof( this->hour ) + sizeof( this->min ) ) {
+      this->hour = mref.fptr[ 0 ];
+      this->min  = mref.fptr[ 1 ];
+      return 0;
+    }
+    else if ( mref.fsize == sizeof( this->hour ) + sizeof( this->min ) +
+                            sizeof( this->sec ) ) {
+      this->hour = mref.fptr[ 0 ];
+      this->min  = mref.fptr[ 1 ];
+      this->sec  = mref.fptr[ 1 ];
+      return 0;
+    }
+  }
+  this->zero();
+  return Err::BAD_TIME;
+}
+
+int
+MDDate::get_date( const MDReference &mref )
+{
+  if ( mref.ftype == MD_DATE ) {
+    if ( mref.fsize == sizeof( MDDate ) ) {
+      this->year = get_int<uint16_t>( &mref.fptr[ 0 ], mref.fendian );
+      this->mon  = mref.fptr[ 2 ];
+      this->day  = mref.fptr[ 3 ];
+      return 0;
+    }
+  }
+  this->zero();
+  return Err::BAD_DATE;
+}
+
+int
+MDFieldIter::get_enum( MDReference &mref,  MDEnum &enu )
+{
+  /* fetch enum from dictionary */
+  enu.zero();
+  return Err::NO_ENUM;
+}
+
+int
+MDMsg::msg_to_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  /* TODO */
+  return Err::INVALID_MSG;
+}
+
+int
+MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  static char mt[] = "[]";
+  MDMsgMem    tmp,
+            * sav = this->mem;
+  MDReference aref;
+  size_t      num_entries;
+  char     ** str,
+            * astr = NULL;
+  size_t      i, j = 0,
+            * k;
+
+  num_entries = mref.fsize;
+  if ( mref.fentrysz > 0 )
+    num_entries /= mref.fentrysz;
+  if ( num_entries == 0 ) {
+    buf = mt;
+    len = 2;
+    return 0;
+  }
+  this->mem = &tmp;
+  this->mem->alloc( num_entries * sizeof( str[ 0 ] ), &str );
+  this->mem->alloc( num_entries * sizeof( k[ 0 ] ), &k );
+  if ( mref.fentrysz != 0 ) {
+    aref.zero();
+    aref.ftype   = mref.fentrytp;
+    aref.fsize   = mref.fentrysz;
+    aref.fendian = mref.fendian;
+    for ( i = 0; i < num_entries; i++ ) {
+      aref.fptr = &mref.fptr[ i * (size_t) mref.fentrysz ];
+      this->get_quoted_string( aref, str[ i ], k[ i ] );
+      j += k[ i ];
+    }
+  }
+  else {
+    for ( i = 0; i < num_entries; i++ ) {
+      this->get_array_ref( mref, i, aref );
+      this->get_quoted_string( aref, str[ i ], k[ i ] );
+      j += k[ i ];
+    }
+  }
+  this->mem = sav;
+  this->mem->alloc( j + 3 + ( num_entries - 1 ), &astr );
+  j = 0;
+  astr[ j++ ] = '[';
+  ::memcpy( &astr[ j ], str[ 0 ], k[ 0 ] );
+  j += k[ 0 ];
+  for ( i = 1; i < num_entries; i++ ) {
+    astr[ j++ ] = ',';
+    ::memcpy( &astr[ j ], str[ i ], k[ i ] );
+    j += k[ i ];
+  }
+  astr[ j++ ] = ']';
+  astr[ j ] = '\0';
+
+  buf = astr;
+  len = j;
+  return 0;
+}
+
+int
+MDMsg::time_to_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  return 0;
+}
+
+static char   nul_string[]   = "null";
+static size_t nul_string_len = 4;
+
+int
+MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  char   num[ 128 ];
+  char * str;
+  size_t sz;
+
+  if ( mref.fsize == 0 ) {
+    buf = nul_string;
+    len = nul_string_len;
+    return 0;
+  }
+  switch ( mref.ftype ) {
+    case MD_STRING: {
+      char * s = (char *) (void *) mref.fptr;
+      size_t i;
+      if ( s[ 0 ] == '\0' ) {
+        buf = s;
+        len = 1;
+        return 0;
+      }
+      for ( i = mref.fsize; i > 0; )
+        if ( s[ --i ] == '\0' )
+          break;
+      if ( i != 0 ) {
+        buf = s;
+        len = 1;
+        return 0;
+      }
+      this->mem->alloc( mref.fsize + 1, &str );
+      ::memcpy( str, s, mref.fsize );
+      str[ mref.fsize ] = '\0';
+      buf = str;
+      len = mref.fsize;
+      return 0;
+    }
+    case MD_BOOLEAN: {
+      static char tr[] = "true";
+      static char fa[] = "false";
+      if ( get_uint<uint8_t>( mref ) ) {
+        buf = tr;
+        len = 4;
+      }
+      else {
+        buf = fa;
+        len = 5;
+      }
+      return 0;
+    }
+    case MD_IPDATA:
+      if ( mref.fsize == 4 ) {
+        const uint8_t * ptr = (const uint8_t *) (const void *) mref.fptr;
+        sz = 0;
+        for ( size_t i = 0; i < 4; i++ ) {
+          sz += uint_str( ptr[ 0 ], &num[ sz ] );
+          if ( i != 3 )
+            num[ sz++ ] = '.';
+        }
+        goto return_num;
+      }
+      /* FALLTHRU */
+    case MD_UINT:
+    case MD_ENUM:
+      switch ( mref.fsize ) {
+        case 1: sz = uint_str( get_uint<uint8_t>( mref ), num ); break;
+        case 2: sz = uint_str( get_uint<uint16_t>( mref ), num ); break;
+        case 4: sz = uint_str( get_uint<uint32_t>( mref ), num ); break;
+        case 8: sz = uint_str( get_uint<uint64_t>( mref ), num ); break;
+        default: goto bad_num;
+      }
+      goto return_num;
+
+    case MD_INT:
+      switch ( mref.fsize ) {
+        case 1: sz = int_str( get_int<int8_t>( mref ), num ); break;
+        case 2: sz = int_str( get_int<int16_t>( mref ), num ); break;
+        case 4: sz = int_str( get_int<int32_t>( mref ), num ); break;
+        case 8: sz = int_str( get_int<int64_t>( mref ), num ); break;
+        default: goto bad_num;
+      }
+      goto return_num;
+
+    case MD_REAL:
+      switch ( mref.fsize ) {
+        case 4: sz = float_str( get_float<float>( mref ), num ); break;
+        case 8: sz = float_str( get_float<double>( mref ), num ); break;
+        default: goto bad_num;
+      }
+      goto return_num;
+
+    case MD_MESSAGE: return this->msg_to_string( mref, buf, len );
+    case MD_ARRAY:   return this->array_to_string( mref, buf, len );
+
+    case MD_TIME: {
+      MDTime time;
+      time.get_time( mref );
+      sz = time.get_string( num, sizeof( num ) );
+      goto return_num;
+    }
+    case MD_DATE: {
+      MDDate date;
+      date.get_date( mref );
+      sz = date.get_string( num, sizeof( num ) );
+      goto return_num;
+    }
+    case MD_DATETIME:
+    case MD_STAMP:   return this->time_to_string( mref, buf, len );
+
+    case MD_DECIMAL: {
+        MDDecimal dec;
+        dec.get_decimal( mref );
+        sz = dec.get_string( num, sizeof( num ) );
+        goto return_num;
+      }
+      /* FALLTHRU */
+    case MD_NODATA:
+    case MD_PARTIAL:
+    case MD_OPAQUE:
+    case MD_SUBJECT:
+      break;
+  }
+bad_num:;
+  return this->get_escaped_string( mref, "\"", buf, len );
+return_num:;
+    buf = this->mem->stralloc( sz, num );
+    len = sz;
+    return 0;
+}
+
+int
+MDMsg::get_quoted_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  switch ( mref.ftype ) {
+    case MD_STRING:
+    case MD_NODATA:
+    case MD_OPAQUE:
+    case MD_SUBJECT:
+    case MD_PARTIAL:
+      if ( mref.fsize == 0 ) {
+        buf = nul_string;
+        len = nul_string_len;
+        return 0;
+      }
+      return this->get_escaped_string( mref, "\"", buf, len );
+    default:
+      return this->get_string( mref, buf, len );
+  }
+}
+
+int
+MDMsg::get_escaped_string( MDReference &mref,  const char *quotes,
+                           char *&buf,  size_t &len )
+{
+  uint8_t * ptr = mref.fptr;
+  char    * str;
+  size_t    i, j = 0;
+
+  if ( mref.fsize == 0 ) {
+    buf = nul_string;
+    len = nul_string_len;
+    return 0;
+  }
+  if ( quotes != NULL )
+    j += 2;
+  for ( i = 0; i < mref.fsize; i++ ) {
+    switch ( ptr[ i ] ) {
+      case '\n': case '\r': case '\t': case '\"': case '\\':
+      case '\b': case '\f':
+        j += 2;
+        break;
+      case 0:
+        if ( mref.ftype == MD_STRING )
+          goto end_of_string;
+      default:
+        j += ( ( ptr[ i ] >= ' ' && ptr[ i ] <= '~' ) ? 1 : 6 );
+        break;
+    }
+  }
+end_of_string:;
+  this->mem->alloc( j + 1, &str );
+  j = 0;
+  if ( quotes != NULL )
+    str[ j++ ] = quotes[ 0 ];
+  for ( i = 0; i < mref.fsize; i++ ) {
+    switch ( ptr[ i ] ) {
+      case '\b': str[ j++ ] = '\\'; str[ j++ ] = 'b'; break;
+      case '\f': str[ j++ ] = '\\'; str[ j++ ] = 'f'; break;
+      case '\n': str[ j++ ] = '\\'; str[ j++ ] = 'n'; break;
+      case '\r': str[ j++ ] = '\\'; str[ j++ ] = 'r'; break;
+      case '\t': str[ j++ ] = '\\'; str[ j++ ] = 't'; break;
+      case '\"': str[ j++ ] = '\\'; str[ j++ ] = '\"'; break;
+      case '\\': str[ j++ ] = '\\'; str[ j++ ] = '\\'; break;
+      case 0:
+        if ( mref.ftype == MD_STRING )
+          goto break_loop;
+        /*str[ j++ ] = '\\'; str[ j++ ] = '0'; break;*/
+      default:
+        if ( ptr[ i ] >= ' ' && ptr[ i ] <= '~' )
+          str[ j++ ] = (char) ptr[ i ];
+        else {
+          str[ j++ ] = '\\';
+          str[ j++ ] = 'u';
+          str[ j++ ] = '0';
+          str[ j++ ] = '0';
+          str[ j++ ] = hexchar( ( ptr[ i ] >> 4 ) & 0xfU );
+          str[ j++ ] = hexchar( ptr[ i ] & 0xfU );
+        }
+        break;
+    }
+  }
+break_loop:;
+  if ( quotes != NULL )
+    str[ j++ ] = quotes[ 0 ];
+  str[ j ] = '\0';
+  buf = str;
+  len = j;
+  return 0;
+}
+
+int
+MDOutput::printf( const char *fmt, ... )
+{
+  va_list ap;
+  int n;
+  va_start( ap, fmt );
+  n = vprintf( fmt, ap );
+  va_end( ap );
+  return n;
+}
+
+int
+MDOutput::puts( const char *s )
+{
+  if ( s != NULL )
+    return fputs( s, stdout );
+  return 0;
+}
+
+int
+MDOutput::print_hex( const void *buf,  size_t buflen )
+{
+  MDHexDump hex;
+  int n = 0;
+  for ( size_t off = 0; off < buflen; ) {
+    off = hex.fill_line( buf, off, buflen );
+    n += this->printf( "%s\n", hex.line );
+    hex.flush_line();
+  }
+  return n;
+}
+
+const char *
+rai::md::md_type_str( MDType type,  size_t size )
+{
+  switch ( type ) {
+    case MD_NODATA:    return "nodata";
+    case MD_MESSAGE:   return "message";
+    case MD_STRING:    return "string";
+    case MD_OPAQUE:    return "opaque";
+    case MD_BOOLEAN:   return "boolean";
+    case MD_INT:       switch ( size ) {
+                         case 1: return "int8";
+                         case 2: return "int16";
+                         case 4: return "int32";
+                         case 8: return "int64";
+                         default: return "int";
+                       }
+    case MD_UINT:      switch ( size ) {
+                         case 1: return "uint8";
+                         case 2: return "uint16";
+                         case 4: return "uint32";
+                         case 8: return "uint64";
+                         default: return "uint";
+                       }
+    case MD_REAL:      switch ( size ) {
+                         case 4: return "real32";
+                         case 8: return "real64";
+                         default: return "real";
+                       }
+    case MD_ARRAY:     return "array";
+    case MD_PARTIAL:   return "partial";
+    case MD_IPDATA:    switch ( size ) {
+                         case 2: return "ipdata16";
+                         case 4: return "ipdata32";
+                         case 16: return "ipdata128";
+                         default: return "ipdata";
+                       }
+    case MD_SUBJECT:   return "subject";
+    case MD_ENUM:      return "enum";
+    case MD_TIME:      return "time";
+    case MD_DATE:      return "date";
+    case MD_DATETIME:  return "datetime";
+    case MD_STAMP:     return "stamp";
+    case MD_DECIMAL:   return "decimal";
+  }
+  return "invalid";
+}
+
+int
+MDFieldIter::print( MDOutput *out, int indent_newline,
+                    const char *fname_fmt,  const char *type_fmt )
+{
+  MDMsgMemSwap swap( this->iter_msg.mem );
+  MDName      name;
+  MDReference mref, href;
+
+  this->get_name( name );
+  this->get_reference( mref );
+
+  const char * fname = name.fname;
+  const char * tstr  = md_type_str( mref.ftype );
+  size_t       fsize = mref.fsize;
+  MDType       ftype = mref.ftype;
+  char         fname_buf[ 256 + 16 ],
+               fid_buf[ 16 ];
+  size_t       fname_off;
+  char       * str;
+  size_t       len;
+  MDFid        fid;
+  uint32_t     ufid;
+
+  if ( indent_newline > 1 )
+    out->indent( indent_newline - 1 );
+
+  fname_off = 0;
+  if ( fname != NULL ) {
+    for ( const char *s = fname;
+          *s != '\0' && fname_off < sizeof( fname_buf ) - 1; s++ )
+      fname_buf[ fname_off++ ] = *s;
+  }
+
+  if ( (fid = name.fid) != 0 ) {
+    uint32_t j = 1, k;
+    fid_buf[ 0 ] = '[';
+    if ( fid < 0 ) {
+      fid_buf[ j++ ] = '-';
+      ufid = (uint32_t) -fid;
+    }
+    else {
+      ufid = (uint32_t) fid;
+    }
+    k = 1000;
+    while ( ufid >= k * 10 )
+      k *= 10;
+    do {
+      if ( ufid >= k )
+        fid_buf[ j++ ] = '0' + (char) (( ufid / k ) % 10 );
+      k /= 10;
+    } while ( k > 1 );
+    fid_buf[ j++ ] = '0' + (char) ( ufid % 10 );
+    fid_buf[ j++ ] = ']';
+
+    if ( fname_off == 0 ||
+        ( fname_buf[ fname_off - 1 ] != ' ' &&
+          fname_off < sizeof( fname_buf ) - 1 ) )
+      fname_buf[ fname_off++ ] = ' ';
+    for ( k = 0; k < j; k++ ) {
+      if ( fname_off < sizeof( fname_buf ) - 1 )
+        fname_buf[ fname_off++ ] = fid_buf[ k ];
+    }
+  }
+  else if ( fname == NULL ) {
+    for ( const char *s = nul_string; *s != '\0'; s++ )
+      fname_buf[ fname_off++ ] = *s;
+  }
+  fname_buf[ fname_off ] = '\0';
+
+  if ( fname_fmt == NULL )
+    fname_fmt = "%s=";
+  out->printf( fname_fmt, fname_buf );
+
+  if ( type_fmt != NULL )
+    out->printf( type_fmt, tstr, fsize );
+
+  switch ( ftype ) {
+    case MD_MESSAGE: {
+      MDMsg * msg;
+      if ( this->iter_msg.get_sub_msg( mref, msg ) == 0 ) {
+        if ( indent_newline != 0 ) {
+          out->puts( "{\n" );
+          indent_newline += 4;
+        }
+        else {
+          out->puts( "{ " );
+        }
+        if ( msg != NULL )
+          msg->print( out, indent_newline, fname_fmt, type_fmt );
+        if ( indent_newline > 5 ) {
+          out->indent( indent_newline - 5 );
+        }
+        out->puts( "}" );
+      }
+      break;
+    }
+    case MD_NODATA:
+    case MD_OPAQUE:
+    case MD_SUBJECT:
+    case MD_STRING:
+      if ( this->iter_msg.get_escaped_string( mref, "\"", str, len ) == 0 )
+        out->puts( str );
+      break;
+
+    case MD_PARTIAL:
+      if ( fsize == 0 )
+        out->puts( nul_string );
+      else if ( this->iter_msg.get_escaped_string( mref, "\"", str, len ) == 0 )
+        out->printf( "%s <offset=%u>", str, mref.fentrysz );
+      break;
+
+    case MD_ENUM:
+      if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
+        MDEnum enu;
+        out->puts( str );
+        if ( this->get_enum( mref, enu ) == 0 )
+          out->printf( "  [%.*s]", (int) enu.disp_len, enu.disp );
+      }
+      break;
+
+    case MD_INT:
+    case MD_UINT:
+      if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
+        const char * extra = NULL;
+        char tmp_buf[ 32 ];
+        if ( fname != NULL &&
+             fname[ 0 ] >= 'M' && fname[ 1 ] >= 'E' && fname[ 2 ] >= 'C' &&
+             fname[ 3 ] == '_' ) {
+          if ( ::strcmp( fname, "MSG_TYPE" ) == 0 )
+            extra = sass_msg_type_string( get_int<int16_t>( mref ), tmp_buf );
+          else if ( ::strcmp( fname, "REC_STATUS" ) == 0 )
+            extra = sass_rec_status_string( get_int<int16_t>( mref ), tmp_buf );
+        }
+        out->puts( str );
+        if ( extra != NULL )
+          out->printf( "  [%s]", extra );
+      }
+      break;
+
+    case MD_BOOLEAN:
+    case MD_REAL:
+    case MD_IPDATA: 
+    case MD_ARRAY:
+    case MD_TIME:
+    case MD_DATE:
+    case MD_DATETIME:
+    case MD_STAMP:
+    case MD_DECIMAL:
+      if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
+        out->puts( str );
+      }
+      break;
+  }
+
+  if ( this->get_hint_reference( href ) == 0 ) {
+    if ( this->iter_msg.get_string( href, str, len ) == 0 )
+      out->printf( " <%s>", str );
+  }
+  if ( indent_newline != 0 )
+    out->puts( "\n" );
+  else
+    out->puts( " " );
+  return 0;
+}
+
+bool 
+rai::md::string_is_true( const char *s )
+{
+  if ( s != NULL )
+    switch ( *s ) {
+      case 't':
+      case 'T': return s[ 1 ] == '\0' || s[ 1 ] == ' ' || /* t, true */
+               ( toupper( s[ 1 ] ) == 'R' && toupper( s[ 2 ] ) == 'U' &&
+                 toupper( s[ 3 ] ) == 'E' );
+      case 'y':
+      case 'Y': return s[ 1 ] == '\0' || s[ 1 ] == ' ' || /* y, yes */
+               ( toupper( s[ 1 ] ) == 'E' && toupper( s[ 2 ] ) == 'S' );
+      case 'o':
+      case 'O': return toupper( s[ 1 ] ) == 'N'; /* on */
+      case '1': /* 1, + */
+      case '+': return true;
+    }
+  return false;
+}
+
+static const double   md_dec_powers_f[] = MD_DECIMAL_POWERS;
+static const uint64_t md_dec_powers_i[] = MD_DECIMAL_POWERS;
+
+int
+MDDecimal::parse( const char *s,  const size_t fsize )
+{
+  const uint8_t * fptr  = (const uint8_t *) s;
+  /* stk[] is up to 3 numbers separated by '.', '/', and/or 'e' */
+  struct {
+    uint64_t ival;
+    uint32_t digit, overflow;
+    bool     dot, slash, space, exp, nexp;
+  } stk[ 3 ];
+  size_t   i, tos;
+  uint32_t e;
+  bool     neg;
+  static const uint64_t maxval =
+    (uint64_t) 0x7fffffffU * (uint64_t) 0xffffffffU;
+
+  this->zero();
+  /* skip leading spaces, check for null value */
+  for ( i = 0; i < fsize; i++ )
+    if ( fptr[ i ] != ' ' )
+      break;
+  if ( i == fsize ) {
+    this->hint = MD_DEC_NULL;
+    return 0;
+  }
+  /* note the leading '-', skip a leading '+' */
+  neg = false;
+  if ( fptr[ i ] == '+' || fptr[ i ] == '-' ) {
+    if ( fptr[ i ] == '-' )
+      neg = true;
+    i++;
+  }
+
+  tos = 0;
+  ::memset( stk, 0, sizeof( stk ) );
+  for ( ; i < fsize; i++ ) {
+    switch ( fptr[ i ] ) {
+      case '0': case '1': case '2': case '3': case '4':
+      case '5': case '6': case '7': case '8': case '9':
+        if ( stk[ tos ].ival >= maxval / 10 )
+          stk[ tos ].overflow++; /* deal with overflow later */
+        else {
+          stk[ tos ].ival = stk[ tos ].ival * 10 + ( fptr[ i ] - '0' );
+          stk[ tos ].digit++;
+        }
+        break;
+      case '.': /* num.num */
+        if ( tos >= 2 )
+          goto end_of_float;
+        stk[ tos++ ].dot = true;
+        break;
+      case '/': /* fraction */
+        if ( tos >= 2 )
+          goto end_of_float;
+        stk[ tos++ ].slash = true;
+        break;
+      case ' ': /* num num/num */
+        if ( tos >= 2 )
+          goto end_of_float;
+        stk[ tos++ ].space = true;
+        break;
+      case '%': /* num% (same as e-2) */
+        if ( tos >= 2 )
+          goto end_of_float;
+        stk[ tos++ ].nexp = true;
+        stk[ tos ].ival = 2;
+        stk[ tos ].digit = 1;
+        goto end_of_float;
+      case 'i': case 'I': /* inf */
+        if ( tos == 0 && i + 2 <= fsize ) {
+          if ( fptr[ i + 1 ] == 'n' ||
+               fptr[ i + 1 ] == 'N' ) {
+            if ( fptr[ i + 2 ] == 'f' ||
+                 fptr[ i + 2 ] == 'F' ) {
+              if ( neg )
+                this->hint = MD_DEC_NINF;
+              else
+                this->hint = MD_DEC_INF;
+              return 0;
+            }
+          }
+        }
+        goto end_of_float;
+      case 'n': case 'N': /* nan, -nan */
+        if ( tos == 0 && i + 2 <= fsize ) {
+          if ( fptr[ i + 1 ] == 'a' ||
+               fptr[ i + 1 ] == 'A' ) {
+            if ( fptr[ i + 2 ] == 'n' ||
+                 fptr[ i + 2 ] == 'N' ) {
+              if ( neg )
+                this->hint = MD_DEC_NNAN;
+              else
+                this->hint = MD_DEC_NAN;
+              return 0;
+            }
+          }
+        }
+        goto end_of_float;
+      case 'e': case 'E': /* e+n, e-n */
+        if ( i + 1 >= fsize || tos == 3 )
+          goto end_of_float;
+        if ( fptr[ i + 1 ] == '-' || fptr[ i + 1 ] == '+' ) {
+          if ( i + 2 >= fsize )
+            goto end_of_float;
+          if ( fptr[ i + 2 ] >= '0' && fptr[ i + 2 ] <= '9' ) {
+            if ( fptr[ i + 1 ] == '-' )
+              stk[ tos ].nexp = true;
+            else
+              stk[ tos ].exp = true;
+            tos++;
+            i++;
+          }
+        }
+        else if ( fptr[ i + 1 ] >= '0' && fptr[ i + 1 ] <= '9' ) {
+          stk[ tos++ ].exp = true;
+        }
+        else
+          goto end_of_float;
+        break;
+      default:
+        goto end_of_float;
+    }
+  }
+end_of_float:;
+  if ( tos >= 1 && stk[ 0 ].dot && stk[ 1 ].digit != 0 ) {   /* num.num */
+    if ( stk[ 0 ].overflow != 0 )
+      goto overflow_big;
+    static const uint32_t npow = sizeof( md_dec_powers_i ) /
+                                 sizeof( md_dec_powers_i[ 0 ] ) - 1;
+    uint64_t p;
+    uint32_t n = stk[ 1 ].digit, overflow = 0;
+    if ( n <= npow ) {
+      p = md_dec_powers_i[ n ];
+    }
+    else {
+      p = md_dec_powers_i[ npow ];
+      for ( uint32_t j = npow; j < n; j++ ) {
+        if ( p >= maxval / 10 ) {
+          stk[ 1 ].ival /= 10;
+          overflow++;
+        }
+        else {
+          p *= 10;
+        }
+      }
+    }
+    while ( p > 0 && stk[ 0 ].ival > maxval / p ) {
+      stk[ 1 ].ival /= 10;
+      overflow++;
+      p /= 10;
+    }
+    this->ival = stk[ 0 ].ival;
+    if ( p > 1 ) {
+      this->ival *= p;
+      this->ival += stk[ 1 ].ival;
+      this->hint = -10 - (int) ( n - overflow );
+    }
+    else {
+      this->hint = MD_DEC_INTEGER;
+    }
+    e = 1;
+    goto check_exponent;
+  }
+  else if ( tos >= 2 && stk[ 0 ].space && stk[ 1 ].slash &&
+            stk[ 0 ].digit != 0 && stk[ 1 ].digit != 0 && 
+            stk[ 2 ].digit != 0 ) { /* num num/num */
+  zero_slash:;
+    if ( stk[ 2 ].ival == 0 ) /* divide by zero */
+      this->hint = MD_DEC_INF;
+    else {
+      /* only power of 2 fractions */
+      switch ( stk[ 2 ].ival ) {
+        case 1:   this->hint = MD_DEC_INTEGER; break;
+        case 2:   this->hint = MD_DEC_FRAC_2; break;
+        case 4:   this->hint = MD_DEC_FRAC_4; break;
+        case 8:   this->hint = MD_DEC_FRAC_8; break;
+        case 16:  this->hint = MD_DEC_FRAC_16; break;
+        case 32:  this->hint = MD_DEC_FRAC_32; break;
+        case 64:  this->hint = MD_DEC_FRAC_64; break;
+        case 128: this->hint = MD_DEC_FRAC_128; break;
+        case 256: this->hint = MD_DEC_FRAC_256; break;
+        case 512: this->hint = MD_DEC_FRAC_512; break;
+        default:  return Err::BAD_DECIMAL;
+      }
+      this->ival = stk[ 0 ].ival * stk[ 2 ].ival + stk[ 1 ].ival;
+    }
+  }
+  else if ( tos >= 1 && stk[ 0 ].slash &&
+            stk[ 0 ].digit != 0 && stk[ 1 ].digit != 0 ) { /* num/num */
+    stk[ 2 ].ival = stk[ 1 ].ival;
+    stk[ 1 ].ival = stk[ 0 ].ival;
+    stk[ 0 ].ival = 0;
+    goto zero_slash;
+  }
+  else if ( stk[ 0 ].digit > 0 ) { /* num */
+  overflow_big:;
+    this->ival = stk[ 0 ].ival;
+    if ( stk[ 0 ].overflow == 0 )
+      this->hint = MD_DEC_INTEGER;
+    else
+      this->hint = 10 + stk[ 0 ].overflow;
+    e = 0;
+  check_exponent:;
+    if ( stk[ e+1 ].digit != 0 && stk[ e+1 ].ival != 0 ) {
+      if ( stk[ e ].exp ) {
+        if ( this->hint == MD_DEC_INTEGER )
+          this->hint = 10 + stk[ e+1 ].ival;
+        else if ( this->hint > 10 )
+          this->hint += stk[ e+1 ].ival;
+        else {
+          this->hint += stk[ e+1 ].ival;
+          if ( this->hint >= -10 ) {
+            this->hint += 20;
+            if ( this->hint == 10 )
+              this->hint = MD_DEC_INTEGER;
+          }
+        }
+      }
+      else if ( stk[ e ].nexp ) {
+        if ( this->hint == MD_DEC_INTEGER )
+          this->hint = -10 - (int) stk[ e+1 ].ival;
+        else if ( this->hint < -10 )
+          this->hint -= (int) stk[ e+1 ].ival;
+        else {
+          this->hint -= stk[ e+1 ].ival;
+          if ( this->hint <= 10 ) {
+            this->hint -= 20;
+            if ( this->hint == -10 )
+              this->hint = MD_DEC_INTEGER;
+          }
+        }
+      }
+    }
+  }
+  else {
+    return Err::BAD_DECIMAL;
+  }
+  if ( neg )
+    this->ival = -this->ival;
+  return 0;
+}
+
+int
+MDDecimal::get_real( double &res ) const
+{
+  int64_t val  = this->ival;
+  int     hint = this->hint;
+
+  if ( hint >= -10 && hint <= 10 ) {
+    switch ( hint ) {
+      case MD_DEC_NULL:     res = 0.0;                  return 0;
+      case MD_DEC_INF:      res = INFINITY;             return 0;
+      case MD_DEC_NINF:     res = -INFINITY;            return 0;
+      case MD_DEC_NAN:      res = NAN;                  return 0;
+      case MD_DEC_NNAN:     res = -NAN;                 return 0;
+      case MD_DEC_INTEGER:  res = (double) val;         return 0;
+      case MD_DEC_FRAC_2:   res = (double) val / 2.0;   return 0;
+      case MD_DEC_FRAC_4:   res = (double) val / 4.0;   return 0;
+      case MD_DEC_FRAC_8:   res = (double) val / 8.0;   return 0;
+      case MD_DEC_FRAC_16:  res = (double) val / 16.0;  return 0;
+      case MD_DEC_FRAC_32:  res = (double) val / 32.0;  return 0;
+      case MD_DEC_FRAC_64:  res = (double) val / 64.0;  return 0;
+      case MD_DEC_FRAC_128: res = (double) val / 128.0; return 0;
+      case MD_DEC_FRAC_256: res = (double) val / 256.0; return 0;
+      case MD_DEC_FRAC_512: res = (double) val / 512.0; return 0;
+      default: break;
+    }
+  }
+  else if ( hint >= MD_DEC_LOGp10_1 ) {
+    if ( hint <= MD_DEC_LOGp10_9 ) {
+      res = (double) val * md_dec_powers_f[ hint - 10 ];
+      return 0;
+    }
+    for ( double f = (double) val; ; hint-- ) {
+      if ( hint == MD_DEC_LOGp10_9 ) {
+        res = f * md_dec_powers_f[ MD_DEC_LOGp10_9 - 10 ];
+        return 0;
+      }
+      f *= 10.0;
+    }
+  }
+  else if ( hint <= MD_DEC_LOGn10_1 ) {
+    if ( hint >= MD_DEC_LOGn10_9 ) {
+      res = (double) val / md_dec_powers_f[ -(hint + 10) ];
+      return 0;
+    }
+    for ( double f = (double) val; ; hint++ ) {
+      if ( hint == MD_DEC_LOGn10_9 ) {
+        res = f / md_dec_powers_f[ -(MD_DEC_LOGn10_9 + 10) ];
+        return 0;
+      }
+      f /= 10.0;
+    }
+  }
+  res = 0;
+  return Err::BAD_DECIMAL;
+}
+
+void
+MDDecimal::degrade( int8_t new_hint )
+{
+  if ( this->hint <= MD_DEC_LOGn10_1 ) {
+    if ( new_hint == MD_DEC_INTEGER || new_hint <= MD_DEC_LOGn10_1 ) {
+      while ( new_hint > this->hint && this->hint <= MD_DEC_LOGn10_1 ) {
+        this->hint++;
+        this->ival /= 10;
+      }
+      this->hint = new_hint;
+    }
+  }
+}
+
+void
+MDDecimal::set_real( double fval )
+{
+  this->ival = 0;
+  if ( isnan( fval ) ) {
+    if ( fval < 0.0 )
+      this->hint = MD_DEC_NNAN;
+    else
+      this->hint = MD_DEC_NAN;
+    return;
+  }
+  if ( isinf( fval ) ) {
+    if ( fval < 0.0 )
+      this->hint = MD_DEC_NINF;
+    else
+      this->hint = MD_DEC_INF;
+    return;
+  }
+  bool is_neg = false;
+  if ( fval < 0.0 ) {
+    is_neg = true;
+    fval = -fval;
+  }
+  /* guess the precision by using 14 places around the decimal */
+  double       integral,
+               decimal,
+               tmp;
+  const double fraction = modf( fval, &integral );
+  uint32_t     places = 14;
+  uint64_t     integral_ival = (uint64_t) integral;
+  /* degrade places by the number of digits to the left */
+  for ( uint64_t ival_places = integral_ival;
+        ival_places >= 100 && places > 1; ival_places /= 10 ) {
+    places--;
+  }
+  /* if no decimal places */
+  if ( places == 0 ) {
+    this->ival = (int64_t) integral_ival;
+    this->hint = MD_DEC_INTEGER;
+  }
+  else {
+    /* determine the number of digits to the right */
+    uint32_t n = sizeof( md_dec_powers_f ) /
+                 sizeof( md_dec_powers_f[ 0 ] ) - 1;
+    double p10;
+    if ( places <= n )
+      p10 = md_dec_powers_f[ places ];
+    else {
+      p10 = md_dec_powers_f[ n ];
+      while ( n < places ) {
+        p10 *= 10.0;
+        n++;
+      }
+    }
+    /* multiply fraction + 1 * places wanted (.25 + 1.0) * 1000.0 = 1250 */
+    tmp = modf( ( fraction + 1.0 ) * p10, &decimal );
+    /* round up, if fraction of decimal places >= 0.5 */
+    if ( tmp >= 0.5 ) {
+      decimal += 1.0;
+      if ( decimal >= p10 * 2.0 )
+        integral_ival++;
+    }
+    else if ( decimal >= p10 * 2.0 ) {
+      decimal--;
+    }
+    /* degrade places with trailing zeros */
+    uint64_t decimal_ival = (uint64_t) decimal;
+    while ( decimal_ival > 1 && decimal_ival % 10 == 0 ) {
+      decimal_ival /= 10;
+      places--;
+    }
+    /* set the integer and power (hint) */
+    this->ival = (int64_t) integral_ival;
+    if ( places == 0 || decimal_ival == 1 || decimal_ival == 2 ) {
+      this->hint = MD_DEC_INTEGER;
+    }
+    else {
+      uint32_t n = sizeof( md_dec_powers_i ) /
+                   sizeof( md_dec_powers_i[ 0 ] ) - 1;
+      uint64_t i10;
+      if ( places <= n )
+        i10 = md_dec_powers_i[ places ];
+      else {
+        i10 = md_dec_powers_i[ n ];
+        while ( n < places ) {
+          i10 *= 10;
+          n++;
+        }
+      }
+      this->hint = -10 - places;
+      this->ival *= i10;
+      this->ival += decimal_ival % i10;
+    }
+  }
+  if ( is_neg )
+    this->ival = -this->ival;
+}
+
+size_t
+MDDecimal::get_string( char *str,  size_t len,  bool expand_fractions ) const
+{
+  int64_t  val  = this->ival;
+  int      hint = this->hint;
+  size_t   i = 0,
+           j, k, d;
+  uint32_t div,
+           frac;
+
+  if ( hint >= -10 && hint <= 10 ) {
+    const char *s;
+    switch ( hint ) {
+      case MD_DEC_NULL:
+        s = "";
+      copy_s:;
+        for (;;) {
+          if ( i == len )
+            goto out_of_space;
+          if ( (str[ i++ ] = *s++) == '\0' )
+            break;
+        }
+        return i;
+
+      case MD_DEC_INF:  s = "Inf";  goto copy_s;
+      case MD_DEC_NINF: s = "-Inf";  goto copy_s;
+      case MD_DEC_NAN:  s = "NaN";  goto copy_s;
+      case MD_DEC_NNAN: s = "-NaN"; goto copy_s;
+
+      case MD_DEC_INTEGER:
+        i = int_digs( val );
+        if ( i > len )
+          goto out_of_space;
+        return int_str( val, str, i );
+
+      case MD_DEC_FRAC_2:
+      case MD_DEC_FRAC_4:
+      case MD_DEC_FRAC_8:
+      case MD_DEC_FRAC_16:
+      case MD_DEC_FRAC_32:
+      case MD_DEC_FRAC_64:
+      case MD_DEC_FRAC_128:
+      case MD_DEC_FRAC_256:
+      case MD_DEC_FRAC_512:
+        if ( val < 0 ) {
+          if ( i == len )
+           goto out_of_space;
+          str[ i++ ] = '-';
+          val = -val;
+        }
+        div  = 2 << ( hint - MD_DEC_FRAC_2 );
+        frac = (uint32_t) ( (uint64_t) val % div );
+        val /= div;
+        d    = int_digs( val );
+        if ( expand_fractions ) {
+          static const uint32_t one_fraction[] = {
+            5,           /* MD_DEC_FRAC_2 */
+            25,          /* MD_DEC_FRAC_4 */
+            125,         /* MD_DEC_FRAC_8 */
+             625,        /* MD_DEC_FRAC_16 */
+             3125,       /* MD_DEC_FRAC_32 */
+             15625,      /* MD_DEC_FRAC_64 */
+              78125,     /* MD_DEC_FRAC_128 */
+              390625,    /* MD_DEC_FRAC_256 */
+              1953125    /* MD_DEC_FRAC_512 */
+          //998046875
+          };
+          frac *= one_fraction[ hint - MD_DEC_FRAC_2 ];
+
+          j = hint - MD_DEC_FRAC_2;
+          if ( i + d + j + 2 > len )
+            goto out_of_space;
+          int_str( val, &str[ i ], d );
+          i += d;
+          str[ i++ ] = '.';
+          div = md_dec_powers_i[ j ];
+          do {
+            if ( i == len )
+              goto out_of_space;
+            str[ i++ ] = ( ( frac / div ) % 10 ) + '0';
+            div /= 10;
+          } while ( div != 0 );
+          return i;
+        }
+        j = uint_digs( frac );
+        k = uint_digs( div );
+
+        if ( i + d + j + k + 2 > len )
+          goto out_of_space;
+        int_str( val, &str[ i ], d );
+        i += d;
+        str[ i++ ] = ' ';
+        uint_str( frac, &str[ i ], j );
+        i += j;
+        str[ i++ ] = '/';
+        uint_str( div, &str[ i ], k );
+        return i + k;
+
+      default:
+        goto bad_dec;
+    }
+  }
+  if ( hint >= MD_DEC_LOGp10_1 ) {
+    i = int_digs( val );
+    if ( i + ( hint - MD_DEC_LOGp10_1 ) + 1 + 3 > len )
+      goto out_of_space;
+    int_str( val, str, i );
+    for ( ; hint >= MD_DEC_LOGp10_1; hint-- )
+      str[ i++ ] = '0';
+    str[ i++ ] = '.';
+    str[ i++ ] = '0';
+    return i;
+  }
+  if ( hint <= MD_DEC_LOGn10_1 ) {
+    size_t n, m;
+    i = int_digs( val );
+    if ( i > len )
+      goto out_of_space;
+    int_str( val, str, i );
+    n = i;
+    i = 0;
+    if ( val < 0 ) {
+      n -= 1;
+      i  = 1;
+    }
+    m = -(hint + 10);
+    if ( m > n ) {
+      m -= n;
+      if ( i + m + n > len )
+        goto out_of_space;
+      ::memmove( &str[ i + m ], &str[ i ], n );
+      ::memset( &str[ i ], '0', m );
+      n += m;
+      m = -(hint + 10);
+    }
+    /* 105221.60000000004
+     *        |-- m ----|
+     * |--- n ----------| */
+    if ( n == m ) {
+      if ( i + 2 + n > len )
+        goto out_of_space;
+      ::memmove( &str[ i + 2 ], &str[ i ], n );
+      n += 2;
+      str[ i ] = '0';
+      str[ i + 1 ] = '.';
+      return i + n;
+    }
+    else {
+      n -= m;
+      if ( i + n + m + 1 > len )
+        goto out_of_space;
+      ::memmove( &str[ i + n + 1 ], &str[ i + n ], m );
+      str[ i + n ] = '.';
+      return i + n + m + 1;
+    }
+  }
+  /* other hits are invalid */
+bad_dec:;
+  return 0;
+out_of_space:;
+  return 0;
+}
+
+int
+MDTime::parse( const char *fptr,  const size_t fsize )
+{
+  uint64_t ms = 0, val = 0;
+  uint32_t digits = 0, colon = 0, dot = 0;
+  bool has_digit = false;
+  this->zero();
+  for ( size_t i = 0; i < fsize && fptr[ i ] != 0; i++ ) {
+    if ( fptr[ i ] >= '0' && fptr[ i ] <= '9' ) {
+      val = ( val * 10 ) + ( fptr[ i ] - '0' );
+      digits++;
+      has_digit = true;
+    }
+    else if ( fptr[ i ] == ':' ) {
+      if ( val > 60 )
+        goto bad_time;
+      switch ( colon++ ) {
+        case 0: this->hour = val; break; /* [05]:01:58.384 */
+        case 1: this->min  = val; break; /* 05:[01]:58.384 */
+        case 2: this->sec  = val; break; /* 05:01:[58]:384 */
+        default: break;
+      }
+      val = 0;
+      digits = 0;
+    }
+    else if ( fptr[ i ] == '.' ) { /* 05:01:[58].384 */
+      if ( dot == 0 && colon == 2 ) /* 01:02:03.456 */
+        this->sec = val;
+      else if ( dot == 0 && colon == 1 ) /* 01:02.456 */
+        this->min = val;
+      else if ( colon == 0 ) /* 1300000000.000 timestamp */
+        ms = val;
+      dot++;
+      val = 0;
+      digits = 0;
+    }
+  }
+  if ( dot == 1 || colon == 3 ) {
+    while ( digits % 3 != 0 ) {
+      val *= 10;
+      digits++;
+    }
+    if ( digits <= 9 ) {
+      this->fraction = val;
+      this->resolution = digits / 3;
+    }
+    if ( ms != 0 ) {
+      val = ms;
+      goto get_mstime;
+    }
+  }
+  else if ( colon == 2 ) {
+    this->sec = val;
+    /* resolution already set */
+  }
+  else if ( colon == 1 ) {
+    this->min = val;
+    this->resolution = MD_RES_MINUTES;
+  }
+  /* a single number */
+  else {
+  get_mstime:;
+    while ( val > (uint64_t) 1300000000U * (uint64_t) 1000 )
+      val /= 1000;
+    if ( val > 1300000000U && val <= 0xffffffffU ) {
+      time_t t = (time_t) val;
+      struct tm tmbuf;
+      ::localtime_r( &t, &tmbuf );
+
+      this->hour = tmbuf.tm_hour;
+      this->min  = tmbuf.tm_min;
+      this->sec  = tmbuf.tm_sec;
+    }
+  }
+  if ( this->hour <= 24 && this->min <= 60 && this->sec <= 60 ) {
+    if ( ! has_digit )
+      this->resolution |= MD_RES_NULL;
+    return 0;
+  }
+bad_time:;
+  return Err::BAD_TIME;
+}
+
+static inline bool test_date_sep( char b,  char x,  char y ) {
+  return b == x || b == y;
+}
+
+static inline bool day_is_one( uint32_t m,  uint32_t y,  uint32_t &d ) {
+  d = ( m != 0 && y != 0 ) ? 1 : 0;
+  return true;
+}
+
+static bool get_current_year( uint32_t m,  uint32_t d,  uint32_t &y ) {
+  static time_t when;
+  static uint32_t yr = 2015;
+  static uint32_t mon, day;
+  if ( m == 0 && d == 0 ) {
+    y = 0;
+    return true;
+  }
+  time_t now = time( 0 );
+  if ( now < when || now - when > 60000 ) {
+    struct tm tmbuf;
+    ::localtime_r( &now, &tmbuf );
+
+    yr   = tmbuf.tm_year + 1900;
+    mon  = tmbuf.tm_mon + 1;
+    day  = tmbuf.tm_mday;
+    when = now;
+  }
+  y = yr;
+  if ( m == 12 && d == 31 ) {
+    if ( mon == 1 && day == 1 )
+      y--;
+  }
+  return true;
+}
+
+static inline bool parse2digits( const char *p,  uint32_t &d ) {
+  /* allow spaces for null */
+  if ( p[ 0 ] == ' ' && p[ 1 ] == ' ' )
+    return true;
+  /* 2 nums or 1 num and a space */
+  for ( uint32_t i = 0; i < 2; i++ ) {
+    if ( p[ i ] >= '0' && p[ i ] <= '9' )
+      d = ( d * 10 ) + ( p[ i ] - '0' );
+    else if ( p[ i ] != ' ' )
+      return false;
+  }
+  return true;
+}
+
+static bool parse_month( const char *p,  uint32_t n,  uint32_t &m ) {
+  m = 0;
+  if ( n == 2 ) {
+    if ( parse2digits( p, m ) ) {
+      if ( m == 0 || ( m >= 1 && m <= 12 ) )
+        return true;
+    }
+  }
+  else if ( n == 3 ) {
+    static const char x[] = "JFMAMJJASOND";
+    static const char y[] = "AEAPAUUUECOE";
+    static const char z[] = "NBRRYNLGPTVC";
+
+    for ( uint32_t i = 0; i < 12; i++ ) {
+      if ( ( x[ i ] == p[ 0 ] || x[ i ] + ' ' == p[ 0 ] ) && /* upper, lower */
+           ( y[ i ] == p[ 1 ] || y[ i ] + ' ' == p[ 1 ] ) &&
+           ( z[ i ] == p[ 2 ] || z[ i ] + ' ' == p[ 2 ] ) ) {
+        m = i + 1;
+        return true;
+      }
+    }
+    /* null */
+    if ( p[ 0 ] == ' ' && p[ 1 ] == ' ' && p[ 2 ] == ' ' )
+      return true;
+  }
+  return false;
+}
+
+static bool parse_day( const char *p,  uint32_t n,  uint32_t &d ) {
+  d = 0;
+  if ( n == 2 ) {
+    if ( parse2digits( p, d ) ) {
+      /* null or valid */
+      if ( d == 0 || ( d >= 1 && d <= 31 ) )
+        return true;
+    }
+  }
+  else if ( n == 1 ) {
+    if ( p[ 0 ] >= '0' && p[ 0 ] <= '9' ) {
+      d = ( p[ 0 ] - '0' );
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool parse_year( const char *p,  uint32_t n,  uint32_t &y ) {
+  y = 0;
+  if ( n == 2 || n == 4 ) {
+    uint32_t i;
+    for ( i = 0; i < n; i++ )
+      if ( p[ i ] != ' ' )
+        break;
+    if ( i == n ) /* all spaces, null */
+      return true;
+    for ( i = 0; i < n; i++ ) {
+      if ( p[ i ] >= '0' && p[ i ] <= '9' )
+        y = ( y * 10 ) + ( p[ i ] - '0' );
+      else
+        return false;
+    }
+    if ( n == 2 ) {
+      if ( y < 70 )
+        y += 2000;
+      else
+        y += 1900;
+      return true;
+    }
+    if ( y == 0 )
+      return true;
+    if ( y >= 1000 && y <= 9999 )
+      return true;
+  }
+  return false;
+}
+
+static bool parse_excel_date( const char *p,  uint32_t n,  uint32_t &m,
+                              uint32_t &d,  uint32_t &y ) {
+  time_t t = 0;
+  m = d = y = 0;
+
+  for ( uint32_t i = 0; i < n; i++ ) {
+    if ( p[ i ] >= '0' && p[ i ] <= '9' )
+      t = ( t * 10 ) + ( p[ i ] - '0' );
+    else
+      return false;
+  }
+  if ( t < 25569 )
+    return false;
+  t = ( t - 25569 ) * 86400;
+
+  struct tm tmbuf;
+  ::localtime_r( &t, &tmbuf );
+  y = tmbuf.tm_year + 1900;
+  m = tmbuf.tm_mon + 1;
+  d = tmbuf.tm_mday;
+  return true;
+}
+
+int
+MDDate::parse( const char *fptr,  const size_t fsize )
+{
+  uint32_t m, d, yr;
+  uint32_t sz, sz2;
+  bool success;
+
+  this->zero();
+  /* scan for nul char then eat white space at end */
+  for ( sz = 0; sz < fsize && fptr[ sz ] != 0; sz++ )
+    ;
+  for ( sz2 = sz; sz2 > 0 && fptr[ sz2 - 1 ] <= ' '; )
+    sz2--;
+  if ( sz2 != sz ) {
+    if ( sz2 > 0 && fptr[ sz2 - 1 ] != '/' && fptr[ sz2 - 1 ] != '-' )
+      sz = sz2;
+  }
+  success = false;
+
+try_again:;
+  m = d = yr = 0;
+  switch ( sz ) {
+    case 5: /* Feb14, 12345 (excel date) */
+      /* Feb14 */
+      success = ( parse_month( fptr, 3, m ) &&
+                  parse_year( &fptr[ 3 ], 2, yr ) &&
+                  day_is_one( m, yr, d ) );
+      /* 12345 */
+      if ( ! success )
+        success = parse_excel_date( fptr, 5, m, d, yr );
+      break;
+    case 6: /* May 15 */
+      success = ( fptr[ 3 ] == ' ' &&
+                  parse_month( fptr, 3, m ) &&
+                  parse_year( &fptr[ 4 ], 2, yr ) );
+      if ( success )
+        d = 1;
+      break;
+    case 7: /* 02APR13 */
+      /* 02APR13 */
+      success = ( parse_day( fptr, 2, d ) &&
+                  parse_month( &fptr[ 2 ], 3, m ) &&
+                  parse_year( &fptr[ 5 ], 2, yr ) );
+      break;
+    case 8: /* 01/01/95, JAN 2000, 20190601, 3 Jun 21, Jun 3 21 */
+      /* 01/01/95 */
+      if ( fptr[ 2 ] == '/' && fptr[ 5 ] == '/' )
+        success = ( parse_month( fptr, 2, m ) &&
+                    parse_day( &fptr[ 3 ], 2, d ) &&
+                    parse_year( &fptr[ 6 ], 2, yr ) );
+      /* JAN 2000 */
+      if ( ! success && fptr[ 3 ] == ' ' )
+        success = ( parse_month( fptr, 3, m ) &&
+                    parse_year( &fptr[ 4 ], 4, yr ) &&
+                    day_is_one( m, yr, d ) );
+      /* 3 Jun 21 */
+      if ( ! success && test_date_sep( fptr[ 1 ], '-', ' ' ) &&
+                        test_date_sep( fptr[ 5 ], '-', ' ' ) )
+        success = ( parse_day( fptr, 1, d ) &&
+                    parse_month( &fptr[ 2 ], 3, m ) &&
+                    parse_year( &fptr[ 6 ], 2, yr ) );
+      /* Jun 3 21 */
+      if ( ! success && test_date_sep( fptr[ 3 ], '-', ' ' ) &&
+                        test_date_sep( fptr[ 5 ], '-', ' ' ) )
+        success = ( parse_month( fptr, 3, m ) &&
+                    parse_day( &fptr[ 4 ], 1, d ) &&
+                    parse_year( &fptr[ 6 ], 2, yr ) );
+      /* 20190601 */
+      if ( ! success )
+        success = ( parse_year( fptr, 4, yr ) &&
+                    parse_month( &fptr[ 4 ], 2, m ) &&
+                    parse_day( &fptr[ 6 ], 2, d ) );
+      break;
+    case 9: /* 13-Jul-12, 13 Jul 12, 18Apr2014, Jul 13 12 */
+      /* 13-Jul-12, 13 Jul 12 */
+      if ( test_date_sep( fptr[ 2 ], '-', ' ' ) &&
+           test_date_sep( fptr[ 6 ], '-', ' ' ) )
+        success = ( parse_day( fptr, 2, d ) &&
+                    parse_month( &fptr[ 3 ], 3, m ) &&
+                    parse_year( &fptr[ 7 ], 2, yr ) );
+      /* 18Apr2014 */
+      if ( ! success )
+        success = ( parse_day( fptr, 2, d ) &&
+                    parse_month( &fptr[ 2 ], 3, m ) &&
+                    parse_year( &fptr[ 5 ], 4, yr ) );
+      /* Jul 13 12 */
+      if ( ! success &&
+           test_date_sep( fptr[ 3 ], '-', ' ' ) &&
+           test_date_sep( fptr[ 6 ], '-', ' ' ) )
+        success = ( parse_month( fptr, 3, m ) &&
+                    parse_day( &fptr[ 4 ], 2, d ) &&
+                    parse_year( &fptr[ 7 ], 2, yr ) );
+      break;
+    case 10: /* 04/23/2014, 2014/04/08, 2014-09-04, 21 08 2014, Mon Jun 08 */
+      /* 04/23/2014, 04-23-2014 */
+      if ( test_date_sep( fptr[ 2 ], '/', '-' ) &&
+           test_date_sep( fptr[ 5 ], '/', '-' ) )
+        success = ( parse_month( fptr, 2, m ) &&
+                    parse_day( &fptr[ 3 ], 2, d ) &&
+                    parse_year( &fptr[ 6 ], 4, yr ) );
+      /* 2014-09-04, 2014/09/04 */
+      if ( ! success && test_date_sep( fptr[ 4 ], '-', '/' ) &&
+                        test_date_sep( fptr[ 7 ], '-', '/' ) )
+        success = ( parse_year( fptr, 4, yr ) &&
+                    parse_month( &fptr[ 5 ], 2, m ) &&
+                    parse_day( &fptr[ 8 ], 2, d ) );
+      /* 21 08 2014 */
+      if ( ! success && fptr[ 2 ] == ' ' &&
+                        fptr[ 5 ] == ' ' )
+        success = ( parse_day( fptr, 2, d ) &&
+                    parse_month( &fptr[ 3 ], 2, m ) &&
+                    parse_year( &fptr[ 6 ], 4, yr ) );
+      /* Mon Jun 08 */
+      if ( ! success && fptr[ 3 ] == ' ' &&
+                        fptr[ 7 ] == ' ' )
+        success = ( parse_month( &fptr[ 4 ], 3, m ) &&
+                    parse_day( &fptr[ 8 ], 2, d ) &&
+                    get_current_year( m, d, yr ) );
+      break;
+    case 11: /* 08 JUL 2013, 31-Aug-2014, JUL 08 2013, Aug-31-2013,
+                06/01 05:36 */
+      /* 08 JUL 2013, 31-Aug-2014 */
+      if ( test_date_sep( fptr[ 2 ], ' ', '-' ) &&
+           test_date_sep( fptr[ 6 ], ' ', '-' ) )
+        success = ( parse_day( fptr, 2, d ) &&
+                    parse_month( &fptr[ 3 ], 3, m ) &&
+                    parse_year( &fptr[ 7 ], 4, yr ) );
+      /* JUL 08 2013, Aug-31-2013 */
+      if ( ! success && test_date_sep( fptr[ 3 ], ' ', '-' ) &&
+                        test_date_sep( fptr[ 6 ], ' ', '-' ) )
+        success = ( parse_month( fptr, 3, m ) &&
+                    parse_day( &fptr[ 4 ], 2, d ) &&
+                    parse_year( &fptr[ 7 ], 4, yr ) );
+      /* 06/01 05:36 */
+      if ( ! success && test_date_sep( fptr[ 2 ], '/', '-' ) &&
+                        fptr[ 5 ] == ' ' && fptr[ 8 ] == ':' )
+        success = ( parse_month( fptr, 2, m ) &&
+                    parse_day( &fptr[ 3 ], 2, d ) &&
+                    get_current_year( m, d, yr ) );
+      break;
+    case 0: /* null */
+      return 0;
+  }
+  if ( success ) {
+    if ( d >= 1 && d <= 31 &&
+         m >= 1 && m <= 12 &&
+         yr >= 1000 && yr <= 9999 ) {
+      this->day  = d;
+      this->mon  = m;
+      this->year = yr;
+      return 0;
+    }
+    if ( d == 0 && m == 0 && ( yr == 0 || yr == 2000 ) )
+      return 0;
+    /* invalid range */
+  }
+  if ( ! success ) {
+    /* eat white space */
+    if ( fptr[ sz - 1 ] == ' ' ) {
+      sz--;
+      goto try_again;
+    }
+    if ( fptr[ 0 ] == ' ' ) {
+      fptr++;
+      sz--;
+      goto try_again;
+    }
+  }
+  return Err::BAD_DATE;
+}
+
+static const uint8_t _NO_SEP_ = 1;
+static const char  * _EMPTY_  = NULL;
+
+static size_t
+cpy3( char *ptr,  size_t len,  uint32_t t1, const char *mon1,
+      uint8_t sep,  uint32_t t2,  const char *mon2 = NULL,
+      uint8_t sep2 = 0, uint32_t t3 = 0,  const char *mon3 = NULL )
+{
+  char * sav = NULL, tmp[ 16 ];
+  size_t j = 0;
+
+  if ( len < 16 ) {
+    sav = ptr;
+    ptr = tmp;
+  }
+  if ( mon1 != NULL ) {
+    do {
+      ptr[ j++ ] = (uint8_t) *mon1++;
+    } while ( *mon1 != '\0' );
+  }
+  else {
+    if ( t1 >= 1000 ) { /* if year */
+      ptr[ j++ ] = ( ( t1 / 1000 ) % 10 ) + '0';
+      ptr[ j++ ] = ( ( t1 / 100 ) % 10 ) + '0';
+    }
+    ptr[ j++ ] = ( ( t1 / 10 ) % 10 ) + '0';
+    ptr[ j++ ] =   ( t1 % 10 )        + '0';
+  }
+  if ( sep > _NO_SEP_ )
+    ptr[ j++ ] = sep;
+  if ( mon2 != NULL ) {
+    do {
+      ptr[ j++ ] = (uint8_t) *mon2++;
+    } while ( *mon2 != '\0' );
+  }
+  else {
+    if ( t2 >= 1000 ) { /* if year */
+      ptr[ j++ ] = ( ( t2 / 1000 ) % 10 ) + '0';
+      ptr[ j++ ] = ( ( t2 / 100 ) % 10 ) + '0';
+    }
+    ptr[ j++ ] = ( ( t2 / 10 ) % 10 ) + '0';
+    ptr[ j++ ] =   ( t2 % 10 )        + '0';
+  }
+  if ( sep2 != 0 ) {
+    if ( sep2 > _NO_SEP_ )
+      ptr[ j++ ] = sep2;
+    if ( mon3 != NULL ) {
+      do {
+        ptr[ j++ ] = (uint8_t) *mon3++;
+      } while ( *mon3 != '\0' );
+    }
+    else {
+      if ( t3 >= 1000 ) { /* if year */
+        ptr[ j++ ] = ( ( t3 / 1000 ) % 10 ) + '0';
+        ptr[ j++ ] = ( ( t3 / 100 ) % 10 ) + '0';
+      }
+      ptr[ j++ ] = ( ( t3 / 10 ) % 10 ) + '0';
+      ptr[ j++ ] =   ( t3 % 10 )        + '0';
+    }
+  }
+  if ( sav != NULL ) {
+    if ( j > len - 1 )
+      j = len - 1;
+    ::memcpy( sav, tmp, j );
+    sav[ j ] = '\0';
+  }
+  else {
+    ptr[ j ] = '\0';
+  }
+  return j;
+}
+
+size_t
+MDTime::get_string( char *str,  size_t len )
+{
+  uint32_t places, digit;
+  size_t   n = 0;
+
+  if ( len <= 1 ) {
+    if ( len == 1 )
+      str[ 0 ] = 0;
+    return 0;
+  }
+  if ( this->is_null() ) {
+    const char * p;
+    if ( this->res() == MD_RES_MINUTES )
+      p = "  :  ";
+    else
+      p = "  :  :  ";
+    for ( ; *p != '\0'; p++ ) {
+      if ( n < len - 1 )
+        str[ n++ ] = *p;
+    }
+    str[ n ] = '\0';
+    return n;
+  }
+  if ( this->res() == MD_RES_MINUTES )
+    return cpy3( str, len, this->hour, _EMPTY_, ':', this->min );
+  n = cpy3( str, len, this->hour, _EMPTY_, ':', this->min, _EMPTY_, ':',
+            this->sec );
+  switch ( this->res() ) {
+    case MD_RES_MILLISECS: places = 1000; break;
+    case MD_RES_MICROSECS: places = 1000 * 1000; break;
+    case MD_RES_NANOSECS:  places = 1000 * 1000 * 1000; break;
+    default:               places = 0; break;
+  }
+  if ( places != 0 ) {
+    if ( n < len - 1 ) {
+      str[ n++ ] = '.';
+      while ( n < len - 1 ) {
+        digit = this->fraction % places;
+        places /= 10;
+        digit /= places;
+        str[ n++ ] = '0' + (char) digit;
+        if ( places == 1 )
+          break;
+      }
+      str[ n ] = '\0';
+    }
+  }
+  return n;
+}
+
+
+size_t
+MDDate::get_string( char *str,  size_t len,  MDDateFormat fmt )
+{
+  static const char *MONTH_STR[] = {
+   0, "JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC" };
+
+  uint32_t t1 = 0, t2 = 0, t3 = 0;
+  const char *mon1 = _EMPTY_, *mon2 = _EMPTY_, *mon3 = _EMPTY_;
+  uint8_t sep1, sep2;
+
+  if ( len <= 1 ) {
+    if ( len == 1 )
+      str[ 0 ] = 0;
+    return 0;
+  }
+  if ( ( fmt & MD_DATE_FMT_dmy ) == MD_DATE_FMT_dmy ) {
+    t1 = this->day; t2 = this->mon; t3 = this->year;
+    if ( ( fmt & MD_DATE_FMT_MMM ) == MD_DATE_FMT_MMM )
+      mon2 = MONTH_STR[ this->mon ];
+    if ( ( fmt & MD_DATE_FMT_yyyy ) == 0 )
+      t3 %= 100;
+  }
+  else if ( ( fmt & MD_DATE_FMT_mdy ) == MD_DATE_FMT_mdy ) {
+    t1 = this->mon; t2 = this->day; t3 = this->year;
+    if ( ( fmt & MD_DATE_FMT_MMM ) == MD_DATE_FMT_MMM )
+      mon1 = MONTH_STR[ this->mon ];
+    if ( ( fmt & MD_DATE_FMT_yyyy ) == 0 )
+      t3 %= 100;
+  }
+  else if ( ( fmt & MD_DATE_FMT_ymd ) == MD_DATE_FMT_ymd ) {
+    t1 = this->year; t2 = this->mon; t3 = this->day;
+    if ( ( fmt & MD_DATE_FMT_MMM ) == MD_DATE_FMT_MMM )
+      mon2 = MONTH_STR[ this->mon ];
+    if ( ( fmt & MD_DATE_FMT_yyyy ) == 0 )
+      t1 %= 100;
+  }
+  else {
+    if ( ( fmt & MD_DATE_FMT_dd1 ) != 0 ) t1 = this->day;
+    else if ( ( fmt & MD_DATE_FMT_dd2 ) != 0 ) t2 = this->day;
+    else if ( ( fmt & MD_DATE_FMT_dd3 ) != 0 ) t3 = this->day;
+    if ( ( fmt & MD_DATE_FMT_mm1 ) != 0 ) {
+      t1 = this->mon;
+      if ( ( fmt & MD_DATE_FMT_MMM ) == MD_DATE_FMT_MMM )
+        mon1 = MONTH_STR[ this->mon ];
+    }
+    else if ( ( fmt & MD_DATE_FMT_mm2 ) != 0 ) {
+      t2 = this->mon;
+      if ( ( fmt & MD_DATE_FMT_MMM ) == MD_DATE_FMT_MMM )
+        mon2 = MONTH_STR[ this->mon ];
+    }
+    else if ( ( fmt & MD_DATE_FMT_mm3 ) != 0 ) {
+      t3 = this->mon;
+      if ( ( fmt & MD_DATE_FMT_MMM ) == MD_DATE_FMT_MMM )
+        mon3 = MONTH_STR[ this->mon ];
+    }
+    if ( ( fmt & MD_DATE_FMT_yy1 ) != 0 ) {
+      t1 = this->year;
+      if ( ( fmt & MD_DATE_FMT_yyyy ) == 0 )
+        t1 %= 100;
+    }
+    else if ( ( fmt & MD_DATE_FMT_yy2 ) != 0 ) {
+      t2 = this->year;
+      if ( ( fmt & MD_DATE_FMT_yyyy ) == 0 )
+        t2 %= 100;
+    }
+    else if ( ( fmt & MD_DATE_FMT_yy3 ) != 0 ) {
+      t3 = this->year;
+      if ( ( fmt & MD_DATE_FMT_yyyy ) == 0 )
+        t3 %= 100;
+    }
+  }
+  if ( ( fmt & MD_DATE_FMT_SPACE ) == MD_DATE_FMT_SPACE )
+    sep1 = ' ';
+  else if ( ( fmt & MD_DATE_FMT_SLASH ) == MD_DATE_FMT_SLASH )
+    sep1 = '/';
+  else if ( ( fmt & MD_DATE_FMT_DASH ) == MD_DATE_FMT_DASH )
+    sep1 = '-';
+  else
+    sep1 = _NO_SEP_;
+  if ( t3 != 0 )
+    sep2 = sep1;
+  else
+    sep2 = 0;
+  if ( ( t1 | t2 ) == 0 ) {
+    for ( size_t i = 0; ; i++ ) {
+      if ( i == len - 1 || i == 12 ) {
+        str[ i ] = '\0';
+        return i;
+      }
+      str[ i ] = ' ';
+    }
+  }
+  return cpy3( str, len, t1, mon1, sep1, t2, mon2, sep2, t3, mon3 );
+}
+
