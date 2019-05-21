@@ -19,6 +19,8 @@ static struct {
   uint32_t hint, idx;
 } match_hash[ MATCH_HASH_SIZE ];
 
+static uint8_t match_ftype[ MD_TYPE_COUNT ];
+
 }
 }
 
@@ -97,6 +99,10 @@ MDMsg::add_match( MDMatch &ma ) /* add msg matcher to a match group */
 
   match_arr[ add_cnt++ ] = &ma;
 
+  if ( ma.ftype > MD_MESSAGE ) {
+    if ( ma.ftype < MD_TYPE_COUNT )
+      match_ftype[ ma.ftype ] = add_cnt;
+  }
   if ( ma.len == 0 ) {  /* if no length, nothing to match, always try it */
     for ( i = 0; i < group_cnt; i++ ) {
       mg = match_group[ i ];
@@ -123,9 +129,8 @@ MDMsg::add_match( MDMatch &ma ) /* add msg matcher to a match group */
   }
   /* if msg class has a external type hash */
   if ( ma.hint_size > 0 ) {
-    unsigned int j;
     for ( i = 0; i < ma.hint_size; i++ ) {
-      j = ma.hint[ i ] % MATCH_HASH_SIZE;
+      uint32_t j = ma.hint[ i ] % MATCH_HASH_SIZE;
       while ( match_hash[ j ].hint != 0 )
         j = ( j + 1 ) % MATCH_HASH_SIZE;
       match_hash[ j ].hint = ma.hint[ i ];
@@ -140,9 +145,16 @@ MDMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
 {
   MDMatchGroup * mg;
   MDMsg        * msg;
-  unsigned int   i, j;
+  uint32_t       i, j;
   /* find decoder by match_hash[ h ] */
   if ( h != 0 ) {
+    if ( h < MD_TYPE_COUNT ) {
+      if ( (i = match_ftype[ h ]) != 0 ) {
+        MDMatch &ma = *match_arr[ i - 1 ];
+        if ( (msg = ma.unpack( bb, off, end, h, d, m )) != NULL )
+          return msg;
+      }
+    }
     j = h % MATCH_HASH_SIZE;
     for (;;) {
       if ( match_hash[ j ].hint == h ) {

@@ -19,7 +19,6 @@ struct TibMsg : public MDMsg {
   /* convert tib decimal to md decimal */
   static bool set_decimal( MDDecimal &dec,  double val,  uint8_t tib_hint );
 
-  /* may return tibmsg, sass qform or rv */
   static bool is_tibmsg( void *bb,  size_t off,  size_t len,  uint32_t h );
   static TibMsg *unpack( void *bb,  size_t off,  size_t len,  uint32_t h,
                          MDDict *d,  MDMsgMem *m );

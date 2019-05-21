@@ -30,24 +30,31 @@ struct MDOutput {
 };
 
 enum MDType { /* field types */
-  MD_NODATA   = 0, /* undefined field type */
-  MD_MESSAGE  = 1,
-  MD_STRING   = 2,
-  MD_OPAQUE   = 3,
-  MD_BOOLEAN  = 4,
-  MD_INT      = 5,
-  MD_UINT     = 6,
-  MD_REAL     = 7,
-  MD_ARRAY    = 8,
-  MD_PARTIAL  = 9,
-  MD_IPDATA   = 10, /* ^^ above enums are the same as tibmsg ( 0 -> 10 ) */
-  MD_SUBJECT  = 11,
-  MD_ENUM     = 12,
-  MD_TIME     = 13,
-  MD_DATE     = 14,
-  MD_DATETIME = 15,
-  MD_STAMP    = 16,
-  MD_DECIMAL  = 17
+  MD_NODATA      =  0, /* undefined field type */
+  MD_MESSAGE     =  1,
+  MD_STRING      =  2,
+  MD_OPAQUE      =  3,
+  MD_BOOLEAN     =  4,
+  MD_INT         =  5,
+  MD_UINT        =  6,
+  MD_REAL        =  7,
+  MD_ARRAY       =  8,
+  MD_PARTIAL     =  9,
+  MD_IPDATA      = 10, /* ^^ above enums are the same as tibmsg ( 0 -> 10 ) */
+  MD_SUBJECT     = 11,
+  MD_ENUM        = 12,
+  MD_TIME        = 13,
+  MD_DATE        = 14,
+  MD_DATETIME    = 15,
+  MD_STAMP       = 16,
+  MD_DECIMAL     = 17,
+  MD_LIST        = 18,
+  MD_HASH        = 19,
+  MD_SET         = 20,
+  MD_ZSET        = 21,
+  MD_GEO         = 22,
+  MD_HYPERLOGLOG = 23
+#define MD_TYPE_COUNT 24
 };
 
 enum MDEndian {

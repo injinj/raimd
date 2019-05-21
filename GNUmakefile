@@ -26,7 +26,7 @@ CC          ?= gcc
 CXX         ?= $(CC) -x c++
 cc          := $(CC)
 cpp         := $(CXX)
-arch_cflags := -std=c++11 -fno-omit-frame-pointer
+arch_cflags := -std=c++11 -fno-omit-frame-pointer -march=corei7-avx
 gcc_wflags  := -Wall -Werror
 fpicflags   := -fPIC
 soflag      := -shared
@@ -54,13 +54,31 @@ cppflags   := -fno-rtti -fno-exceptions
 #cpplink   := $(CC) -lasan
 cpplink    := $(CC)
 
-rpath      := -Wl,-rpath,$(pwd)/$(libd)
+have_dec_submodule := $(shell if [ -d ./libdecnumber ]; then echo yes; else echo no; fi )
+
 cpp_lnk    :=
 lnk_lib    :=
+
+ifeq (yes,$(have_dec_submodule))
+dec_lib     := libdecnumber/$(libd)/libdecnumber.a
+lnk_lib     += $(dec_lib)
+dlnk_lib    += -Llibdecnumber/$(libd) -ldecnumber
+rpath3       = ,-rpath,$(pwd)/libdecnumber/$(libd)
+else
+lnk_lib     += -ldecnumber
+dlnk_lib    += -ldecnumber
+endif
+
+rpath      := -Wl,-rpath,$(pwd)/$(libd)$(rpath3)
 math_lib   := -lm
 
 .PHONY: everything
-everything: all
+everything: $(dec_lib) all
+
+ifeq (yes,$(have_dec_submodule))
+$(dec_lib):
+	$(MAKE) -C libdecnumber
+endif
 
 # copr/fedora build (with version env vars)
 # copr uses this to generate a source rpm with the srpm target
@@ -76,16 +94,21 @@ all_dlls    :=
 all_depends :=
 
 libraimd_files := md_msg md_field_iter json json_msg rv_msg tib_msg \
-                  tib_sass_msg mf_msg rwf_msg md_dict cfile app_a enum_def
+                  tib_sass_msg mf_msg rwf_msg md_dict cfile app_a enum_def \
+                  decimal md_list md_hash md_set md_zset md_geo md_hll
 libraimd_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(libraimd_files)))
 libraimd_dbjs  := $(addprefix $(objd)/, $(addsuffix .fpic.o, $(libraimd_files)))
 libraimd_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(libraimd_files))) \
                   $(addprefix $(dependd)/, $(addsuffix .fpic.d, $(libraimd_files)))
+libraimd_dlnk  := $(dlnk_lib)
 libraimd_spec  := $(version)-$(build_num)
 libraimd_ver   := $(major_num).$(minor_num)
 
 $(libd)/libraimd.a: $(libraimd_objs)
 $(libd)/libraimd.so: $(libraimd_dbjs)
+
+raimd_dlib := $(libd)/libraimd.so
+raimd_dlnk := -L$(libd) -lraimd $(dlnk_lib)
 
 all_libs    += $(libd)/libraimd.a
 all_dlls    += $(libd)/libraimd.so
@@ -94,55 +117,107 @@ all_depends += $(libraimd_deps)
 test_mddec_files := test_mddec
 test_mddec_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_mddec_files)))
 test_mddec_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_mddec_files)))
-test_mddec_libs  := $(libd)/libraimd.so
-test_mddec_lnk   := -lraimd
+test_mddec_libs  := $(raimd_dlib)
+test_mddec_lnk   := $(raimd_dlnk)
 
 $(bind)/test_mddec: $(test_mddec_objs) $(test_mddec_libs)
 
 test_json_files := test_json
 test_json_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_json_files)))
 test_json_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_json_files)))
-test_json_libs  := $(libd)/libraimd.so
-test_json_lnk   := -lraimd
+test_json_libs  := $(raimd_dlib)
+test_json_lnk   := $(raimd_dlnk)
 
 $(bind)/test_json: $(test_json_objs) $(test_json_libs)
 
 test_msg_files := test_msg
 test_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_msg_files)))
 test_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_msg_files)))
-test_msg_libs  := $(libd)/libraimd.so
-test_msg_lnk   := -lraimd
+test_msg_libs  := $(raimd_dlib)
+test_msg_lnk   := $(raimd_dlnk)
 
 $(bind)/test_msg: $(test_msg_objs) $(test_msg_libs)
+
+test_list_files := test_list
+test_list_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_list_files)))
+test_list_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_list_files)))
+test_list_libs  := $(raimd_dlib)
+test_list_lnk   := $(raimd_dlnk)
+
+$(bind)/test_list: $(test_list_objs) $(test_list_libs)
+
+test_hash_files := test_hash
+test_hash_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_hash_files)))
+test_hash_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_hash_files)))
+test_hash_libs  := $(raimd_dlib)
+test_hash_lnk   := $(raimd_dlnk)
+
+$(bind)/test_hash: $(test_hash_objs) $(test_hash_libs)
+
+test_set_files := test_set
+test_set_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_set_files)))
+test_set_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_set_files)))
+test_set_libs  := $(raimd_dlib)
+test_set_lnk   := $(raimd_dlnk)
+
+$(bind)/test_set: $(test_set_objs) $(test_set_libs)
+
+test_zset_files := test_zset
+test_zset_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_zset_files)))
+test_zset_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_zset_files)))
+test_zset_libs  := $(raimd_dlib)
+test_zset_lnk   := $(raimd_dlnk)
+
+$(bind)/test_zset: $(test_zset_objs) $(test_zset_libs)
+
+test_geo_files := test_geo
+test_geo_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_geo_files)))
+test_geo_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_geo_files)))
+test_geo_libs  := $(raimd_dlib)
+test_geo_lnk   := $(raimd_dlnk)
+
+$(bind)/test_geo: $(test_geo_objs) $(test_geo_libs)
+
+test_hll_files := test_hll
+test_hll_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_hll_files)))
+test_hll_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_hll_files)))
+test_hll_libs  := $(raimd_dlib)
+test_hll_lnk   := $(raimd_dlnk)
+
+$(bind)/test_hll: $(test_hll_objs) $(test_hll_libs)
 
 test_mddict_files := test_dict
 test_mddict_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_mddict_files)))
 test_mddict_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_mddict_files)))
-test_mddict_libs  := $(libd)/libraimd.so
-test_mddict_lnk   := -lraimd
+test_mddict_libs  := $(raimd_dlib)
+test_mddict_lnk   := $(raimd_dlnk)
 
 $(bind)/test_mddict: $(test_mddict_objs) $(test_mddict_libs)
 
 read_msg_files := read_msg
 read_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(read_msg_files)))
 read_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(read_msg_files)))
-read_msg_libs  := $(libd)/libraimd.so
-read_msg_lnk   := -lraimd
+read_msg_libs  := $(raimd_dlib)
+read_msg_lnk   := $(raimd_dlnk)
 
 $(bind)/read_msg: $(read_msg_objs) $(read_msg_libs)
 
 write_msg_files := write_msg
 write_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(write_msg_files)))
 write_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(write_msg_files)))
-write_msg_libs  := $(libd)/libraimd.so
-write_msg_lnk   := -lraimd
+write_msg_libs  := $(raimd_dlib)
+write_msg_lnk   := $(raimd_dlnk)
 
 $(bind)/write_msg: $(write_msg_objs) $(write_msg_libs)
 
 all_exes    += $(bind)/test_mddec $(bind)/test_json $(bind)/test_msg \
-               $(bind)/test_mddict $(bind)/read_msg $(bind)/write_msg
+               $(bind)/test_mddict $(bind)/read_msg $(bind)/write_msg \
+	       $(bind)/test_list $(bind)/test_hash $(bind)/test_set \
+	       $(bind)/test_zset $(bind)/test_geo $(bind)/test_hll
 all_depends += $(test_mddec_deps) $(test_json_deps) $(test_msg_deps) \
-               $(test_mddict_deps) $(read_msg_deps) $(write_msg_deps)
+               $(test_mddict_deps) $(read_msg_deps) $(write_msg_deps) \
+	       $(test_list_deps) $(test_hash_deps) $(test_set_deps) \
+	       $(test_zset_deps) $(test_geo_deps) $(test_hll_deps)
 
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 
