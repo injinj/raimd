@@ -6,6 +6,9 @@
 #include <raimd/md_msg.h>
 #include <raimd/sass.h>
 #include <raimd/hex_dump.h>
+#include <raimd/md_list.h>
+#include <raimd/md_set.h>
+#include <raimd/md_hll.h>
 
 using namespace rai;
 using namespace md;
@@ -16,12 +19,12 @@ int MDMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg ) { msg = NULL; return E
 int MDMsg::get_reference( MDReference &mref ) { mref.zero(); return Err::INVALID_MSG; }
 int MDMsg::get_array_ref( MDReference &mref,  size_t i,  MDReference &aref ) { aref.zero(); return Err::INVALID_MSG; }
 
-int MDFieldIter::get_name( MDName &name ) { name.zero(); return Err::INVALID_MSG; }
-int MDFieldIter::get_reference( MDReference &mref ) { mref.zero(); return Err::INVALID_MSG; }
-int MDFieldIter::get_hint_reference( MDReference &mref ) { mref.zero(); return Err::INVALID_MSG; }
-int MDFieldIter::find( const char *name ) { return Err::INVALID_MSG; }
-int MDFieldIter::first( void ) { return Err::INVALID_MSG; }
-int MDFieldIter::next( void ) { return Err::INVALID_MSG; }
+int MDFieldIter::get_name( MDName &name ) { name.zero(); return 0; }
+int MDFieldIter::get_reference( MDReference &mref ) { mref.zero(); return Err::NOT_FOUND; }
+int MDFieldIter::get_hint_reference( MDReference &mref ) { mref.zero(); return Err::NOT_FOUND; }
+int MDFieldIter::find( const char *name ) { return Err::NOT_FOUND; }
+int MDFieldIter::first( void ) { return Err::NOT_FOUND; }
+int MDFieldIter::next( void ) { return Err::NOT_FOUND; }
 
 int
 MDDecimal::get_decimal( const MDReference &mref )
@@ -115,19 +118,38 @@ MDMsg::msg_to_string( MDReference &mref,  char *&buf,  size_t &len )
 }
 
 int
+MDMsg::hash_to_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  /* TODO */
+  return Err::INVALID_MSG;
+}
+
+int
+MDMsg::zset_to_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  /* TODO */
+  return Err::INVALID_MSG;
+}
+
+int
+MDMsg::geo_to_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  /* TODO */
+  return Err::INVALID_MSG;
+}
+
+int
 MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len )
 {
   static char mt[] = "[]";
   MDMsgMem    tmp,
             * sav = this->mem;
   MDReference aref;
-  size_t      num_entries;
-  char     ** str,
-            * astr = NULL;
+  char     ** str;
   size_t      i, j = 0,
             * k;
 
-  num_entries = mref.fsize;
+  size_t num_entries = mref.fsize;
   if ( mref.fentrysz > 0 )
     num_entries /= mref.fentrysz;
   if ( num_entries == 0 ) {
@@ -157,7 +179,101 @@ MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len )
     }
   }
   this->mem = sav;
-  this->mem->alloc( j + 3 + ( num_entries - 1 ), &astr );
+  return this->concat_array_to_string( str, k, num_entries, j, buf, len );
+}
+
+int
+MDMsg::list_to_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  static char mt[] = "[]";
+  MDMsgMem    tmp,
+            * sav = this->mem;
+  char     ** str;
+  size_t      i, j = 0,
+            * k;
+  ListData    ldata( mref.fptr, mref.fsize );
+
+  ldata.open( mref.fptr, mref.fsize );
+  size_t num_entries = ldata.count();
+  if ( num_entries == 0 ) {
+    buf = mt;
+    len = 2;
+    return 0;
+  }
+  this->mem = &tmp;
+  this->mem->alloc( num_entries * sizeof( str[ 0 ] ), &str );
+  this->mem->alloc( num_entries * sizeof( k[ 0 ] ), &k );
+  for ( i = 0; i < num_entries; i++ ) {
+    MDReference aref;
+    ListVal lv;
+    aref.zero();
+    if ( ldata.lindex( i, lv ) == LIST_OK ) {
+      aref.ftype = MD_STRING;
+      aref.fptr  = (uint8_t *) lv.data;
+      aref.fsize = lv.sz;
+      if ( lv.sz2 != 0 ) {
+        aref.fsize += lv.sz2;
+        this->mem->alloc( aref.fsize, &aref.fptr );
+        lv.copy_out( aref.fptr, 0, aref.fsize );
+      }
+    }
+    this->get_quoted_string( aref, str[ i ], k[ i ] );
+    j += k[ i ];
+  }
+  this->mem = sav;
+  return this->concat_array_to_string( str, k, num_entries, j, buf, len );
+}
+
+int
+MDMsg::set_to_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  static char mt[] = "[]";
+  MDMsgMem    tmp,
+            * sav = this->mem;
+  char     ** str;
+  size_t      i, j = 0,
+            * k;
+  SetData     sdata( mref.fptr, mref.fsize );
+
+  sdata.open( mref.fptr, mref.fsize );
+  size_t num_entries = sdata.hcount();
+  if ( num_entries <= 1 ) {
+    buf = mt;
+    len = 2;
+    return 0;
+  }
+  this->mem = &tmp;
+  this->mem->alloc( num_entries * sizeof( str[ 0 ] ), &str );
+  this->mem->alloc( num_entries * sizeof( k[ 0 ] ), &k );
+  for ( i = 0; i < num_entries; i++ ) {
+    MDReference aref;
+    ListVal lv;
+    aref.zero();
+    if ( sdata.lindex( i+1, lv ) == LIST_OK ) {
+      aref.ftype = MD_STRING;
+      aref.fptr  = (uint8_t *) lv.data;
+      aref.fsize = lv.sz;
+      if ( lv.sz2 != 0 ) {
+        aref.fsize += lv.sz2;
+        this->mem->alloc( aref.fsize, &aref.fptr );
+        lv.copy_out( aref.fptr, 0, aref.fsize );
+      }
+    }
+    this->get_quoted_string( aref, str[ i ], k[ i ] );
+    j += k[ i ];
+  }
+  this->mem = sav;
+  return this->concat_array_to_string( str, k, num_entries, j, buf, len );
+}
+
+int
+MDMsg::concat_array_to_string( char **str,  size_t *k,  size_t num_entries,
+                               size_t tot_len,  char *&buf,  size_t &len )
+{
+  char * astr = NULL;
+  size_t i, j;
+
+  this->mem->alloc( tot_len + 3 + ( num_entries - 1 ), &astr );
   j = 0;
   astr[ j++ ] = '[';
   ::memcpy( &astr[ j ], str[ 0 ], k[ 0 ] );
@@ -176,8 +292,22 @@ MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len )
 }
 
 int
+MDMsg::hll_to_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  HyperLogLog * hll = (HyperLogLog *) (void *) mref.fptr;
+  double e  = hll->estimate();
+  char   num[ 64 ];
+  len = float_str( ::round( e ), num );
+  this->mem->alloc( len + 1, &buf );
+  ::memcpy( buf, num, len );
+  buf[ len ] = '\0';
+  return 0;
+}
+
+int
 MDMsg::time_to_string( MDReference &mref,  char *&buf,  size_t &len )
 {
+  /* TODO */
   return 0;
 }
 
@@ -274,8 +404,14 @@ MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len )
       }
       goto return_num;
 
-    case MD_MESSAGE: return this->msg_to_string( mref, buf, len );
-    case MD_ARRAY:   return this->array_to_string( mref, buf, len );
+    case MD_MESSAGE:     return this->msg_to_string( mref, buf, len );
+    case MD_ARRAY:       return this->array_to_string( mref, buf, len );
+    case MD_LIST:        return this->list_to_string( mref, buf, len );
+    case MD_HASH:        return this->hash_to_string( mref, buf, len );
+    case MD_SET:         return this->set_to_string( mref, buf, len );
+    case MD_ZSET:        return this->zset_to_string( mref, buf, len );
+    case MD_GEO:         return this->geo_to_string( mref, buf, len );
+    case MD_HYPERLOGLOG: return this->hll_to_string( mref, buf, len );
 
     case MD_TIME: {
       MDTime time;
@@ -478,6 +614,12 @@ rai::md::md_type_str( MDType type,  size_t size )
     case MD_DATETIME:  return "datetime";
     case MD_STAMP:     return "stamp";
     case MD_DECIMAL:   return "decimal";
+    case MD_LIST:      return "list";
+    case MD_HASH:      return "hash";
+    case MD_SET:       return "set";
+    case MD_ZSET:      return "zset";
+    case MD_GEO:       return "geo";
+    case MD_HYPERLOGLOG: return "hyperloglog";
   }
   return "invalid";
 }
@@ -630,6 +772,12 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
     case MD_DATETIME:
     case MD_STAMP:
     case MD_DECIMAL:
+    case MD_LIST:
+    case MD_HASH:
+    case MD_SET:
+    case MD_ZSET:
+    case MD_GEO:
+    case MD_HYPERLOGLOG:
       if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
         out->puts( str );
       }

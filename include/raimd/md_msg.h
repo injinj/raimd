@@ -80,7 +80,7 @@ struct MDMatch { /* match msg features in the header */
   uint8_t  off,       /* offset of feature */
            len,       /* length of feature match */
            hint_size, /* an external hint[] words */
-           pad;
+           ftype;
   uint8_t  buf[ 4 ];  /* the values to match against the offset */
   uint32_t hint[ 2 ]; /* external hints */
 
@@ -154,12 +154,20 @@ struct MDMsg {
   virtual int get_array_ref( MDReference &mref, size_t i, MDReference &aref );
 
   int msg_to_string( MDReference &mref,  char *&buf,  size_t &len );
+  int hash_to_string( MDReference &mref,  char *&buf,  size_t &len );
+  int set_to_string( MDReference &mref,  char *&buf,  size_t &len );
+  int zset_to_string( MDReference &mref,  char *&buf,  size_t &len );
+  int geo_to_string( MDReference &mref,  char *&buf,  size_t &len );
+  int hll_to_string( MDReference &mref,  char *&buf,  size_t &len );
   int get_quoted_string( MDReference &mref,  char *&buf,  size_t &len );
   int get_escaped_string( MDReference &mref,  const char *quotes,
                            char *&buf,  size_t &len );
   int get_string( MDReference &mref, char *&buf,  size_t &len );
   int time_to_string( MDReference &mref,  char *&buf,  size_t &len );
   int array_to_string( MDReference &mref,  char *&buf,  size_t &len );
+  int list_to_string( MDReference &mref,  char *&buf,  size_t &len );
+  int concat_array_to_string( char **str,  size_t *k,  size_t num_entries,
+                              size_t tot_len,  char *&buf,  size_t &len );
 };
 
 }

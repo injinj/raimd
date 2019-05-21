@@ -2,38 +2,16 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <raimd/md_dict.h>
+#include <raimd/hash32.h>
 
 using namespace rai;
 using namespace md;
 
-/* murmur */
+/* crc_c */
 uint32_t
 MDDict::dict_hash( const void *key,  size_t len,  uint32_t seed )
 {
-  const uint32_t m = 0x5bd1e995;
-  const uint8_t * data = (const uint8_t *) key;
-  uint32_t h = seed ^ len;
-
-  while ( len >= 4 ) {
-    uint32_t k = ((uint32_t *) data)[ 0 ];
-    k *= m;
-    k ^= k >> 24;
-    k *= m;
-    h *= m;
-    h ^= k;
-    data = &data[ 4 ];
-    len -= 4;
-  }
-  switch( len ) {
-    case 3: h ^= data[ 2 ] << 16;
-    case 2: h ^= data[ 1 ] << 8;
-    case 1: h ^= data[ 0 ];
-            h *= m;
-  };
-  h ^= h >> 13;
-  h *= m;
-  h ^= h >> 15;
-  return h;
+  return hash32( key, len, seed );
 }
 
 uint32_t

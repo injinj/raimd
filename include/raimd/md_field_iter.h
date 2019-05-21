@@ -24,8 +24,8 @@ struct MDFieldIter { /* generic field iterator */
   virtual int next( void );
 
   /* escaped strings is used for json escaping */
-  int print( MDOutput *out, int indent_newline,
-                     const char *fname_fmt,  const char *type_fmt );
+  int print( MDOutput *out, int indent_newline, const char *fname_fmt,
+             const char *type_fmt );
   int print( MDOutput *out ) {
     return this->print( out, 1, "%-18s : " /* fname fmt */,
                                 "%-10s %3d : " /* type fmt */);

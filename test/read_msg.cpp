@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <raimd/md_dict.h>
 #include <raimd/cfile.h>
 #include <raimd/app_a.h>
