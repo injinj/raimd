@@ -35,7 +35,7 @@ static MDMatch hllmsg_match = {
 };
 
 bool
-HLLMsg::is_hllmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
+HLLMsg::is_hllmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
   uint8_t * buf = &((uint8_t *) bb)[ off ];
   size_t    len = end - off;

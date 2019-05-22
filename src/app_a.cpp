@@ -472,6 +472,7 @@ AppA::parse_path( MDDictBuild &dict_build,  const char *path,  const char *fn )
         }
         if ( ret == 0 )
           ret = Err::DICT_PARSE_ERROR;
+        /* FALLTHRU */
       case ATK_EOF:
         if ( ret == 0 && p->br_level != 0 ) {
           fprintf( stderr, "mismatched paren: ')' in file \"%s\"\n",

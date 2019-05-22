@@ -24,7 +24,7 @@ static MDMatch zsetmsg_match = {
 static inline bool is_mask( uint32_t m ) { return ( m & ( m + 1 ) ) == 0; }
 
 bool
-ZSetMsg::is_zsetmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
+ZSetMsg::is_zsetmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
   uint8_t * buf = &((uint8_t *) bb)[ off ];
   size_t    len = end - off;

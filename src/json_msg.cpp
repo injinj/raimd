@@ -22,7 +22,7 @@ static MDMatch json_match = {
 };
 
 bool
-JsonMsg::is_jsonmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
+JsonMsg::is_jsonmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
   if ( end-off >= 2 ) {
     const uint8_t *buf = (const uint8_t *) bb;
@@ -48,7 +48,7 @@ JsonMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
 }
 
 JsonMsg *
-JsonMsg::unpack_any( void *bb,  size_t off,  size_t end,  uint32_t h,
+JsonMsg::unpack_any( void *bb,  size_t off,  size_t end,  uint32_t,
                      MDDict *d,  MDMsgMem *m )
 {
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )

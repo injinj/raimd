@@ -712,7 +712,7 @@ struct ZSetData : public HashData {
 };
 
 struct ZSetMsg : public MDMsg {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   ZSetMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, len, d, m ) {}
@@ -731,7 +731,7 @@ struct ZSetFieldIter : public MDFieldIter {
   char     key[ 48 ];
   size_t   keylen;
   ZSetVal  val;
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   ZSetFieldIter( MDMsg &m ) : MDFieldIter( m ),
     zset( &((uint8_t *) m.msg_buf)[ m.msg_off ], m.msg_end - m.msg_off ) {
     this->zset.open();

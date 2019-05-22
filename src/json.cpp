@@ -50,19 +50,19 @@ namespace rai {
 namespace md {
 
 struct JsonValueP : public JsonValue {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   JsonValueP() { this->type = JSON_NULL; }
   int print( MDOutput *out );
 };
 
 struct JsonBooleanP : public JsonBoolean {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   JsonBooleanP(  bool v = false ) { this->type = JSON_BOOLEAN; this->val = v; }
   int print( MDOutput *out );
 };
 
 struct JsonNumberP : public JsonNumber {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   JsonNumberP( void ) {
     this->type = JSON_NUMBER;
     this->val.zero();
@@ -71,19 +71,19 @@ struct JsonNumberP : public JsonNumber {
 };
 
 struct JsonStringP : public JsonString {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   JsonStringP() { this->type = JSON_STRING; this->val = NULL; }
   int print( MDOutput *out );
 };
 
 struct JsonObjectP : public JsonObject {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   JsonObjectP() { this->type = JSON_OBJECT; this->val = 0; this->length = 0; }
   int print( MDOutput *out );
 };
 
 struct JsonArrayP : public JsonArray {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   JsonArrayP() { this->type = JSON_ARRAY; this->val = NULL; this->length = 0; }
   int print( MDOutput *out );
 };
@@ -153,7 +153,7 @@ struct JsonOne {
 } // namespace rai
 
 size_t
-JsonStreamInput::read( uint8_t *buf,  size_t len )
+JsonStreamInput::read( uint8_t *,  size_t )
 {
   return 0;
 }
@@ -388,16 +388,19 @@ JsonOne<JsonInput>::parse( JsonValue *&val )
         val = this->create_boolean( true );
         break;
       }
+      /* FALLTHRU */
     case 'f':
       if ( this->input.match( 'f', 'a', 'l', 's', 'e' ) ) {
         val = this->create_boolean( false );
         break;
       }
+      /* FALLTHRU */
     case 'n':
       if ( this->input.match( 'n', 'u', 'l', 'l', 0 ) ) {
         val = this->create_null();
         break;
       }
+      /* FALLTHRU */
     default:
       if ( is_ident_char( c ) ) {
         JsonStringP * str = this->create_string();

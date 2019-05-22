@@ -325,7 +325,7 @@ struct SetData : public HashData {
 };
 
 struct SetMsg : public MDMsg {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   SetMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, len, d, m ) {}

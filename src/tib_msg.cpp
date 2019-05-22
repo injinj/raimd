@@ -67,7 +67,7 @@ static MDMatch tibmsg_match = {
 };
 
 bool
-TibMsg::is_tibmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
+TibMsg::is_tibmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
   uint32_t magic = 0;
   if ( off + 9 <= end )
@@ -76,7 +76,7 @@ TibMsg::is_tibmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
 }
 
 TibMsg *
-TibMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
+TibMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
                 MDMsgMem *m )
 {
   if ( off + 9 > end )
@@ -273,6 +273,7 @@ TibFieldIter::unpack( void )
         this->hint_size = 0;
         break;
       }
+      /* FALLTHRU */
     case TIB_PARTIAL:
     case TIB_ARRAY:
       if ( i + 1 >= this->field_end )
@@ -482,24 +483,22 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
   }
   this->off += len;
   if ( mref.ftype == MD_PARTIAL ) {
-    size_t plen = ( ( mref.fentrysz <= 0xffU ) ? 2 : 5 );
+    /*size_t plen = ( ( mref.fentrysz <= 0xffU ) ? 2 : 5 );*/
     /* need hint data */
-    if ( ! this->has_space( plen ) )
+    if ( ! this->has_space( 2 ) )
       return Err::NO_SPACE;
     this->buf[ this->off + 9 + fname_len + 1 ] |= 0x40;
     ptr = &ptr[ mref.fsize ];
-    if ( plen == 2 ) {
-      ptr[ 0 ] = MD_UINT;
-      ptr[ 1 ] = (uint8_t) mref.fentrysz;
-    }
-    else {
+    ptr[ 0 ] = MD_UINT;
+    ptr[ 1 ] = (uint8_t) mref.fentrysz;
+    /*else {
       ptr[ 0 ] = MD_UINT | 0x80;
       ptr[ 1 ] = (uint8_t) ( ( mref.fentrysz >> 24 ) & 0xffU );
       ptr[ 2 ] = (uint8_t) ( ( mref.fentrysz >> 16 ) & 0xffU );
       ptr[ 3 ] = (uint8_t) ( ( mref.fentrysz >> 8 ) & 0xffU );
       ptr[ 4 ] = (uint8_t) ( mref.fentrysz & 0xffU );
-    }
-    this->off += plen;
+    }*/
+    this->off += 2;
 
   }
   return 0;
@@ -554,6 +553,7 @@ TibMsgWriter::append_decimal( const char *fname,  size_t fname_len,
         h = ( (int8_t) dec.hint - MD_DEC_FRAC_2 + TIB_HINT_DENOM_2 );
         break;
       }
+      /* FALLTHRU */
     case MD_DEC_NNAN:
     case MD_DEC_NAN:
     case MD_DEC_NINF:

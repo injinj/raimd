@@ -28,7 +28,7 @@ struct RwfMsg : public MDMsg {
   static int parse_header( const uint8_t *buf,  size_t buflen,
                            RwfFieldListHdr &hdr );
   /* used by UnPack() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   RwfMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, end, d, m ) {}
@@ -58,7 +58,7 @@ struct RwfFieldIter : public MDFieldIter {
   uint16_t     position;  /* partial offset / escape position */
 
   /* used by GetFieldIterator() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   RwfFieldIter( MDMsg &m ) : MDFieldIter( m ), ftype( MD_NODATA ), fsize( 0 ),
       fname( 0 ), fnamelen( 0 ), fid( 0 ), data_off( 0 ), field_idx( 0 ),

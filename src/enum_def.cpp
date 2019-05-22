@@ -236,6 +236,7 @@ EnumDef::parse_path( MDDictBuild &dict_build,  const char *path,
                  p->fname, p->lineno, (int) p->tok_sz, p->tok_buf );
         if ( ret == 0 )
           ret = Err::DICT_PARSE_ERROR;
+        /* FALLTHRU */
       case ETK_EOF:
         if ( ret == 0 ) {
           if ( p->map.tl != NULL ) /* last enum defined */

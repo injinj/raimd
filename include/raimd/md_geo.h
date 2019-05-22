@@ -139,7 +139,7 @@ struct GeoData : public HashData {
 };
 
 struct GeoMsg : public MDMsg {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   GeoMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, len, d, m ) {}
@@ -158,7 +158,7 @@ struct GeoFieldIter : public MDFieldIter {
   char    key[ 48 ];
   size_t  keylen;
   GeoVal  val;
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   GeoFieldIter( MDMsg &m ) : MDFieldIter( m ),
     geo( &((uint8_t *) m.msg_buf)[ m.msg_off ], m.msg_end - m.msg_off ) {
     this->geo.open();

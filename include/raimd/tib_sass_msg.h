@@ -8,7 +8,7 @@ namespace md {
 
 struct TibSassMsg : public MDMsg {
   /* used by UnPack() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   TibSassMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, end, d, m ) {}
@@ -41,7 +41,7 @@ struct TibSassFieldIter : public MDFieldIter {
   MDDate       date;
 
   /* used by GetFieldIterator() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   TibSassFieldIter( MDMsg &m ) : MDFieldIter( m ), fname( 0 ), fsize( 0 ),
                                  fid( 0 ), ftype( MD_NODATA ), fnamelen( 0 ) {}

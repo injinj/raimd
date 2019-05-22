@@ -226,7 +226,7 @@ struct MDEntryData { /* buffers for structures */
   MDEntryData * next;
   size_t        off;
   uint8_t       data[ 320 * 1024 - 64 ]; /* should only need one of these */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   MDEntryData() : next( 0 ), off( 0 ) {}
 
   void * alloc( size_t sz ) {
@@ -257,7 +257,7 @@ struct MDDictEntry {
   uint16_t      mf_len,
                 rwf_len;
   char          buf[ DICT_BUF_PAD ]; /* fname, name, ripple */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   MDDictEntry() : next( 0 ), fid( 0 ), fsize( 0 ), fno( 0 ), hash( 0 ),
                   ftype( MD_NODATA ), fnamelen( 0 ), namelen( 0 ),
                   ripplelen( 0 ), enum_len( 0 ), mf_type( 0 ), rwf_type( 0 ),
@@ -276,7 +276,7 @@ struct MDDictEntry {
 struct MDDupHash {
   uint8_t ht1[ 64 * 1024 / 8 ],
           ht2[ 64 * 1024 / 8 ];
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   void zero( void ) {
     ::memset( this->ht1, 0, sizeof( this->ht1 ) );
     ::memset( this->ht2, 0, sizeof( this->ht2 ) );
@@ -290,7 +290,7 @@ struct MDTypeHash {
            htsize,  /* 1 << htshft */
            htcnt,   /* count of elements used */
            ht[ 1 ]; /* each element is ( size << 5 ) | field type */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   MDTypeHash() : htshft( 0 ), htsize( 0 ), htcnt( 0 ) {}
   static uint32_t alloc_size( uint32_t shft ) {
     uint32_t htsz = ( 1U << shft );
@@ -318,7 +318,7 @@ struct MDFilename {
   MDFilename * next;
   uint32_t     id;  /* filename + line number, location for dict errors */
   char         filename[ DICT_BUF_PAD ];
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   MDFilename() : next( 0 ), id( 0 ) {}
 };
 
@@ -353,7 +353,7 @@ struct MDEnumMap {
 struct MDEnumList {
   MDEnumList * next;
   MDEnumMap    map;
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   MDEnumList() : next( 0 ) {}
 };
 
@@ -374,7 +374,7 @@ struct MDDictIdx {
   static const size_t ENUM_HTSZ = 1024;
   MDDictEntry * enum_ht[ ENUM_HTSZ ];
 
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   void operator delete( void *ptr ) { ::free( ptr ); }
 
   MDDictIdx() : dup_hash( 0 ), type_hash( 0 ), min_fid( 0 ), max_fid( 0 ),

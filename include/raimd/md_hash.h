@@ -845,7 +845,7 @@ struct HashData : public ListData {
 };
 
 struct HashMsg : public MDMsg {
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   HashMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, len, d, m ) {}
@@ -862,7 +862,7 @@ struct HashMsg : public MDMsg {
 struct HashFieldIter : public MDFieldIter {
   HashData hash;
   HashVal  val;
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   HashFieldIter( MDMsg &m ) : MDFieldIter( m ),
     hash( &((uint8_t *) m.msg_buf)[ m.msg_off ], m.msg_end - m.msg_off ) {
     this->hash.open();

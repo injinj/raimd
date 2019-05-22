@@ -73,7 +73,7 @@ struct CFRecField {
   char fname[ 256 ],
        classname[ 256 ];
   
-  void * operator new( size_t sz, void *ptr ) { return ptr; } 
+  void * operator new( size_t, void *ptr ) { return ptr; } 
   void operator delete( void *ptr ) { ::free( ptr ); } 
 
   CFRecField( const char *fn, size_t sz ) {
@@ -106,7 +106,7 @@ struct CFile : public DictParser {
   char     ident[ 256 ];
   MDQueue< CFRecField > fld;
 
-  void * operator new( size_t sz, void *ptr ) { return ptr; } 
+  void * operator new( size_t, void *ptr ) { return ptr; } 
   void operator delete( void *ptr ) { ::free( ptr ); } 
 
   CFile( CFile *n,  const char *p )

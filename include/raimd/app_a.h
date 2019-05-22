@@ -91,7 +91,7 @@ struct AppA : public DictParser {
           dde_acro[ 256 ],
           ripples_to[ 256 ];
 
-  void * operator new( size_t sz, void *ptr ) { return ptr; } 
+  void * operator new( size_t, void *ptr ) { return ptr; } 
   void operator delete( void *ptr ) { ::free( ptr ); } 
 
   AppA( const char *p ) : DictParser( p, ATK_INT, ATK_IDENT, ATK_ERROR ) {
