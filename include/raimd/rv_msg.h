@@ -8,7 +8,7 @@ namespace md {
 
 struct RvMsg : public MDMsg {
   /* used by UnPack() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   RvMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, end, d, m ) {}
@@ -32,7 +32,7 @@ struct RvFieldIter : public MDFieldIter {
            name_len;
 
   /* used by GetFieldIterator() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   RvFieldIter( MDMsg &m )
     : MDFieldIter( m ), size( 0 ), type( 0 ), name_len( 0 ) {}

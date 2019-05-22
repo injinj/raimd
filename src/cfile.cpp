@@ -310,6 +310,7 @@ CFile::parse_path( MDDictBuild &dict_build,  const char *path,  const char *fn )
                  p->fname, p->lineno, (int) p->tok_sz, p->tok_buf );
         if ( ret == 0 )
           ret = Err::DICT_PARSE_ERROR;
+        /* FALLTHRU */
       case CFT_EOF:
         if ( ret == 0 && p->br_level != 0 ) {
           fprintf( stderr, "mismatched brackets: '}' in file \"%s\"\n",

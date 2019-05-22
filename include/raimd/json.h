@@ -24,7 +24,7 @@ struct MDMsgMem;
 struct JsonParser {
   MDMsgMem  & mem;
   JsonValue * value;
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   JsonParser( MDMsgMem &m ) : mem( m ) {}
   /* result contains the offset of json[] consumed as well as the memory

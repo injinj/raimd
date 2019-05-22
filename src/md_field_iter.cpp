@@ -15,14 +15,14 @@ using namespace md;
 
 const char * MDMsg::get_proto_string( void ) { return "NO PROTOCOL"; }
 int MDMsg::get_field_iter( MDFieldIter *&iter ) { iter = NULL; return Err::INVALID_MSG; }
-int MDMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg ) { msg = NULL; return Err::INVALID_MSG; }
+int MDMsg::get_sub_msg( MDReference &,  MDMsg *&msg ) { msg = NULL; return Err::INVALID_MSG; }
 int MDMsg::get_reference( MDReference &mref ) { mref.zero(); return Err::INVALID_MSG; }
-int MDMsg::get_array_ref( MDReference &mref,  size_t i,  MDReference &aref ) { aref.zero(); return Err::INVALID_MSG; }
+int MDMsg::get_array_ref( MDReference &,  size_t,  MDReference &aref ) { aref.zero(); return Err::INVALID_MSG; }
 
 int MDFieldIter::get_name( MDName &name ) { name.zero(); return 0; }
 int MDFieldIter::get_reference( MDReference &mref ) { mref.zero(); return Err::NOT_FOUND; }
 int MDFieldIter::get_hint_reference( MDReference &mref ) { mref.zero(); return Err::NOT_FOUND; }
-int MDFieldIter::find( const char *name ) { return Err::NOT_FOUND; }
+int MDFieldIter::find( const char * ) { return Err::NOT_FOUND; }
 int MDFieldIter::first( void ) { return Err::NOT_FOUND; }
 int MDFieldIter::next( void ) { return Err::NOT_FOUND; }
 
@@ -36,7 +36,7 @@ MDDecimal::get_decimal( const MDReference &mref )
         this->ival = get_int<int64_t>( mref.fptr, mref.fendian );
         this->hint = mref.fptr[ sizeof( int64_t ) ];
         return 0;
-      }
+      } /* FALLTHRU */
     default:
       return Err::BAD_DECIMAL;
 
@@ -103,7 +103,7 @@ MDDate::get_date( const MDReference &mref )
 }
 
 int
-MDFieldIter::get_enum( MDReference &mref,  MDEnum &enu )
+MDFieldIter::get_enum( MDReference &,  MDEnum &enu )
 {
   /* fetch enum from dictionary */
   enu.zero();
@@ -111,28 +111,28 @@ MDFieldIter::get_enum( MDReference &mref,  MDEnum &enu )
 }
 
 int
-MDMsg::msg_to_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::msg_to_string( MDReference &,  char *&,  size_t & )
 {
   /* TODO */
   return Err::INVALID_MSG;
 }
 
 int
-MDMsg::hash_to_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::hash_to_string( MDReference &,  char *&,  size_t & )
 {
   /* TODO */
   return Err::INVALID_MSG;
 }
 
 int
-MDMsg::zset_to_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::zset_to_string( MDReference &,  char *&,  size_t & )
 {
   /* TODO */
   return Err::INVALID_MSG;
 }
 
 int
-MDMsg::geo_to_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::geo_to_string( MDReference &,  char *&,  size_t & )
 {
   /* TODO */
   return Err::INVALID_MSG;
@@ -305,7 +305,7 @@ MDMsg::hll_to_string( MDReference &mref,  char *&buf,  size_t &len )
 }
 
 int
-MDMsg::time_to_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::time_to_string( MDReference &,  char *&,  size_t & )
 {
   /* TODO */
   return 0;
@@ -493,6 +493,7 @@ MDMsg::get_escaped_string( MDReference &mref,  const char *quotes,
       case 0:
         if ( mref.ftype == MD_STRING )
           goto end_of_string;
+        /* FALLTHRU */
       default:
         j += ( ( ptr[ i ] >= ' ' && ptr[ i ] <= '~' ) ? 1 : 6 );
         break;
@@ -515,7 +516,7 @@ end_of_string:;
       case 0:
         if ( mref.ftype == MD_STRING )
           goto break_loop;
-        /*str[ j++ ] = '\\'; str[ j++ ] = '0'; break;*/
+        /* FALLTHRU */
       default:
         if ( ptr[ i ] >= ' ' && ptr[ i ] <= '~' )
           str[ j++ ] = (char) ptr[ i ];

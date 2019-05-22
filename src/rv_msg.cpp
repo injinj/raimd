@@ -57,7 +57,7 @@ static MDMatch rvmsg_match = {
 };
 
 bool
-RvMsg::is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
+RvMsg::is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
   uint32_t magic = 0;
   if ( off + 8 <= end )
@@ -66,9 +66,11 @@ RvMsg::is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
 }
 
 MDMsg *
-RvMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
+RvMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
                MDMsgMem *m )
 {
+  if ( off + 8 > end )
+    return NULL;
   uint32_t magic    = get_u32<MD_BIG>( &((uint8_t *) bb)[ off + 4 ] );
   size_t   msg_size = get_u32<MD_BIG>( &((uint8_t *) bb)[ off ] );
 
@@ -80,6 +82,8 @@ RvMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
   /* check if another message is the first opaque field of the RvMsg */
   size_t off2 = off + 8,
          end2 = off + msg_size;
+  if ( end2 > end )
+    return NULL;
   MDMsg *msg = RvMsg::opaque_extract( (uint8_t *) bb, off2, end2, d, m );
   if ( msg == NULL ) {
     void * ptr;

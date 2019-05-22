@@ -12,7 +12,7 @@ struct JsonObject;
 
 struct JsonMsg : public MDMsg {
   /* used by unpack() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   JsonValue * js; /* any json atom:  object, string, array, number */
 
@@ -40,7 +40,7 @@ struct JsonFieldIter : public MDFieldIter {
   JsonMsg    & me;
   JsonObject & obj;
 
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   JsonFieldIter( JsonMsg &m,  JsonObject &o ) : MDFieldIter( m ),
     me( m ), obj( o ) {}

@@ -24,7 +24,7 @@ static MDMatch hashmsg_match = {
 static inline bool is_mask( uint32_t m ) { return ( m & ( m + 1 ) ) == 0; }
 
 bool
-HashMsg::is_hashmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
+HashMsg::is_hashmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
   uint8_t * buf = &((uint8_t *) bb)[ off ];
   size_t    len = end - off;

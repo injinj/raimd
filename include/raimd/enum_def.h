@@ -20,7 +20,7 @@ struct EnumValue {
   size_t   len;
   char     str[ 4 ];
 
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
   void operator delete( void *ptr ) { ::free( ptr ); }
 
   EnumValue( char *s,  size_t sz,  uint32_t v,  int ln )
@@ -44,7 +44,7 @@ struct EnumDef : public DictParser {
   MDQueue< EnumValue > acro;
   MDQueue< EnumValue > map;
 
-  void * operator new( size_t sz, void *ptr ) { return ptr; } 
+  void * operator new( size_t, void *ptr ) { return ptr; } 
   void operator delete( void *ptr ) { ::free( ptr ); } 
 
   EnumDef( const char *p ) : DictParser( p, ETK_INT, ETK_IDENT, ETK_ERROR ),

@@ -24,7 +24,7 @@ struct MktfdMsg : public MDMsg {
   int parse_header( void );
 
   /* used by unpack() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   MktfdMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, end, d, m ), data_start( 0 ), data_end( 0 ),
@@ -57,7 +57,7 @@ struct MktfdFieldIter : public MDFieldIter {
   uint8_t      rep_buf[ 128 ]; /* for repeat escape codes */
 
   /* used by GetFieldIterator() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   MktfdFieldIter( MDMsg &m ) : MDFieldIter( m ), ftype( MD_NODATA ), fsize( 0 ),
       fname( 0 ), fnamelen( 0 ), fid( 0 ), data_off( 0 ), position( 0 ),

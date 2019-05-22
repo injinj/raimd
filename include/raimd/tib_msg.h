@@ -8,7 +8,7 @@ namespace md {
 
 struct TibMsg : public MDMsg {
   /* used by unpack() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   TibMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, len, d, m ) {}
@@ -38,7 +38,7 @@ struct TibFieldIter : public MDFieldIter {
   MDTime    time;         /* temp storage for time */
 
   /* used by GetFieldIterator() to alloc in MDMsgMem */
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   TibFieldIter( MDMsg &m ) : MDFieldIter( m ), size( 0 ), hint_size( 0 ),
     name_len( 0 ), type( 0 ), hint_type( 0 ) {}

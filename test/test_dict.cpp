@@ -377,7 +377,7 @@ static bool gen_sass_entry( MDFid new_fid,  const MDDictEntry *mentry,
                             SassCounts &cnt,  bool is_collision );
 
 static void
-gen_sass_fields( MDDictBuild &dict_build,  MDDict *dict )
+gen_sass_fields( MDDictBuild &dict_build,  MDDict * )
 {
   static const uint16_t MAX_SASS_FID = 16 * 1024 - 1;
   static const MDFid base_fid = 10700 - 1; /* + fid(non-zero) >= 10700 */

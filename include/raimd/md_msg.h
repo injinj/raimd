@@ -116,7 +116,7 @@ struct MDMsg {
   MDMsgMem * mem; /* ref count increment in unpack() and get_sub_msg()
                      ref count decrement in release() */
   void * operator new( size_t, void *ptr ) { return ptr; }
-  void operator delete( void *ptr ) { /*::free( ptr );*/ } /* do nothing */
+  void operator delete( void * ) { /*::free( ptr );*/ } /* do nothing */
 
   MDMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : msg_buf( bb ), msg_off( off ), msg_end( end ), dict( d ), mem( m ) {}

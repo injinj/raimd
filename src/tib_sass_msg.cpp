@@ -80,7 +80,7 @@ static MDMatch tibsassmsg_match = {
 };
 
 bool
-TibSassMsg::is_tibsassmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
+TibSassMsg::is_tibsassmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
   uint32_t magic = 0;
   if ( off + 8 <= end )
@@ -89,7 +89,7 @@ TibSassMsg::is_tibsassmsg( void *bb,  size_t off,  size_t end,  uint32_t h )
 }
 
 TibSassMsg *
-TibSassMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
+TibSassMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
                     MDMsgMem *m )
 {
   if ( off + 8 > end )
@@ -608,6 +608,7 @@ TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
             h = ( (int8_t) dec.hint - MD_DEC_FRAC_2 + TSS_HINT_DENOM_2 );
             break;
           }
+          /* FALLTHRU */
         case MD_DEC_NNAN:
         case MD_DEC_NAN:
         case MD_DEC_NINF:

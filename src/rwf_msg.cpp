@@ -30,7 +30,7 @@ RwfMsg::init_auto_unpack( void )
 }
 
 bool
-RwfMsg::is_rwf( void *bb,  size_t off,  size_t end,  uint32_t h )
+RwfMsg::is_rwf( void *bb,  size_t off,  size_t end,  uint32_t )
 {
   RwfFieldListHdr hdr;
   return off < end &&
@@ -87,7 +87,7 @@ RwfMsg::parse_header( const uint8_t *buf,  size_t buflen,
 
 
 RwfMsg *
-RwfMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+RwfMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
                 MDDict *d,  MDMsgMem *m )
 {
   RwfFieldListHdr hdr;
@@ -596,24 +596,24 @@ get_rwf_int_len( const uint8_t *ival,  size_t ilen )
       uint32_t u32 = ( val.u64 >> 32 );
       if ( u32 != 0 && u32 != 0xffffffffU )
         break;
-      /* FALLTHRU */
     }
+    /* FALLTHRU */
     case 4: {
       uint16_t u16 = ( val.u32 >> 16 );
       if ( u16 != 0 && u16 != 0xffffU ) {
         ilen = 4;
         break;
       }
-      /* FALLTHRU */
     }
+    /* FALLTHRU */
     case 2: {
       uint8_t u8 = ( val.u16 >> 8 );
       if ( u8 != 0 && u8 != 0xff ) {
         ilen = 2;
         break;
       }
-      /* FALLTHRU */
     }
+    /* FALLTHRU */
     default:
       ilen = 1;
       break;
@@ -784,7 +784,7 @@ RwfMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
         slen = fsize;
       if ( mref.ftype == MD_PARTIAL && mref.fentrysz != 0 )
         return this->pack_partial( fid, fptr, slen, mref.fentrysz );
-
+      /* FALLTHRU */
     case MD_OPAQUE:
     case MD_STRING: {
       if ( mref.ftype == MD_STRING || mref.ftype == MD_PARTIAL ||

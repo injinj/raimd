@@ -41,7 +41,7 @@ dec_number_from_int64( int64_t ival, decNumber *v,  int init )
   else {
     decContext ctx;
     decNumber m, n;
-    decContextDefault( &ctx, DEC_INIT_DECIMAL64 );
+    decContextDefault( &ctx, init );
     int64_t jval = ival >> 30;
     uint64_t kval;
     if ( jval >= -2147483648LL && jval <= 2147483647LL ) {

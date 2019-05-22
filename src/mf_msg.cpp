@@ -47,7 +47,7 @@ MktfdMsg::init_auto_unpack( void )
 }
 
 bool
-MktfdMsg::is_marketfeed( void *bb,  size_t off,  size_t end,  uint32_t h )
+MktfdMsg::is_marketfeed( void *bb,  size_t off,  size_t end,  uint32_t )
 {
   if ( off + 5 < end ) {
     const uint8_t *buf = (uint8_t *) bb;
@@ -227,7 +227,7 @@ MktfdMsg::parse_header( void )
 }
 
 MktfdMsg *
-MktfdMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+MktfdMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
                   MDDict *d,  MDMsgMem *m )
 {
   if ( off + 2 > end ||
@@ -515,8 +515,9 @@ MktfdFieldIter::get_reference( MDReference &mref )
 }
 
 int
-MktfdFieldIter::find( const char *name )
+MktfdFieldIter::find( const char * )
 {
+  /* TODO */
   return Err::NOT_FOUND;
 }
 
