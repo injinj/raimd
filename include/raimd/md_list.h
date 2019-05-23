@@ -795,17 +795,20 @@ struct ListData : public ListHeader {
     return this->length( LIST_CALL( data_len ) );
   }
 
+  static bool sig_eq( uint64_t x,  uint64_t y ) {
+    return ( x >> 4 ) == ( y >> 4 ); /* lower 4 bits differ based on type */
+  }
   int lverify( void ) const {
     if ( is_uint8( this->size ) ) {
-      if ( ((ListStorage8 *) this->listp)->_list_sig != lst8_sig )
+      if ( ! sig_eq( ((ListStorage8 *) this->listp)->_list_sig, lst8_sig ) )
         return -1;
     }
     else if ( is_uint16( this->size ) ) {
-      if ( ((ListStorage16 *) this->listp)->_list_sig != lst16_sig )
+      if ( ! sig_eq( ((ListStorage16 *) this->listp)->_list_sig, lst16_sig ) )
         return -2;
     }
     else {
-      if ( ((ListStorage32 *) this->listp)->_list_sig != lst32_sig )
+      if ( ! sig_eq( ((ListStorage32 *) this->listp)->_list_sig, lst32_sig ) )
         return -3;
     }
     return LIST_CALL( lverify( *this ) );
