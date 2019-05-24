@@ -714,6 +714,11 @@ struct HashData : public ListData {
   HashData() : ListData() {}
   HashData( void *l,  size_t sz ) : ListData( l, sz ) {}
 
+  static size_t alloc_size( size_t &idx_size,  size_t &dat_size ) {
+    idx_size = ( idx_size + (size_t) 7 ) & ~(size_t) 7;
+    dat_size = ( idx_size + (size_t) 15 ) & ~(size_t) 15;
+    return ListData::alloc_size( idx_size, dat_size );
+  }
   size_t resize_size( size_t &idx_size,  size_t &dat_size ) {
     dat_size += this->data_len();
     dat_size += dat_size / 2 + 2;
