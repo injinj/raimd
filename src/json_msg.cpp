@@ -190,7 +190,7 @@ JsonMsg::get_array_ref( MDReference &mref,  size_t i,  MDReference &aref )
 }
 
 int
-JsonFieldIter::find( const char *name )
+JsonFieldIter::find( const char *name,  size_t,  MDReference &mref )
 {
   if ( name != NULL ) {
     for ( size_t i = 0; i < this->obj.length; i++ ) {
@@ -198,7 +198,7 @@ JsonFieldIter::find( const char *name )
       if ( ::strcmp( name, pair.name ) == 0 ) {
         this->field_start = i;
         this->field_end   = i + 1;
-        return 0;
+        return this->get_reference( mref );
       }
     }
   }

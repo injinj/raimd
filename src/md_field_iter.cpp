@@ -22,7 +22,7 @@ int MDMsg::get_array_ref( MDReference &,  size_t,  MDReference &aref ) { aref.ze
 int MDFieldIter::get_name( MDName &name ) { name.zero(); return 0; }
 int MDFieldIter::get_reference( MDReference &mref ) { mref.zero(); return Err::NOT_FOUND; }
 int MDFieldIter::get_hint_reference( MDReference &mref ) { mref.zero(); return Err::NOT_FOUND; }
-int MDFieldIter::find( const char * ) { return Err::NOT_FOUND; }
+int MDFieldIter::find( const char *,  size_t,  MDReference & ) { return Err::NOT_FOUND; }
 int MDFieldIter::first( void ) { return Err::NOT_FOUND; }
 int MDFieldIter::next( void ) { return Err::NOT_FOUND; }
 

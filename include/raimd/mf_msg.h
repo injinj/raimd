@@ -68,7 +68,7 @@ struct MktfdFieldIter : public MDFieldIter {
   virtual int get_enum( MDReference &mref,  MDEnum &enu ) final;
   virtual int get_reference( MDReference &mref ) final;
   virtual int get_hint_reference( MDReference &mref ) final;
-  virtual int find( const char *name ) final;
+  virtual int find( const char *name, size_t name_len, MDReference &mref )final;
   virtual int first( void ) final;
   virtual int next( void ) final;
   int unpack( void );

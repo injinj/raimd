@@ -19,7 +19,7 @@ struct MDFieldIter { /* generic field iterator */
   virtual int get_reference( MDReference &mref );
   virtual int get_hint_reference( MDReference &mref );
   virtual int get_enum( MDReference &mref, MDEnum &enu );
-  virtual int find( const char *name );
+  virtual int find( const char *name,  size_t name_len,  MDReference &mref );
   virtual int first( void );
   virtual int next( void );
 

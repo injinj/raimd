@@ -25,6 +25,7 @@ main( int argc, char **argv )
                          };
   MDOutput mout;
   MDMsgMem mem;
+  MDReference mref;
 
   for ( size_t i = 0; i < sizeof( sinput ) / sizeof( sinput[ 0 ] ); i++ ) {
     JsonMsg * m = JsonMsg::unpack_any( (void *) sinput[ i ], 0,
@@ -35,7 +36,7 @@ main( int argc, char **argv )
       m->print( &mout );
       MDFieldIter *f;
       if ( m->get_field_iter( f ) == 0 ) {
-        if ( f->find( "test" ) == 0 ) {
+        if ( f->find( "test", 5, mref ) == 0 ) {
           printf( "found test = \n" );
           f->print( &mout );
         }
