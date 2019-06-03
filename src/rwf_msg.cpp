@@ -394,7 +394,7 @@ RwfFieldIter::get_reference( MDReference &mref )
 }
 
 int
-RwfFieldIter::find( const char *name )
+RwfFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
 {
   if ( this->iter_msg.dict == NULL )
     return Err::NO_DICTIONARY;
@@ -404,12 +404,11 @@ RwfFieldIter::find( const char *name )
     MDFid    fid;
     MDType   ftype;
     uint32_t fsize;
-    if ( this->iter_msg.dict->get( name, ::strlen( name ) + 1, fid, ftype,
-                                   fsize ) ) {
+    if ( this->iter_msg.dict->get( name, name_len, fid, ftype, fsize ) ) {
       if ( (status = this->first()) == 0 ) {
         do {
           if ( this->fid == fid )
-            return 0;
+            return this->get_reference( mref );
         } while ( (status = this->next()) == 0 );
       }
     }

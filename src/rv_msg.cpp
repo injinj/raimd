@@ -284,16 +284,15 @@ RvFieldIter::get_reference( MDReference &mref )
 }
 
 int
-RvFieldIter::find( const char *name )
+RvFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
 {
   uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
-  size_t len = ( name != NULL ? ::strlen( name ) + 1 : 0 );
   int status;
   if ( (status = this->first()) == 0 ) {
     do {
-      if ( (uint8_t) len == this->name_len ) {
-        if ( ::memcmp( &buf[ this->field_start + 1 ], name, len ) == 0 )
-          return 0;
+      if ( (uint8_t) name_len == this->name_len ) {
+        if ( ::memcmp( &buf[ this->field_start + 1 ], name, name_len ) == 0 )
+          return this->get_reference( mref );
       }
     } while ( (status = this->next()) == 0 );
   }

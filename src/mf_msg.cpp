@@ -515,10 +515,26 @@ MktfdFieldIter::get_reference( MDReference &mref )
 }
 
 int
-MktfdFieldIter::find( const char * )
+MktfdFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
 {
-  /* TODO */
-  return Err::NOT_FOUND;
+  if ( this->iter_msg.dict == NULL )
+    return Err::NO_DICTIONARY;
+
+  int status = Err::NOT_FOUND;
+  if ( name_len > 0 ) {
+    MDFid    fid;
+    MDType   ftype;
+    uint32_t fsize;
+    if ( this->iter_msg.dict->get( name, name_len, fid, ftype, fsize ) ) {
+      if ( (status = this->first()) == 0 ) {
+        do {
+          if ( this->fid == fid )
+            return this->get_reference( mref );
+        } while ( (status = this->next()) == 0 );
+      }
+    }
+  }
+  return status;
 }
 
 int
