@@ -332,7 +332,7 @@ MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len )
       size_t i;
       if ( s[ 0 ] == '\0' ) {
         buf = s;
-        len = 1;
+        len = 0;
         return 0;
       }
       for ( i = mref.fsize; i > 0; )
@@ -340,7 +340,7 @@ MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len )
           break;
       if ( i != 0 ) {
         buf = s;
-        len = 1;
+        len = i;
         return 0;
       }
       this->mem->alloc( mref.fsize + 1, &str );
