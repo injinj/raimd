@@ -97,6 +97,11 @@ MDMsg::add_match( MDMatch &ma ) /* add msg matcher to a match group */
   uint32_t i;
   void   * p;
 
+  if ( add_cnt == MAX_MSG_CLASS )
+    return;
+  for ( i = 0; i < add_cnt; i++ )
+    if ( match_arr[ i ] == &ma )
+      return;
   match_arr[ add_cnt++ ] = &ma;
 
   if ( ma.ftype > MD_MESSAGE ) {
