@@ -102,10 +102,10 @@ struct MDDict {
         | ( tab[ off + 3 ] << 24 );
     for ( off += 4; off * 8 < bits + shft; off++ )
       val |= (uint64_t) tab[ off ] << ( off * 8 );
-    if ( val == 0 )
-      return false;
     /* the type of the fid is first, then the fname index */
     type_idx  = ( val >> shft ) & mask;
+    if ( type_idx == 0 ) /* ftype is never zero (MD_NONE), zero is not found */
+      return false;
     fname_idx = ( type_idx & fname_mask ) << this->fname_algn;
     type_idx  = type_idx >> fname_bits;
     /* get the type/size using the type_idx from the type table */
