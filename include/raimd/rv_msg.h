@@ -19,6 +19,8 @@ struct RvMsg : public MDMsg {
 
   /* may return tibmsg, sass qform or rv */
   static bool is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t h );
+  static RvMsg *unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t h,
+                           MDDict *d,  MDMsgMem *m );
   static MDMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
                         MDDict *d,  MDMsgMem *m );
   static void init_auto_unpack( void );
