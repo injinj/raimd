@@ -65,6 +65,26 @@ RvMsg::is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t )
   return magic == 0x9955eeaaU;
 }
 
+RvMsg *
+RvMsg::unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
+                  MDMsgMem *m )
+{
+  uint32_t magic    = get_u32<MD_BIG>( &((uint8_t *) bb)[ off + 4 ] );
+  size_t   msg_size = get_u32<MD_BIG>( &((uint8_t *) bb)[ off ] );
+
+  if ( magic != 0x9955eeaaU || msg_size < 8 )
+    return NULL;
+  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
+    m->ref_cnt++;
+
+  size_t end2 = off + msg_size;
+  void * ptr;
+  if ( end2 > end )
+    return NULL;
+  m->alloc( sizeof( RvMsg ), &ptr );
+  return new ( ptr ) RvMsg( bb, off, end2, d, m );
+}
+
 MDMsg *
 RvMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
                MDMsgMem *m )
