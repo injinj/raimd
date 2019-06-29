@@ -308,7 +308,8 @@ Err::err( int status )
   /* 40 */ { FILE_NOT_FOUND,        "File not found", mod },
   /* 41 */ { DICT_PARSE_ERROR,      "Dictionary parse error", mod },
   /* 42 */ { ALLOC_FAIL,            "Allocation failed", mod },
-  /* 43 */ { 43,                    "Unk", mod }
+  /* 43 */ { BAD_SUBJECT,           "Bad subject", mod },
+  /* 44 */ { 44,                    "Unk", mod }
   };
   static const uint32_t num = sizeof( err ) / sizeof( err[ 0 ] ) - 1;
 
