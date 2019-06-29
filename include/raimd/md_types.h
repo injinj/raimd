@@ -348,7 +348,8 @@ namespace Err {
     NO_PARTIAL            = 39, /* No partial */
     FILE_NOT_FOUND        = 40, /* File not found */
     DICT_PARSE_ERROR      = 41, /* Dictionary parse error */
-    ALLOC_FAIL            = 42  /* Allocation failed */
+    ALLOC_FAIL            = 42, /* Allocation failed */
+    BAD_SUBJECT           = 43  /* Bad subject */
   };
   MDError err( int status );
 }

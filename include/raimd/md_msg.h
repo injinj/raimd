@@ -162,7 +162,8 @@ struct MDMsg {
   int get_quoted_string( MDReference &mref,  char *&buf,  size_t &len );
   int get_escaped_string( MDReference &mref,  const char *quotes,
                            char *&buf,  size_t &len );
-  int get_string( MDReference &mref, char *&buf,  size_t &len );
+  int get_string( MDReference &mref,  char *&buf,  size_t &len );
+  int get_subject_string( MDReference &mref,  char *&buf,  size_t &len );
   int time_to_string( MDReference &mref,  char *&buf,  size_t &len );
   int array_to_string( MDReference &mref,  char *&buf,  size_t &len );
   int list_to_string( MDReference &mref,  char *&buf,  size_t &len );

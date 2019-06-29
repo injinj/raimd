@@ -148,6 +148,22 @@ main( int argc, char **argv )
     m->print( &mout );
   mem.reuse();
 
+  RvMsgWriter rvmsg2( buf, sizeof( buf ) );
+  RvMsgWriter submsg( NULL, 0 );
+  rvmsg2.append_string( "mtype", 6, "D", 2 );
+  rvmsg2.append_subject( "sub", 4, "TEST.REC.XYZ.NaE" );
+  rvmsg2.append_msg( "data", 5, submsg );
+  test_write<RvMsgWriter>( submsg );
+  sz = rvmsg2.update_hdr( submsg );
+  printf( "RvMsg test2:\n" );
+  mout.print_hex( buf, sz );
+  printf( "rvmsg2 sz %lu\n", sz );
+
+  m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
+  if ( m != NULL )
+    m->print( &mout );
+  mem.reuse();
+
   if ( dict != NULL ) {
     TibSassMsgWriter tibsassmsg( dict, buf, sizeof( buf ) );
     sz = test_write<TibSassMsgWriter>( tibsassmsg );

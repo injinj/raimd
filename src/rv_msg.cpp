@@ -428,8 +428,94 @@ RvFieldIter::unpack( void )
 }
 
 int
+RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
+                         RvMsgWriter &submsg )
+{
+  uint8_t * ptr = &this->buf[ this->off ];
+  size_t    len = 1 + fname_len + 1,
+            szbytes = 5 + 4;
+
+  len += szbytes;
+  if ( ! this->has_space( len ) )
+    return Err::NO_SPACE;
+  if ( fname_len > 0xff )
+    return Err::BAD_NAME;
+  ptr[ 0 ] = (uint8_t) fname_len;
+  ::memcpy( &ptr[ 1 ], fname, fname_len );
+  ptr = &ptr[ fname_len + 1 ];
+  ptr[ 0 ] = RV_RVMSG;
+  ptr[ 1 ] = RV_LONG_SIZE;
+  this->off += fname_len + 1 + 2;
+
+  submsg.buf    = &this->buf[ this->off ];
+  submsg.off    = 8;
+  submsg.buflen = this->buflen - this->off;
+  return 0;
+}
+
+int
+RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
+                             const char *subj )
+{
+  uint8_t    * ptr = &this->buf[ this->off ];
+  size_t       len = 1 + fname_len + 1,
+               szbytes = 3,
+               fsize = 3;
+  const char * s,
+             * x = subj;
+  uint32_t     segs = 1;
+
+  for ( s = subj; *s != '\0'; s++ ) {
+    if ( *s == '.' ) {
+      fsize += 2;
+      if ( s - x >= 254 || s - x == 1 )
+        return Err::BAD_FIELD_BOUNDS;
+      x = s + 1;
+      segs++;
+    }
+    else
+      fsize++;
+  }
+  if ( segs > 255 )
+    return Err::BAD_FIELD_BOUNDS;
+  len += szbytes + fsize;
+  if ( ! this->has_space( len ) )
+    return Err::NO_SPACE;
+  if ( fname_len > 0xff )
+    return Err::BAD_NAME;
+  ptr[ 0 ] = (uint8_t) fname_len;
+  ::memcpy( &ptr[ 1 ], fname, fname_len );
+  ptr = &ptr[ fname_len + 1 ];
+  ptr[ 0 ] = RV_SUBJECT;
+  ptr[ 1 ] = RV_SHORT_SIZE;
+  ptr[ 2 ] = ( ( fsize + 2 ) >> 8 ) & 0xffU;
+  ptr[ 3 ] = ( fsize + 2 ) & 0xffU;
+
+  uint32_t i = 2, j = 1;
+  uint8_t * out = &ptr[ 4 ];
+  segs = 1;
+  for ( s = subj; *s != '\0'; s++ ) {
+    if ( *s == '.' ) {
+      out[ i++ ] = 0;
+      out[ j ]   = (uint8_t) ( i - j );
+      j = i++;
+      segs++;
+    }
+    else {
+      out[ i++ ] = *s;
+    }
+  }
+  out[ i++ ] = 0;
+  out[ j ]   = (uint8_t) ( i - j );
+  out[ 0 ]   = (uint8_t) segs;
+
+  this->off += len;
+  return 0;
+}
+
+int
 RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
-                          MDReference &mref )
+                         MDReference &mref )
 {
   uint8_t * ptr = &this->buf[ this->off ];
   size_t    len = 1 + fname_len + 1 + mref.fsize,

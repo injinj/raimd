@@ -427,6 +427,7 @@ MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len )
     }
     case MD_DATETIME:
     case MD_STAMP:   return this->time_to_string( mref, buf, len );
+    case MD_SUBJECT: return this->get_subject_string( mref, buf, len );
 
     case MD_DECIMAL: {
         MDDecimal dec;
@@ -438,7 +439,6 @@ MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len )
     case MD_NODATA:
     case MD_PARTIAL:
     case MD_OPAQUE:
-    case MD_SUBJECT:
       break;
   }
 bad_num:;
@@ -456,7 +456,6 @@ MDMsg::get_quoted_string( MDReference &mref,  char *&buf,  size_t &len )
     case MD_STRING:
     case MD_NODATA:
     case MD_OPAQUE:
-    case MD_SUBJECT:
     case MD_PARTIAL:
       if ( mref.fsize == 0 ) {
         buf = nul_string;
@@ -538,6 +537,56 @@ break_loop:;
   buf = str;
   len = j;
   return 0;
+}
+
+int
+MDMsg::get_subject_string( MDReference &mref,  char *&buf,  size_t &len )
+{
+  static char bad_subject[] = "bad.subject";
+  char * str = NULL;
+  uint32_t i, j, k;
+  uint8_t segs;
+
+  if ( mref.fsize == 0 )
+    goto bad_subject;
+
+  segs = mref.fptr[ 0 ];
+  j = 1; k = 0;
+  if ( segs == 0 )
+    goto bad_subject;
+
+  for (;;) {
+    i = j + 1;
+    if ( j >= mref.fsize )
+      goto bad_subject;
+    j += mref.fptr[ j ];
+    if ( i + 1 < j )
+      k += j - ( i + 1 );
+    if ( --segs == 0 )
+      break;
+    k++;
+  }
+  this->mem->alloc( k + 1, &str );
+  segs = mref.fptr[ 0 ];
+  j = 1; k = 0;
+  for (;;) {
+    i = j + 1;
+    j += mref.fptr[ j ];
+    while ( i + 1 < j )
+      str[ k++ ] = (char) mref.fptr[ i++ ];
+    if ( --segs == 0 )
+      break;
+    str[ k++ ] = '.';
+  }
+  str[ k ] = '\0';
+  buf = str;
+  len = k;
+  return 0;
+
+bad_subject:;
+  buf = bad_subject;
+  len = sizeof( bad_subject ) - 1;
+  return Err::BAD_SUBJECT;
 }
 
 int
@@ -721,9 +770,14 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
       }
       break;
     }
+    case MD_SUBJECT:
+      if ( this->iter_msg.get_subject_string( mref, str, len ) == 0 ) {
+        out->puts( str );
+        break;
+      }
+      /* FALLTHRU */
     case MD_NODATA:
     case MD_OPAQUE:
-    case MD_SUBJECT:
     case MD_STRING:
       if ( this->iter_msg.get_escaped_string( mref, "\"", str, len ) == 0 )
         out->puts( str );

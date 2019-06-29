@@ -71,6 +71,16 @@ struct RvMsgWriter {
     this->buf[ 7 ] = 0xaa;
     return this->off;
   }
+  /* usage of submsg appending:
+   * msg.append_msg( "m", 2, submsg );
+   * submsg.append_int<int32_t>( "i", 2, 100 );
+   * len = msg.update_hdr( submsg ); */
+  int append_msg( const char *fname,  size_t fname_len, RvMsgWriter &submsg );
+
+  size_t update_hdr( RvMsgWriter &submsg ) {
+    this->off += submsg.update_hdr();
+    return this->update_hdr();
+  }
 
   template< class T >
   int append_type( const char *fname,  size_t fname_len,  T val,  MDType t ) {
@@ -104,7 +114,8 @@ struct RvMsgWriter {
     mref.fendian = md_endian;
     return this->append_ref( fname, fname_len, mref );
   }
-
+  /* subject format is string "XYZ.REC.INST.EX" */
+  int append_subject( const char *fname,  size_t fname_len,  const char *subj );
   int append_decimal( const char *fname,  size_t fname_len, MDDecimal &dec );
   int append_time( const char *fname,  size_t fname_len,  MDTime &time );
   int append_date( const char *fname,  size_t fname_len,  MDDate &date );
