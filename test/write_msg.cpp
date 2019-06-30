@@ -153,7 +153,14 @@ main( int argc, char **argv )
   rvmsg2.append_string( "mtype", 6, "D", 2 );
   rvmsg2.append_subject( "sub", 4, "TEST.REC.XYZ.NaE" );
   rvmsg2.append_msg( "data", 5, submsg );
-  test_write<RvMsgWriter>( submsg );
+
+  uint8_t local[ 4 ] = { 127, 0, 0, 1 };
+  uint8_t lport[ 2 ] = { ( 7500 >> 8 ) & 0xff, 7500 & 0xff };
+  submsg.append_type( "ipaddr", 7, *(uint32_t *) local, MD_IPDATA );
+  submsg.append_type( "ipport", 7, *(uint16_t *) lport, MD_IPDATA );
+  submsg.append_int<int32_t>( "vmaj", 5, 5 );
+  submsg.append_int<int32_t>( "vmin", 5, 4 );
+  submsg.append_int<int32_t>( "vupd", 5, 2 );
   sz = rvmsg2.update_hdr( submsg );
   printf( "RvMsg test2:\n" );
   mout.print_hex( buf, sz );

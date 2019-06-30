@@ -368,7 +368,7 @@ MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len )
         const uint8_t * ptr = (const uint8_t *) (const void *) mref.fptr;
         sz = 0;
         for ( size_t i = 0; i < 4; i++ ) {
-          sz += uint_str( ptr[ 0 ], &num[ sz ] );
+          sz += uint_str( ptr[ i ], &num[ sz ] );
           if ( i != 3 )
             num[ sz++ ] = '.';
         }
