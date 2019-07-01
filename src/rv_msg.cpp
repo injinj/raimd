@@ -45,6 +45,12 @@ RvMsg::get_proto_string( void )
   return "RVMSG";
 }
 
+uint32_t
+RvMsg::get_type_id( void )
+{
+  return RVMSG_TYPE_ID;
+}
+
 static MDMatch rvmsg_match = {
   .off         = 4,
   .len         = 4, /* cnt of buf[] */

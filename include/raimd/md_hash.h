@@ -856,6 +856,7 @@ struct HashMsg : public MDMsg {
     : MDMsg( bb, off, len, d, m ) {}
 
   virtual const char *get_proto_string( void ) final;
+  virtual uint32_t get_type_id( void ) final;
   virtual int get_field_iter( MDFieldIter *&iter ) final;
 
   static bool is_hashmsg( void *bb,  size_t off,  size_t len,  uint32_t h );

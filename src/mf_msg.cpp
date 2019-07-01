@@ -11,6 +11,12 @@ MktfdMsg::get_proto_string( void )
   return "MARKETFEED";
 }
 
+uint32_t
+MktfdMsg::get_type_id( void )
+{
+  return MARKETFEED_TYPE_ID;
+}
+
 static MDMatch mktfd_match = {
   .off         = 0,
   .len         = 1, /* cnt of buf[] */

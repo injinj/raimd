@@ -10,6 +10,12 @@ ZSetMsg::get_proto_string( void )
   return "MD_ZSET";
 }
 
+uint32_t
+ZSetMsg::get_type_id( void )
+{
+  return MD_ZSET;
+}
+
 static MDMatch zsetmsg_match = {
   .off         = 0,
   .len         = 1, /* cnt of buf[] */

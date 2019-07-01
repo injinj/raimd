@@ -22,6 +22,8 @@ struct RwfFieldListHdr {
   size_t   data_start;
 };
 
+static const uint32_t RWF_TYPE_ID = 0x25cdabca;
+
 struct RwfMsg : public MDMsg {
   RwfFieldListHdr hdr;
 
@@ -34,6 +36,7 @@ struct RwfMsg : public MDMsg {
     : MDMsg( bb, off, end, d, m ) {}
 
   virtual const char *get_proto_string( void ) final;
+  virtual uint32_t get_type_id( void ) final;
   virtual int get_field_iter( MDFieldIter *&iter ) final;
 
   /* may return tibmsg, sass qform or rv */

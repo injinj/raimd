@@ -12,6 +12,12 @@ RwfMsg::get_proto_string( void )
   return "RWF";
 }
 
+uint32_t
+RwfMsg::get_type_id( void )
+{
+  return RWF_TYPE_ID;
+}
+
 static MDMatch rwf_match = {
   .off         = 0,
   .len         = 0, /* cnt of buf[] */

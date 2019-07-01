@@ -68,6 +68,12 @@ TibSassMsg::get_proto_string( void )
   return "TIB_SASS";
 }
 
+uint32_t
+TibSassMsg::get_type_id( void )
+{
+  return TIB_SASS_TYPE_ID;
+}
+
 static MDMatch tibsassmsg_match = {
   .off         = 0,
   .len         = 4, /* cnt of buf[] */
