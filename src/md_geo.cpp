@@ -10,6 +10,12 @@ GeoMsg::get_proto_string( void )
   return "MD_GEO";
 }
 
+uint32_t
+GeoMsg::get_type_id( void )
+{
+  return MD_GEO;
+}
+
 static MDMatch geomsg_match = {
   .off         = 0,
   .len         = 1, /* cnt of buf[] */

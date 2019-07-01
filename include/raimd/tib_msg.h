@@ -6,6 +6,8 @@
 namespace rai {
 namespace md {
 
+static const uint32_t RAIMSG_TYPE_ID = 0x07344064;
+
 struct TibMsg : public MDMsg {
   /* used by unpack() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }
@@ -14,6 +16,7 @@ struct TibMsg : public MDMsg {
     : MDMsg( bb, off, len, d, m ) {}
 
   virtual const char *get_proto_string( void ) final;
+  virtual uint32_t get_type_id( void ) final;
   virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) final;
   virtual int get_field_iter( MDFieldIter *&iter ) final;
   /* convert tib decimal to md decimal */

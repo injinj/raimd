@@ -6,6 +6,8 @@
 namespace rai {
 namespace md {
 
+static const uint32_t MARKETFEED_TYPE_ID = 0x8ab3f4ae;
+
 struct MktfdMsg : public MDMsg {
   size_t          data_start,
                   data_end;
@@ -32,6 +34,7 @@ struct MktfdMsg : public MDMsg {
       rstatus( 0 ), flist( 0 ), rtl( 0 ), status( 0 ), func( 0 ) {}
 
   virtual const char *get_proto_string( void ) final;
+  virtual uint32_t get_type_id( void ) final;
   virtual int get_field_iter( MDFieldIter *&iter ) final;
 
   /* may return tibmsg, sass qform or rv */

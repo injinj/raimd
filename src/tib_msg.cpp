@@ -55,6 +55,12 @@ TibMsg::get_proto_string( void )
   return "TIBMSG";
 }
 
+uint32_t
+TibMsg::get_type_id( void )
+{
+  return RAIMSG_TYPE_ID;
+}
+
 static MDMatch tibmsg_match = {
   .off         = 0,
   .len         = 4, /* cnt of buf[] */

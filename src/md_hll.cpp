@@ -23,6 +23,12 @@ HLLMsg::get_proto_string( void )
   return "MD_HYPERLOGLOG";
 }
 
+uint32_t
+HLLMsg::get_type_id( void )
+{
+  return MD_HYPERLOGLOG;
+}
+
 static MDMatch hllmsg_match = {
   .off         = 0,
   .len         = 4, /* cnt of buf[] */

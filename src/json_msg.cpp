@@ -10,6 +10,12 @@ JsonMsg::get_proto_string( void )
   return "JSON";
 }
 
+uint32_t
+JsonMsg::get_type_id( void )
+{
+  return JSON_TYPE_ID;
+}
+
 static MDMatch json_match = {
   .off         = 0,
   .len         = 1, /* cnt of buf[] */

@@ -14,6 +14,7 @@ using namespace rai;
 using namespace md;
 
 const char * MDMsg::get_proto_string( void ) { return "NO PROTOCOL"; }
+uint32_t MDMsg::get_type_id( void ) { return 0; }
 int MDMsg::get_field_iter( MDFieldIter *&iter ) { iter = NULL; return Err::INVALID_MSG; }
 int MDMsg::get_sub_msg( MDReference &,  MDMsg *&msg ) { msg = NULL; return Err::INVALID_MSG; }
 int MDMsg::get_reference( MDReference &mref ) { mref.zero(); return Err::INVALID_MSG; }

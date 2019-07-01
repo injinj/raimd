@@ -148,6 +148,7 @@ struct MDMsg {
                          size_t offset,  size_t length );
   /* Used by field iterators to creae a sub message */
   virtual const char *get_proto_string( void );
+  virtual uint32_t get_type_id( void );
   virtual int get_sub_msg( MDReference &mref, MDMsg *&msg );
   virtual int get_reference( MDReference &mref );
   virtual int get_field_iter( MDFieldIter *&iter );

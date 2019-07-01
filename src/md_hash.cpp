@@ -10,6 +10,12 @@ HashMsg::get_proto_string( void )
   return "MD_HASH";
 }
 
+uint32_t
+HashMsg::get_type_id( void )
+{
+  return MD_HASH;
+}
+
 static MDMatch hashmsg_match = {
   .off         = 0,
   .len         = 1, /* cnt of buf[] */

@@ -10,6 +10,12 @@ SetMsg::get_proto_string( void )
   return "MD_SET";
 }
 
+uint32_t
+SetMsg::get_type_id( void )
+{
+  return MD_SET;
+}
+
 static MDMatch setmsg_match = {
   .off         = 0,
   .len         = 1, /* cnt of buf[] */
