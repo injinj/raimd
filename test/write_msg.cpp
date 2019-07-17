@@ -156,8 +156,12 @@ main( int argc, char **argv )
 
   uint8_t local[ 4 ] = { 127, 0, 0, 1 };
   uint8_t lport[ 2 ] = { ( 7500 >> 8 ) & 0xff, 7500 & 0xff };
-  submsg.append_type( "ipaddr", 7, *(uint32_t *) local, MD_IPDATA );
-  submsg.append_type( "ipport", 7, *(uint16_t *) lport, MD_IPDATA );
+  uint32_t local_ip;
+  uint16_t local_port;
+  ::memcpy( &local_ip, local, sizeof( local ) );
+  ::memcpy( &local_port, lport, sizeof( lport ) );
+  submsg.append_type( "ipaddr", 7, local_ip, MD_IPDATA );
+  submsg.append_type( "ipport", 7, local_port, MD_IPDATA );
   submsg.append_int<int32_t>( "vmaj", 5, 5 );
   submsg.append_int<int32_t>( "vmin", 5, 4 );
   submsg.append_int<int32_t>( "vupd", 5, 2 );
