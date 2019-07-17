@@ -26,7 +26,7 @@ CC          ?= gcc
 CXX         ?= $(CC) -x c++
 cc          := $(CC)
 cpp         := $(CXX)
-arch_cflags := -std=c++11 -fno-omit-frame-pointer -march=corei7-avx
+arch_cflags := -std=c++11 -fno-omit-frame-pointer -mavx
 gcc_wflags  := -Wall -Werror -Wextra
 fpicflags   := -fPIC
 soflag      := -shared
