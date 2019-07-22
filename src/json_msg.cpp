@@ -20,9 +20,9 @@ static MDMatch json_match = {
   .off         = 0,
   .len         = 1, /* cnt of buf[] */
   .hint_size   = 1, /* cnt of hint[] */
-  .ftype       = MD_MESSAGE,
+  .ftype       = (uint8_t) JSON_TYPE_ID,
   .buf         = { '{', 0, 0, 0 },
-  .hint        = { 0x4a014cc2, 0 },
+  .hint        = { JSON_TYPE_ID, 0 },
   .is_msg_type = JsonMsg::is_jsonmsg,
   .unpack      = (md_msg_unpack_f) JsonMsg::unpack
 };

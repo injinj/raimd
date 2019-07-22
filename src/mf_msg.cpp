@@ -21,9 +21,9 @@ static MDMatch mktfd_match = {
   .off         = 0,
   .len         = 1, /* cnt of buf[] */
   .hint_size   = 1, /* cnt of hint[] */
-  .ftype       = MD_MESSAGE,
+  .ftype       = (uint8_t) MARKETFEED_TYPE_ID,
   .buf         = { 0x1c },
-  .hint        = { 0x8ab3f4ae },
+  .hint        = { MARKETFEED_TYPE_ID },
   .is_msg_type = MktfdMsg::is_marketfeed,
   .unpack      = (md_msg_unpack_f) MktfdMsg::unpack
 };

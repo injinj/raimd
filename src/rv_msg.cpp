@@ -55,9 +55,9 @@ static MDMatch rvmsg_match = {
   .off         = 4,
   .len         = 4, /* cnt of buf[] */
   .hint_size   = 1, /* cnt of hint[] */
-  .ftype       = MD_MESSAGE,
+  .ftype       = (uint8_t) RVMSG_TYPE_ID,
   .buf         = { 0x99, 0x55, 0xee, 0xaa },
-  .hint        = { 0xebf946be, 0 },
+  .hint        = { RVMSG_TYPE_ID, 0 },
   .is_msg_type = RvMsg::is_rvmsg,
   .unpack      = RvMsg::unpack
 };
