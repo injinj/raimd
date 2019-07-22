@@ -65,9 +65,9 @@ static MDMatch tibmsg_match = {
   .off         = 0,
   .len         = 4, /* cnt of buf[] */
   .hint_size   = 2, /* cnt of hint[] */
-  .ftype       = MD_MESSAGE,
+  .ftype       = (uint8_t) RAIMSG_TYPE_ID,
   .buf         = { 0xce, 0x13, 0xaa, 0x1f },
-  .hint        = { 0x07344064, 0x3f4c369e },
+  .hint        = { RAIMSG_TYPE_ID, 0x3f4c369e },
   .is_msg_type = TibMsg::is_tibmsg,
   .unpack      = (md_msg_unpack_f) TibMsg::unpack
 };

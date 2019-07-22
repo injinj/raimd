@@ -22,9 +22,9 @@ static MDMatch rwf_match = {
   .off         = 0,
   .len         = 0, /* cnt of buf[] */
   .hint_size   = 1, /* cnt of hint[] */
-  .ftype       = MD_MESSAGE,
+  .ftype       = (uint8_t) RWF_TYPE_ID,
   .buf         = { 0 },
-  .hint        = { 0x25cdabca },
+  .hint        = { RWF_TYPE_ID },
   .is_msg_type = RwfMsg::is_rwf,
   .unpack      = (md_msg_unpack_f) RwfMsg::unpack
 };
@@ -51,7 +51,7 @@ RwfMsg::parse_header( const uint8_t *buf,  size_t buflen,
   uint32_t tp;
   if ( buflen < 4 )
     return Err::BAD_HEADER;
-  if ( get_u32<MD_BIG>( &buf[ i ] ) == 0x25cdabcaU ) {
+  if ( get_u32<MD_BIG>( &buf[ i ] ) == RWF_TYPE_ID ) {
     if ( buflen < 8 )
       return Err::BAD_HEADER;
     tp = get_u32<MD_BIG>( &buf[ i + 4 ] ); i += 8;

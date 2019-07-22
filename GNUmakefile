@@ -95,7 +95,8 @@ all_depends :=
 
 libraimd_files := md_msg md_field_iter json json_msg rv_msg tib_msg \
                   tib_sass_msg mf_msg rwf_msg md_dict cfile app_a enum_def \
-                  decimal md_list md_hash md_set md_zset md_geo md_hll
+                  decimal md_list md_hash md_set md_zset md_geo md_hll \
+		  glue
 libraimd_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(libraimd_files)))
 libraimd_dbjs  := $(addprefix $(objd)/, $(addsuffix .fpic.o, $(libraimd_files)))
 libraimd_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(libraimd_files))) \
@@ -210,14 +211,24 @@ write_msg_lnk   := $(raimd_dlnk)
 
 $(bind)/write_msg: $(write_msg_objs) $(write_msg_libs)
 
+basic_msg_files := basic_msg
+basic_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(basic_msg_files)))
+basic_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(basic_msg_files)))
+basic_msg_libs  := $(raimd_dlib)
+basic_msg_lnk   := $(raimd_dlnk)
+
+$(bind)/basic_msg: $(basic_msg_objs) $(basic_msg_libs)
+
 all_exes    += $(bind)/test_mddec $(bind)/test_json $(bind)/test_msg \
                $(bind)/test_mddict $(bind)/read_msg $(bind)/write_msg \
 	       $(bind)/test_list $(bind)/test_hash $(bind)/test_set \
-	       $(bind)/test_zset $(bind)/test_geo $(bind)/test_hll
+	       $(bind)/test_zset $(bind)/test_geo $(bind)/test_hll \
+	       $(bind)/basic_msg
 all_depends += $(test_mddec_deps) $(test_json_deps) $(test_msg_deps) \
                $(test_mddict_deps) $(read_msg_deps) $(write_msg_deps) \
 	       $(test_list_deps) $(test_hash_deps) $(test_set_deps) \
-	       $(test_zset_deps) $(test_geo_deps) $(test_hll_deps)
+	       $(test_zset_deps) $(test_geo_deps) $(test_hll_deps) \
+	       $(basic_msg_deps)
 
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 

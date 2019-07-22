@@ -78,9 +78,9 @@ static MDMatch tibsassmsg_match = {
   .off         = 0,
   .len         = 4, /* cnt of buf[] */
   .hint_size   = 2, /* cnt of hint[] */
-  .ftype       = MD_MESSAGE,
+  .ftype       = (uint8_t) TIB_SASS_TYPE_ID,
   .buf         = { 0x11, 0x11, 0x11, 0x12 },
-  .hint        = { 0x179ca0f5, 0xa08b0040 },
+  .hint        = { TIB_SASS_TYPE_ID, 0xa08b0040 },
   .is_msg_type = TibSassMsg::is_tibsassmsg,
   .unpack      = (md_msg_unpack_f) TibSassMsg::unpack
 };

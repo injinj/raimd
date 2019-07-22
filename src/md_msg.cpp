@@ -6,20 +6,20 @@ using namespace md;
 namespace rai {
 namespace md {
 
-static const uint32_t MAX_MSG_CLASS   = 16,
-                      MATCH_HASH_SIZE = MAX_MSG_CLASS * 2;
+static const uint32_t MAX_MSG_CLASS   = 64,
+                      MATCH_HASH_SIZE = 256;
 
-static uint32_t group_cnt,    /* size of match_group */
-                add_cnt;      /* size of match_arr */
+static uint32_t md_group_cnt,    /* size of md_match_group */
+                md_add_cnt;      /* size of md_match_arr */
 
-static MDMatchGroup * match_group[ MAX_MSG_CLASS ];
-static MDMatch      * match_arr[ MAX_MSG_CLASS ];
+static MDMatchGroup * md_match_group[ MAX_MSG_CLASS ];
+static MDMatch      * md_match_arr[ MAX_MSG_CLASS ];
 
 static struct {
   uint32_t hint, idx;
-} match_hash[ MATCH_HASH_SIZE ];
+} md_match_hash[ MATCH_HASH_SIZE ];
 
-static uint8_t match_ftype[ MD_TYPE_COUNT ];
+static uint8_t md_match_ftype[ MATCH_HASH_SIZE ];
 
 }
 }
@@ -90,6 +90,31 @@ MDMatchGroup::match( void *bb,  size_t off,  size_t end,
   return NULL;
 }
 
+MDMatch *
+MDMatchGroup::is_msg_type( void *bb,  size_t off,  size_t end,  uint32_t h )
+{
+  uint16_t i   = 1;
+  void   * val = NULL;
+  /* check that msg data at offset has a match */
+  if ( this->haslen ) {
+    val = (void *) &((uint8_t *) bb)[ off + this->off ];
+    i = this->xoff[ *(uint8_t *) val ]; /* if char matches, i > 0 */
+    if ( i == 0 )
+      return NULL;
+  }
+  /* start at offset which matches and go to end */
+  for ( ; i <= this->count; i++ ) {
+    MDMatch & ma = *this->matches[ i - 1 ];
+    if ( this->off + ma.len <= end ) {
+      if ( cmp_wd( ma, val ) ) {
+        if ( ma.is_msg_type( bb, off, end, h ) )
+          return &ma;
+      }
+    }
+  }
+  return NULL;
+}
+
 void
 MDMsg::add_match( MDMatch &ma ) /* add msg matcher to a match group */
 {
@@ -97,49 +122,47 @@ MDMsg::add_match( MDMatch &ma ) /* add msg matcher to a match group */
   uint32_t i;
   void   * p;
 
-  if ( add_cnt == MAX_MSG_CLASS )
+  if ( md_add_cnt == MAX_MSG_CLASS )
     return;
-  for ( i = 0; i < add_cnt; i++ )
-    if ( match_arr[ i ] == &ma )
+  for ( i = 0; i < md_add_cnt; i++ )
+    if ( md_match_arr[ i ] == &ma )
       return;
-  match_arr[ add_cnt++ ] = &ma;
+  md_match_arr[ md_add_cnt++ ] = &ma;
 
-  if ( ma.ftype > MD_MESSAGE ) {
-    if ( ma.ftype < MD_TYPE_COUNT )
-      match_ftype[ ma.ftype ] = add_cnt;
-  }
+  if ( ma.ftype > 0 )
+    md_match_ftype[ ma.ftype ] = md_add_cnt;
   if ( ma.len == 0 ) {  /* if no length, nothing to match, always try it */
-    for ( i = 0; i < group_cnt; i++ ) {
-      mg = match_group[ i ];
+    for ( i = 0; i < md_group_cnt; i++ ) {
+      mg = md_match_group[ i ];
       if ( mg->haslen == 0 )
         break;
     }
   }
   else { /* has a match length, find match group by offset */
-    for ( i = 0; i < group_cnt; i++ ) {
-      mg = match_group[ i ];
+    for ( i = 0; i < md_group_cnt; i++ ) {
+      mg = md_match_group[ i ];
       if ( mg->haslen != 0 && mg->off == ma.off )
         break;
     }
   }
   /* a match group at offset already exists */
-  if ( i < group_cnt )
+  if ( i < md_group_cnt )
     mg->add_match( ma );
   else { /* create a new match group for offset */
     p  = ::malloc( sizeof( MDMatchGroup ) );
     mg = new ( p ) MDMatchGroup();
     mg->add_match( ma );
 
-    match_group[ group_cnt++ ] = mg;
+    md_match_group[ md_group_cnt++ ] = mg;
   }
   /* if msg class has a external type hash */
   if ( ma.hint_size > 0 ) {
     for ( i = 0; i < ma.hint_size; i++ ) {
       uint32_t j = ma.hint[ i ] % MATCH_HASH_SIZE;
-      while ( match_hash[ j ].hint != 0 )
+      while ( md_match_hash[ j ].hint != 0 )
         j = ( j + 1 ) % MATCH_HASH_SIZE;
-      match_hash[ j ].hint = ma.hint[ i ];
-      match_hash[ j ].idx  = add_cnt - 1; /* index of match_arr[] */
+      md_match_hash[ j ].hint = ma.hint[ i ];
+      md_match_hash[ j ].idx  = md_add_cnt - 1; /* index of md_match_arr[] */
     }
   }
 }
@@ -151,35 +174,83 @@ MDMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
   MDMatchGroup * mg;
   MDMsg        * msg;
   uint32_t       i, j;
-  /* find decoder by match_hash[ h ] */
+  /* if nothing init, use auto unpack */
+  if ( md_add_cnt == 0 )
+    md_init_auto_unpack();
+  /* find decoder by md_match_hash[ h ] */
   if ( h != 0 ) {
-    if ( h < MD_TYPE_COUNT ) {
-      if ( (i = match_ftype[ h ]) != 0 ) {
-        MDMatch &ma = *match_arr[ i - 1 ];
+    if ( h < MATCH_HASH_SIZE ) {
+      if ( (i = md_match_ftype[ h ]) != 0 ) {
+        MDMatch &ma = *md_match_arr[ i - 1 ];
         if ( (msg = ma.unpack( bb, off, end, h, d, m )) != NULL )
           return msg;
       }
     }
     j = h % MATCH_HASH_SIZE;
     for (;;) {
-      if ( match_hash[ j ].hint == h ) {
-        i = match_hash[ j ].idx;
-        MDMatch &ma = *match_arr[ i ];
+      if ( md_match_hash[ j ].hint == h ) {
+        i = md_match_hash[ j ].idx;
+        MDMatch &ma = *md_match_arr[ i ];
         if ( (msg = ma.unpack( bb, off, end, h, d, m )) != NULL )
           return msg;
       }
-      else if ( match_hash[ j ].hint == 0 )
+      else if ( md_match_hash[ j ].hint == 0 )
         break;
       j = ( j + 1 ) % MATCH_HASH_SIZE;
     }
   }
   /* find decoder by match group offset -- char at bb offset selects decoder */
-  for ( i = 0; i < group_cnt; i++ ) {
-    mg = match_group[ i ];
+  for ( i = 0; i < md_group_cnt; i++ ) {
+    mg = md_match_group[ i ];
     if ( (msg = mg->match( bb, off, end, h, d, m )) != NULL )
       return msg;
   }
   return NULL;
+}
+
+uint32_t
+MDMsg::is_msg_type( void *bb,  size_t off,  size_t end,  uint32_t h )
+{
+  MDMatchGroup * mg;
+  MDMatch      * ma;
+  uint32_t       i, j;
+  /* if nothing init, use auto unpack */
+  if ( md_add_cnt == 0 )
+    md_init_auto_unpack();
+  /* find decoder by md_match_hash[ h ] */
+  if ( h != 0 ) {
+    if ( h < MATCH_HASH_SIZE ) {
+      if ( (i = md_match_ftype[ h ]) != 0 ) {
+        ma = md_match_arr[ i - 1 ];
+        if ( ma->is_msg_type( bb, off, end, h ) )
+          goto found_msg_type;
+      }
+    }
+    j = h % MATCH_HASH_SIZE;
+    for (;;) {
+      if ( md_match_hash[ j ].hint == h ) {
+        i = md_match_hash[ j ].idx;
+        ma = md_match_arr[ i ];
+        if ( ma->is_msg_type( bb, off, end, h ) )
+          goto found_msg_type;
+      }
+      else if ( md_match_hash[ j ].hint == 0 )
+        break;
+      j = ( j + 1 ) % MATCH_HASH_SIZE;
+    }
+  }
+  /* find decoder by match group offset -- char at bb offset selects decoder */
+  for ( i = 0; i < md_group_cnt; i++ ) {
+    mg = md_match_group[ i ];
+    if ( (ma = mg->is_msg_type( bb, off, end, h )) != NULL )
+      goto found_msg_type;
+  }
+  return 0;
+
+found_msg_type:;
+  if ( ma->hint[ 0 ] != 0 )
+    return ma->hint[ 0 ];
+  return ma->ftype;
 }
 
 void

@@ -68,14 +68,8 @@ main( int argc, char **argv )
   }
 
   dict = load_dict_files( ::getenv( "cfile_path" ) );
-
   /* unpack auto recognizes messages by magic numbers, etc */
-  JsonMsg::init_auto_unpack();
-  RvMsg::init_auto_unpack();
-  TibMsg::init_auto_unpack();
-  TibSassMsg::init_auto_unpack();
-  MktfdMsg::init_auto_unpack();
-  RwfMsg::init_auto_unpack();
+  /*md_init_auto_unpack();*/
 
   /* read subject, size, message data */
   if ( argc > 1 ) {

@@ -120,11 +120,7 @@ main( int argc, char **argv )
   size_t sz;
 
   dict = load_dict_files( ::getenv( "cfile_path" ) );
-
-  RvMsg::init_auto_unpack();
-  TibMsg::init_auto_unpack();
-  TibSassMsg::init_auto_unpack();
-  RwfMsg::init_auto_unpack();
+  /*md_init_auto_unpack();*/
 
   TibMsgWriter tibmsg( buf, sizeof( buf ) );
   sz = test_write<TibMsgWriter>( tibmsg );

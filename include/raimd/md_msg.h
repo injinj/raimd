@@ -3,6 +3,8 @@
 
 #include <raimd/md_field_iter.h>
 
+extern "C" void md_init_auto_unpack( void );
+
 namespace rai {
 namespace md {
 
@@ -106,6 +108,7 @@ struct MDMatchGroup {
   void add_match( MDMatch &ma );
   MDMsg * match( void *bb,  size_t off,  size_t end,  uint32_t h,
                  MDDict *d,  MDMsgMem *m );
+  MDMatch * is_msg_type( void *bb,  size_t off,  size_t end,  uint32_t h );
 };
 
 struct MDMsg {
@@ -126,6 +129,7 @@ struct MDMsg {
   /* Unpack message and make available for extracting field values */
   static MDMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h = 0,
                         MDDict *d = NULL, MDMsgMem *m = NULL );
+  static uint32_t is_msg_type( void *b,  size_t off,  size_t end,  uint32_t h );
   /* dereference msg mem */
   void release( void ) {
     if ( this->mem != NULL && this->mem->ref_cnt != MDMsgMem::NO_REF_COUNT ) {
