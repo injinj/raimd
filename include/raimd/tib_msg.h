@@ -6,7 +6,8 @@
 namespace rai {
 namespace md {
 
-static const uint32_t RAIMSG_TYPE_ID = 0x07344064;
+static const uint32_t RAIMSG_TYPE_ID = 0x07344064,
+                      TIBMSG_TYPE_ID = RAIMSG_TYPE_ID;
 
 struct TibMsg : public MDMsg {
   /* used by unpack() to alloc in MDMsgMem */
