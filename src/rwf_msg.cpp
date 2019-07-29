@@ -509,10 +509,12 @@ RwfMsgWriter::append_ival( const char *fname,  size_t fname_len,
     return this->pack_ival( fid, (const uint8_t *) ival, ilen );
 
   MDReference mref;
-  mref.fptr    = (uint8_t *) (void *) ival;
-  mref.fsize   = ilen;
-  mref.ftype   = t;
-  mref.fendian = md_endian;
+  mref.fptr     = (uint8_t *) (void *) ival;
+  mref.fsize    = ilen;
+  mref.ftype    = t;
+  mref.fendian  = md_endian;
+  mref.fentrytp = MD_NODATA;
+  mref.fentrysz = 0;
   return this->append_ref( fid, ftype, fsize, mref );
 }
 
@@ -532,10 +534,12 @@ RwfMsgWriter::append_ival( MDFid fid,  const void *ival, size_t ilen, MDType t )
     return this->pack_ival( fid, (const uint8_t *) ival, ilen );
 
   MDReference mref;
-  mref.fptr    = (uint8_t *) (void *) ival;
-  mref.fsize   = ilen;
-  mref.ftype   = t;
-  mref.fendian = md_endian;
+  mref.fptr     = (uint8_t *) (void *) ival;
+  mref.fsize    = ilen;
+  mref.ftype    = t;
+  mref.fendian  = md_endian;
+  mref.fentrytp = MD_NODATA;
+  mref.fentrysz = 0;
   return this->append_ref( fid, ftype, fsize, mref );
 }
 
