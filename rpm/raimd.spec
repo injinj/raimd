@@ -11,6 +11,7 @@ BuildRoot:	${_tmppath}
 Prefix:	        /usr
 BuildRequires:  gcc-c++
 BuildRequires:  chrpath
+BuildRequires:  libdecnumber
 Requires:       libdecnumber
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
