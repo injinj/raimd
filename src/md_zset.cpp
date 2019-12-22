@@ -27,32 +27,28 @@ static MDMatch zsetmsg_match = {
   .unpack      = ZSetMsg::unpack
 };
 
-static inline bool is_mask( uint32_t m ) { return ( m & ( m + 1 ) ) == 0; }
+static bool
+is_zset( void *bb,  size_t off,  size_t &end )
+{
+  uint8_t * buf = &((uint8_t *) bb)[ off ];
+  size_t    len = end - off,
+            msz = ListData::mem_size( buf, len, ZSetData::zst8_sig,
+                                     ZSetData::zst16_sig, ZSetData::zst32_sig );
+  end = off + msz;
+  return msz != 0 && msz <= len;
+}
 
 bool
 ZSetMsg::is_zsetmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
-  uint8_t * buf = &((uint8_t *) bb)[ off ];
-  size_t    len = end - off;
-  if ( len >= 4 && get_u16<MD_LITTLE>( buf ) == ZSetData::zst8_sig &&
-       is_mask( buf[ 2 ] ) && is_mask( buf[ 3 ] ) )
-    return true;
-  if ( len >= 8 && get_u32<MD_LITTLE>( buf ) == ZSetData::zst16_sig &&
-       is_mask( get_u16<MD_LITTLE>( &buf[ 4 ] ) ) &&
-       is_mask( get_u16<MD_LITTLE>( &buf[ 6 ] ) ) )
-    return true;
-  if ( len >= 16 && get_u64<MD_LITTLE>( buf ) == ZSetData::zst32_sig &&
-       is_mask( get_u32<MD_LITTLE>( &buf[ 8 ] ) ) &&
-       is_mask( get_u32<MD_LITTLE>( &buf[ 12 ] ) ) )
-    return true;
-  return false;
+  return is_zset( bb, off, end );
 }
 
 MDMsg *
-ZSetMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
+ZSetMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
                  MDMsgMem *m )
 {
-  if ( ! is_zsetmsg( bb, off, end, h ) )
+  if ( ! is_zset( bb, off, end ) )
     return NULL;
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;

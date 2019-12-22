@@ -164,6 +164,7 @@ struct MDMsg {
   int zset_to_string( MDReference &mref,  char *&buf,  size_t &len );
   int geo_to_string( MDReference &mref,  char *&buf,  size_t &len );
   int hll_to_string( MDReference &mref,  char *&buf,  size_t &len );
+  int stream_to_string( MDReference &mref,  char *&buf,  size_t &len );
   int get_quoted_string( MDReference &mref,  char *&buf,  size_t &len );
   int get_escaped_string( MDReference &mref,  const char *quotes,
                            char *&buf,  size_t &len );

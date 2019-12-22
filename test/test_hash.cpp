@@ -39,6 +39,7 @@ main( int argc, char **argv )
          asz      = HashData::alloc_size( count, data_len );
 
   printf( "alloc size: %lu\n", asz );
+  ::memset( buf, 0, asz );
   HashData hash( buf, asz );
   printf( "init: count=%lu data_len=%lu\n", count, data_len );
   hash.init( count, data_len );

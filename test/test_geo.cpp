@@ -41,6 +41,7 @@ main( int argc, char **argv )
          asz      = GeoData::alloc_size( count, data_len );
 
   printf( "alloc size: %lu\n", asz );
+  ::memset( buf, 0, asz );
   GeoData geo( buf, asz );
   printf( "init: count=%lu data_len=%lu\n", count, data_len );
   geo.init( count, data_len );

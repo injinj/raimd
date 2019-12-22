@@ -38,6 +38,7 @@ main( int argc, char **argv )
          asz      = SetData::alloc_size( count, data_len );
 
   printf( "alloc size: %lu\n", asz );
+  ::memset( buf, 0, asz );
   SetData set( buf, asz );
   printf( "init: count=%lu data_len=%lu\n", count, data_len );
   set.init( count, data_len );
