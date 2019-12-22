@@ -41,6 +41,7 @@ main( int argc, char **argv )
          asz      = ZSetData::alloc_size( count, data_len );
 
   printf( "alloc size: %lu\n", asz );
+  ::memset( buf, 0, asz );
   ZSetData zset( buf, asz );
   printf( "init: count=%lu data_len=%lu\n", count, data_len );
   zset.init( count, data_len );

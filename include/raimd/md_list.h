@@ -101,26 +101,72 @@ struct ListVal {
     }
     return x + y;
   }
+  uint64_t u64( void ) const {
+    uint64_t val = 0;
+    this->concat( &val, 8 );
+    return val;
+  }
+  uint32_t u32( void ) const {
+    uint32_t val = 0;
+    this->concat( &val, 4 );
+    return val;
+  }
   /* get data pointer, with copy or malloc if region is split into data/data2 */
   size_t unitary( void *&out,  void *buf,  size_t buf_sz,  bool &is_a ) const {
-    if ( this->length() != this->sz ) { /* if sz != 0 and sz2 != 0 */
-      if ( buf_sz < this->length() ) {
-        buf = ::malloc( this->length() );
-        if ( buf == NULL ) {
-          out = NULL;
-          return 0;
-        }
-        is_a = true;
-      }
-      out = buf;
-      ::memcpy( buf, this->data, this->sz );
-      ::memcpy( &((char *) buf)[ this->sz ], this->data2, this->sz2 );
-    }
-    else if ( this->sz > 0 )
+    const size_t len = this->length();
+    if ( len == this->sz ) {
       out = (void *) this->data;
-    else
-      out = (void *) this->data2;
+      return len;
+    }
+    /* if sz != 0 and sz2 != 0 */
+    if ( buf_sz < len ) {
+      buf = ::malloc( len );
+      if ( buf == NULL ) {
+        out = NULL;
+        return 0;
+      }
+      is_a = true;
+    }
+    out = buf;
+    ::memcpy( buf, this->data, this->sz );
+    ::memcpy( &((char *) buf)[ this->sz ], this->data2, this->sz2 );
+    return len;
+  }
+  /* get data pointer, with copy or alloc if region is split into data/data2 */
+  size_t unitary( void *&out,  MDMsgMem &mem,
+                  void *buf = NULL,  size_t buf_sz = 0 ) const {
+    const size_t len = this->length();
+    if ( len == this->sz ) {
+      out = (void *) this->data;
+      return len;
+    }
+    if ( buf_sz < len )
+      mem.alloc( len, &buf );
+    out = buf;
+    ::memcpy( buf, this->data, this->sz );
+    ::memcpy( &((char *) buf)[ this->sz ], this->data2, this->sz2 );
+    return len;
+  }
+  size_t dup( MDMsgMem &mem,  void *buf ) const {
+    mem.alloc( this->length(), buf );
+    char * ptr = *(char **) buf;
+    ::memcpy( ptr, this->data, this->sz );
+    if ( this->sz2 != 0 )
+      ::memcpy( &ptr[ this->sz ], this->data2, this->sz2 );
     return this->length();
+  }
+  void unite( MDMsgMem &mem ) {
+    size_t len = this->length();
+    if ( len == this->sz )
+      return;
+    void * buf;
+    mem.alloc( len, &buf );
+    ::memcpy( buf, this->data, this->sz );
+    ::memcpy( &((char *) buf)[ this->sz ], this->data2, this->sz2 );
+    this->data  = buf;
+    this->data2 = NULL;
+    this->sz    = len;
+    this->sz2   = 0;
   }
   /* does memcmp:  key - lv == lv.cmp_key( key, keylen ) */
   int cmp_key( const void *key,  size_t keylen ) const {
@@ -147,6 +193,30 @@ struct ListVal {
       }
     }
     return cmp;
+  }
+  int cmp_key( const ListVal &lv ) {
+    if ( lv.sz2 == 0 )
+      return cmp_key( lv.data, lv.sz );
+    for ( size_t i = 0; ; i++ ) {
+      uint8_t b, c;
+      if ( i < this->sz )
+        b = ((uint8_t *) this->data)[ i ];
+      else if ( i < this->sz + this->sz2 )
+        b = ((uint8_t *) this->data2)[ i - this->sz ];
+      else { /* i == this->sz + this->sz2 */
+        if ( i == lv.sz + lv.sz2 ) /* this == lv */
+          return 0;
+        return -1; /* this < lv */
+      }
+      if ( i < lv.sz )
+        c = ((uint8_t *) lv.data)[ i ];
+      else if ( i < lv.sz + lv.sz2 )
+        c = ((uint8_t *) lv.data2)[ i - lv.sz ];
+      else /* i == lv.sz + lv.sz2 */
+        return 1; /* this > lv */
+      if ( b != c )
+        return ( b < c ) ? -1 : 1;
+    }
   }
   size_t copy_out( void *dest,  size_t off,  size_t len ) const {
     size_t i = 0;
@@ -493,7 +563,7 @@ struct ListStorage {
     size_t size = this->get_size( hdr, n );
     if ( n < this->count ) {
       if ( n == 0 || n + 1 == this->count ) {
-        if ( n == 0 )
+        if ( n + 1 != this->count ) /* if not at tail, then at head */
           this->first = ( this->first + 1 ) & hdr.index_mask;
         this->count -= 1;
         this->data_len -= size;
@@ -713,49 +783,85 @@ struct ListData : public ListHeader {
   ListData() : listp( 0 ), size( 0 ) {}
   ListData( void *l,  size_t sz ) : listp( l ), size( sz ) {}
 
+  /* test what data storage used for listp */
   static bool is_uint8( size_t alloc_size ) {
     return alloc_size < ( 0x100 << 1 );
   }
   static bool is_uint16( size_t alloc_size ) {
     return alloc_size < ( 0x10000 << 1 );
   }
+  /* power of 2 larger or equal to sz */
   static size_t pow2size( size_t sz ) {
     if ( ( sz & ( sz - 1 ) ) != 0 )
       sz = (size_t) 1 << ( 64 - __builtin_clzl( sz ) );
     return sz;
   }
+  /* calc word size appropriate for count idx of data size items */
   static size_t alloc_size( size_t &idx_size,  size_t &dat_size ) {
     size_t sz, tz, lst_size;
-    if ( idx_size < 2 )
-      idx_size = 2;
-    if ( dat_size < 4 )
-      dat_size = 4;
-    for (;;) {
-      idx_size = pow2size( idx_size );
-      dat_size = pow2size( dat_size );
+    idx_size = ( idx_size < 2 ? 4 : ListData::pow2size( idx_size + 1 ) );
+    dat_size = ( dat_size < 4 ? 8 : ListData::pow2size( dat_size + 3 ) );
 
+    for ( int i = 0; ; i++ ) {
+      /* choose the word size that can address the range offsets needed */
       if ( ( idx_size | ( dat_size - 1 ) ) <= 0xff ) {
-        sz = sizeof( ListStorage8 );
+        sz = sizeof( ListStorage8 ); /* byte size list */
         tz = sizeof( uint8_t );
       }
       else if ( ( idx_size | ( dat_size - 1 ) ) <= 0xffff ) {
-        sz = sizeof( ListStorage16 );
+        sz = sizeof( ListStorage16 ); /* short size list */
         tz = sizeof( uint16_t );
       }
       else {
-        sz = sizeof( ListStorage32 );
+        sz = sizeof( ListStorage32 ); /* int size list */
         tz = sizeof( uint32_t );
       }
-      lst_size = sz + tz * idx_size + dat_size;
-      if ( ( is_uint8( lst_size ) && tz != sizeof( uint8_t ) ) ||
-           ( ! is_uint8( lst_size ) && is_uint16( lst_size ) && tz != sizeof( uint16_t ) ) ||
-           ( ! is_uint8( lst_size ) && ! is_uint16( lst_size ) &&
-             tz != sizeof( uint32_t ) ) )
-        dat_size++;
+      lst_size = sz + tz * idx_size + dat_size; /* total size of idx + data */
+      /* there is a point at the edges where is_uintXX() doesn't work,
+       * check that it is valid for the current word size */
+      if ( ListData::is_uint8( lst_size ) ) { /* check that is_uint8() */
+        if ( tz == sizeof( uint8_t ) )        /* works with lst_size */
+          return lst_size;
+      }
+      else if ( ListData::is_uint16( lst_size ) ) { /* check is_uint16() */
+        if ( tz == sizeof( uint16_t ) )
+          return lst_size;
+      }
+      else {
+        if ( tz == sizeof( uint32_t ) ) /* check is_uint32() */
+          return lst_size;
+      }
+      /* a size is to small, increment it to the next power of 2 */
+      if ( ( i & 1 ) == 0 )
+        dat_size = ListData::pow2size( dat_size + 3 );
       else
-        return lst_size;
+        idx_size = ListData::pow2size( idx_size + 1 );
     }
   }
+  static size_t mem_size( const void *ptr,  size_t len,  uint16_t sig8,
+                          uint32_t sig16,  uint64_t sig32 ) {
+    const uint8_t * buf = (const uint8_t *) ptr;
+    if ( to_ival<uint16_t>( buf ) == sig8 && len > sizeof( ListStorage8 ) ) {
+      const ListStorage8 &hdr = *(const ListStorage8 *) ptr;
+      if ( is_mask( hdr._list_index_mask ) && is_mask( hdr._list_data_mask ) )
+        return sizeof( ListStorage8 ) +
+          ( hdr._list_index_mask + 1 ) + ( hdr._list_data_mask + 1 );
+    }
+    if ( to_ival<uint32_t>( buf ) == sig16 && len > sizeof( ListStorage16 ) ) {
+      const ListStorage16 &hdr = *(const ListStorage16 *) ptr;
+      if ( is_mask( hdr._list_index_mask ) && is_mask( hdr._list_data_mask ) )
+        return sizeof( ListStorage16 ) +
+          ( hdr._list_index_mask + 1 ) * 2 + ( hdr._list_data_mask + 1 );
+    }
+    if ( to_ival<uint64_t>( buf ) == sig32 && len > sizeof( ListStorage32 ) ) {
+      const ListStorage32 &hdr = *(const ListStorage32 *) ptr;
+      if ( is_mask( hdr._list_index_mask ) && is_mask( hdr._list_data_mask ) )
+        return sizeof( ListStorage32 ) +
+          ( hdr._list_index_mask + 1 ) * 4 + ( hdr._list_data_mask + 1 );
+    }
+    return 0; /* not recognized */
+  }
+  /* add idx and data to current size * 1.5 */
   size_t resize_size( size_t &idx_size,  size_t &dat_size ) {
     dat_size += this->data_len();
     dat_size += dat_size / 2 + 2;
@@ -763,6 +869,7 @@ struct ListData : public ListHeader {
     idx_size += idx_size / 2 + 2;
     return alloc_size( idx_size, dat_size );
   }
+  /* magic numbers for the headers */
   static const uint16_t lst8_sig  = 0xf7e4U;
   static const uint32_t lst16_sig = 0xddbe7ae4UL;
   static const uint64_t lst32_sig = 0xa5f5ff85c9f6c3e4ULL;
@@ -770,6 +877,7 @@ struct ListData : public ListHeader {
   ( is_uint8( this->size ) ? ((ListStorage8 *) this->listp)->GOTO : \
     is_uint16( this->size ) ? ((ListStorage16 *) this->listp)->GOTO : \
                               ((ListStorage32 *) this->listp)->GOTO )
+  /* after allocation, initialize the header of list */
   void init_sig( size_t count,  size_t data_len,  uint16_t sig8,
                  uint32_t sig16,  uint64_t sig32 ) {
     if ( is_uint8( this->size ) )
@@ -782,15 +890,28 @@ struct ListData : public ListHeader {
       (new ( this->listp )
         ListStorage32( sig32, count, data_len ))->init( *this );
   }
+  /* uses lst magics above */
   void init( size_t count,  size_t data_len ) {
     this->init_sig( count, data_len, lst8_sig, lst16_sig, lst32_sig );
   }
+  bool in_mem_region( const void *m,  size_t sz ) const {
+    if ( (const char *) m >= (const char *) this->listp ) {
+      if ( &((const char *) m)[ sz ] <=
+           &((const char *) this->listp)[ this->size ] )
+        return true;
+    }
+    return false;
+  }
+  /* open uses the listp as the list, with a out of band header (optional) */
+  /* the oob hdr is needed in the case of reading a mutating structure */
   void open( const void *oob = NULL,  size_t loob = 0 ) {
     LIST_CALL( open( *this, oob, loob ) );
   }
+  /* return the number of list elems */
   size_t count( void ) const {
     return this->index( LIST_CALL( count ) );
   }
+  /* the total length of data */
   size_t data_len( void ) const {
     return this->length( LIST_CALL( data_len ) );
   }
@@ -798,6 +919,7 @@ struct ListData : public ListHeader {
   static bool sig_eq( uint64_t x,  uint64_t y ) {
     return ( x >> 4 ) == ( y >> 4 ); /* lower 4 bits differ based on type */
   }
+  /* debug for list verification, checks header sig and iterates the list */
   int lverify( void ) const {
     if ( is_uint8( this->size ) ) {
       if ( ! sig_eq( ((ListStorage8 *) this->listp)->_list_sig, lst8_sig ) )
@@ -816,6 +938,7 @@ struct ListData : public ListHeader {
   void lprint( void ) const {
     return LIST_CALL( lprint( *this ) );
   }
+  /* template to copy one list to another */
   template<class T, class U>
   void copy( ListData &list ) const {
     if ( is_uint8( this->size ) )
@@ -828,6 +951,7 @@ struct ListData : public ListHeader {
       ((ListStorage32 *) this->listp)->copy<T, U>( *this, list,
                                             *(ListStorage<T, U> *) list.listp );
   }
+  /* use template above based on size */
   void copy( ListData &list ) const {
     if ( is_uint8( list.size ) )
       this->copy<uint16_t, uint8_t>( list );
@@ -839,15 +963,30 @@ struct ListData : public ListHeader {
   size_t offset( size_t n ) const {
     return LIST_CALL( get_offset( *this, n ) );
   }
-
+  /* the list operations routed to the list storage used */
   ListStatus rpush( const void *data,  size_t size ) {
     return LIST_CALL( rpush( *this, data, size ) );
+  }
+  ListStatus rpush( const ListVal &lv ) {
+    return LIST_CALL( rpush( *this, lv ) );
   }
   ListStatus lpush( const void *data,  size_t size ) {
     return LIST_CALL( lpush( *this, data, size ) );
   }
   ListStatus lindex( size_t n,  ListVal &lv ) const {
     return LIST_CALL( lindex( *this, n, lv ) );
+  }
+  ListStatus lindex_cmp_key( size_t n,  ListVal &key ) const {
+    ListVal lv;
+    if ( this->lindex( n, lv ) == LIST_OK && lv.cmp_key( key ) == 0 )
+      return LIST_OK;
+    return LIST_NOT_FOUND;
+  }
+  ListStatus lindex_cmp_key( size_t n,  const char *key,  size_t keylen) const {
+    ListVal lv;
+    if ( this->lindex( n, lv ) == LIST_OK && lv.cmp_key( key, keylen ) == 0 )
+      return LIST_OK;
+    return LIST_NOT_FOUND;
   }
   void ltrim( size_t n ) {
     LIST_CALL( ltrim( *this, n ) );

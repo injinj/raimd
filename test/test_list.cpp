@@ -38,6 +38,7 @@ main( int argc, char **argv )
          asz      = ListData::alloc_size( count, data_len );
 
   printf( "alloc size: %lu\n", asz );
+  ::memset( buf, 0, asz );
   ListData list( buf, asz );
   printf( "init: count=%lu data_len=%lu\n", count, data_len );
   list.init( count, data_len );

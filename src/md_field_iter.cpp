@@ -306,6 +306,13 @@ MDMsg::hll_to_string( MDReference &mref,  char *&buf,  size_t &len )
 }
 
 int
+MDMsg::stream_to_string( MDReference &,  char *&,  size_t & )
+{
+  /* TODO */
+  return 0;
+}
+
+int
 MDMsg::time_to_string( MDReference &,  char *&,  size_t & )
 {
   /* TODO */
@@ -413,6 +420,7 @@ MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len )
     case MD_ZSET:        return this->zset_to_string( mref, buf, len );
     case MD_GEO:         return this->geo_to_string( mref, buf, len );
     case MD_HYPERLOGLOG: return this->hll_to_string( mref, buf, len );
+    case MD_STREAM:      return this->stream_to_string( mref, buf, len );
 
     case MD_TIME: {
       MDTime time;
@@ -671,6 +679,7 @@ rai::md::md_type_str( MDType type,  size_t size )
     case MD_ZSET:      return "zset";
     case MD_GEO:       return "geo";
     case MD_HYPERLOGLOG: return "hyperloglog";
+    case MD_STREAM:    return "stream";
   }
   return "invalid";
 }
@@ -834,6 +843,7 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
     case MD_ZSET:
     case MD_GEO:
     case MD_HYPERLOGLOG:
+    case MD_STREAM:
       if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
         out->puts( str );
       }

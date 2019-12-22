@@ -6,6 +6,13 @@
 namespace rai {
 namespace md {
 
+template<class Int>
+static inline Int to_ival( const void *val ) {
+  Int i;
+  ::memcpy( &i, val, sizeof( i ) );
+  return i;
+}
+
 template<MDEndian end>
 static inline uint16_t get_u16( const void *val ) {
   const uint8_t *u = (const uint8_t *) val;
@@ -206,6 +213,8 @@ static inline int cvt_number( const MDReference &mref, T &val ) {
   }
   return Err::BAD_CVT_NUMBER;
 }
+
+static inline bool is_mask( uint32_t m ) { return ( m & ( m + 1 ) ) == 0; }
 
 /* integer to string routines */
 static inline uint64_t nega( int64_t v ) {

@@ -53,8 +53,9 @@ enum MDType { /* field types */
   MD_SET         = 20,
   MD_ZSET        = 21,
   MD_GEO         = 22,
-  MD_HYPERLOGLOG = 23
-#define MD_TYPE_COUNT 24
+  MD_HYPERLOGLOG = 23,
+  MD_STREAM      = 24
+#define MD_TYPE_COUNT 25
 };
 
 enum MDEndian {

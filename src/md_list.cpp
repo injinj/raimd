@@ -27,32 +27,28 @@ static MDMatch listmsg_match = {
   .unpack      = ListMsg::unpack
 };
 
-static inline bool is_mask( uint32_t m ) { return ( m & ( m + 1 ) ) == 0; }
+static bool
+is_list( void *bb,  size_t off,  size_t &end )
+{
+  uint8_t * buf = &((uint8_t *) bb)[ off ];
+  size_t    len = end - off,
+            msz = ListData::mem_size( buf, len, ListData::lst8_sig,
+                                     ListData::lst16_sig, ListData::lst32_sig );
+  end = off + msz;
+  return msz != 0 && msz <= len;
+}
 
 bool
 ListMsg::is_listmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
-  uint8_t * buf = &((uint8_t *) bb)[ off ];
-  size_t    len = end - off;
-  if ( len >= 4 && get_u16<MD_LITTLE>( buf ) == ListData::lst8_sig &&
-       is_mask( buf[ 2 ] ) && is_mask( buf[ 3 ] ) )
-    return true;
-  if ( len >= 8 && get_u32<MD_LITTLE>( buf ) == ListData::lst16_sig &&
-       is_mask( get_u16<MD_LITTLE>( &buf[ 4 ] ) ) &&
-       is_mask( get_u16<MD_LITTLE>( &buf[ 6 ] ) ) )
-    return true;
-  if ( len >= 16 && get_u64<MD_LITTLE>( buf ) == ListData::lst32_sig &&
-       is_mask( get_u32<MD_LITTLE>( &buf[ 8 ] ) ) &&
-       is_mask( get_u32<MD_LITTLE>( &buf[ 12 ] ) ) )
-    return true;
-  return false;
+  return is_list( bb, off, end );
 }
 
 MDMsg *
-ListMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
+ListMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
                  MDMsgMem *m )
 {
-  if ( ! is_listmsg( bb, off, end, h ) )
+  if ( ! is_list( bb, off, end ) )
     return NULL;
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;

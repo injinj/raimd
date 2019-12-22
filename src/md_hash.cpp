@@ -27,32 +27,28 @@ static MDMatch hashmsg_match = {
   .unpack      = HashMsg::unpack
 };
 
-static inline bool is_mask( uint32_t m ) { return ( m & ( m + 1 ) ) == 0; }
+static bool
+is_hash( void *bb,  size_t off,  size_t &end )
+{
+  uint8_t * buf = &((uint8_t *) bb)[ off ];
+  size_t    len = end - off,
+            msz = ListData::mem_size( buf, len, HashData::hsh8_sig,
+                                     HashData::hsh16_sig, HashData::hsh32_sig );
+  end = off + msz;
+  return msz != 0 && msz <= len;
+}
 
 bool
 HashMsg::is_hashmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 {
-  uint8_t * buf = &((uint8_t *) bb)[ off ];
-  size_t    len = end - off;
-  if ( len >= 4 && get_u16<MD_LITTLE>( buf ) == HashData::hsh8_sig &&
-       is_mask( buf[ 2 ] ) && is_mask( buf[ 3 ] ) )
-    return true;
-  if ( len >= 8 && get_u32<MD_LITTLE>( buf ) == HashData::hsh16_sig &&
-       is_mask( get_u16<MD_LITTLE>( &buf[ 4 ] ) ) &&
-       is_mask( get_u16<MD_LITTLE>( &buf[ 6 ] ) ) )
-    return true;
-  if ( len >= 16 && get_u64<MD_LITTLE>( buf ) == HashData::hsh32_sig &&
-       is_mask( get_u32<MD_LITTLE>( &buf[ 8 ] ) ) &&
-       is_mask( get_u32<MD_LITTLE>( &buf[ 12 ] ) ) )
-    return true;
-  return false;
+  return is_hash( bb, off, end );
 }
 
 MDMsg *
-HashMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
+HashMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
                  MDMsgMem *m )
 {
-  if ( ! is_hashmsg( bb, off, end, h ) )
+  if ( ! is_hash( bb, off, end ) )
     return NULL;
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
