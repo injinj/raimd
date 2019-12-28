@@ -72,7 +72,7 @@ struct StreamId {
   bool         is_xy;  /* if in fmt timems-serial */
   StreamId() : id( 0 ), idlen( 0 ), x( 0 ), y( 0 ), is_xy( false ) {}
 
-  void str_to_id( const char *id,  size_t idlen ) {
+  bool str_to_id( const char *id,  size_t idlen ) {
     const char * p;
     uint64_t     val;
 
@@ -85,7 +85,7 @@ struct StreamId {
     p = md_rev_get_uint( &id[ idlen ], id, val );
     if ( p < id ) { /* if only one number, use zero as serial */
       this->x = val;
-      return;
+      return true;
     }
     if ( p[ 0 ] == '-' && p > id ) {
       this->y = val;
@@ -93,10 +93,11 @@ struct StreamId {
       p = md_rev_get_uint( p, id, val );
       if ( p < id ) { /* two numbers */
         this->x = val;
-        return;
+        return true;
       }
     }
     this->is_xy = false;
+    return false;
   }
 
   void xy_to_id( uint64_t ms,  uint64_t ser,  MDMsgMem &tmp ) {
@@ -116,34 +117,19 @@ struct StreamId {
     idval[ ms_digs + 1 + ser_digs ] = '\0';
   }
 
-  void str_to_id( ListVal &lv,  MDMsgMem &tmp ) {
+  bool str_to_id( ListVal &lv,  MDMsgMem &tmp ) {
     if ( lv.sz2 == 0 )
-      this->str_to_id( (const char *) lv.data, lv.sz );
-    else {
-      char * id;
-      size_t sz = lv.dup( tmp, &id );
-      this->str_to_id( id, sz );
-    }
+      return this->str_to_id( (const char *) lv.data, lv.sz );
+    char * id;
+    size_t sz = lv.dup( tmp, &id );
+    return this->str_to_id( id, sz );
   }
   /* return 0 if eq, -1 if this > val, 1 if this < val */
   int compare( const StreamId &val ) const {
-    int cmp;
-    if ( this->is_xy && val.is_xy ) {
-      if ( this->x == val.x )
-        return ( this->y == val.y ) ? 0 :
-               ( this->y < val.y ) ? -1 : 1;
-      return ( this->x < val.x ) ? -1 : 1;
-    }
-    if ( this->idlen <= val.idlen ) {
-      cmp = ::memcmp( this->id, val.id, this->idlen );
-      if ( this->idlen == val.idlen || cmp != 0 )
-        return cmp;
-      return -1;
-    }
-    cmp = ::memcmp( this->id, val.id, val.idlen );
-    if ( cmp != 0 )
-      return cmp;
-    return 1;
+    if ( this->x == val.x )
+      return ( this->y == val.y ) ? 0 :
+             ( this->y < val.y ) ? -1 : 1;
+    return ( this->x < val.x ) ? -1 : 1;
   }
   ListData *construct_entry( size_t idxsz,  size_t sz,  MDMsgMem &tmp ) {
     idxsz += 1;
@@ -345,7 +331,7 @@ struct StreamData {
     if ( idlen == 1 ) {
       if ( id[ 0 ] == '-' )
         return 0 + ( gt ? 1 : 0 );
-      if ( id[ 0 ] == '+' )
+      if ( id[ 0 ] == '+' || id[ 0 ] == '$' || id[ 0 ] == '>' )
         return cnt - ( gt ? 0 : 1 );
     }
     StreamId srch, val;
@@ -354,14 +340,16 @@ struct StreamData {
              piv,
              pos = 0;
     /* search pos=0 -> count - pos */
-    srch.str_to_id( id, idlen );
+    if ( ! srch.str_to_id( id, idlen ) )
+      return -1;
     for (;;) {
       if ( size == 0 )
         return pos;
       piv = size / 2;
       if ( this->sindex_id( lst, pos + piv, lv, tmp ) != STRM_OK )
         return -1;
-      val.str_to_id( lv, tmp );
+      if ( ! val.str_to_id( lv, tmp ) )
+        return -1;
       switch ( srch.compare( val ) ) {
         case 0:  return pos + piv + ( gt ? 1 : 0 );
         case 1:  size -= piv + 1; pos += piv + 1; break;
@@ -382,7 +370,8 @@ struct StreamData {
       osz = size;
       if ( this->sindex_id( lst, pos + piv, lv, tmp ) != STRM_OK )
         return -1;
-      val.str_to_id( lv, tmp );
+      if ( ! val.str_to_id( lv, tmp ) )
+        return -1;
       switch ( srch.compare( val ) ) {
         case 0: return pos + piv;
         case 1: size -= piv + 1; pos += piv + 1; break;
@@ -405,7 +394,8 @@ struct StreamData {
         return size - 1;
     }
     StreamId srch;
-    srch.str_to_id( id, idlen );
+    if ( ! srch.str_to_id( id, idlen ) )
+      return -1;
     return this->bsearch_eq( lst, srch, tmp, size );
   }
   /* linear scan the list for id */
@@ -562,7 +552,7 @@ struct StreamData {
     grp.zero();
     off = this->scan( this->group, sa.gname, sa.glen, ld, tmp );
     /* if it exists, update id */
-    if ( off == -1 )
+    if ( off < 0 )
       return STRM_NOT_FOUND;
     grp.pos = off;
 
@@ -601,9 +591,8 @@ struct StreamData {
           continue;
         if ( ld.lindex( P_ID, lv ) != LIST_OK )
           continue;
-        val.str_to_id( lv, tmp );
         /* if id from pending equal to search val */
-        if ( srch.compare( val ) <= 0 ) {
+        if ( val.str_to_id( lv, tmp ) && srch.compare( val ) <= 0 ) {
           /* find the record in the stream */
           off = this->bsearch_eq( this->stream, val, tmp, strm_cnt );
           if ( off >= 0 ) {
