@@ -9,7 +9,8 @@ namespace md {
 enum StreamStatus {
   STRM_OK        = LIST_OK,
   STRM_NOT_FOUND = LIST_NOT_FOUND,
-  STRM_FULL      = LIST_FULL
+  STRM_FULL      = LIST_FULL,
+  STRM_BAD_ID    = 3
 };
 
 struct StreamGroupQuery {
@@ -26,20 +27,43 @@ struct StreamGroupQuery {
 };
 
 static inline const char *
-md_rev_get_uint( const char *p,  const char *start,  uint64_t &val )
+md_rev_get_uint( const char *p,  const char *start,  uint64_t &v )
 {
   #define U( f ) (uint64_t) f
   static const uint64_t tens[] = {
     1, 10, 100, 1000, U( 1e4 ), U( 1e5 ), U( 1e6 ), U( 1e7 ),
-    U( 1e8 ), U( 1e9 ), U( 1e10 ), U( 1e11 ), U( 1e12 ),
-    U( 1e13 ), U( 1e14 ), U( 1e15 ), U( 1e16 ), U( 1e17 ),
-    U( 1e18 ), U( 1e19 )
+    U( 1e8 ), U( 1e9 ), U( 1e10 ), U( 1e11 ), U( 1e12 ), U( 1e13 ),
+    U( 1e14 ), U( 1e15 ), U( 1e16 ), U( 1e17 ), U( 1e18 )
   };
   #undef U
+  uint64_t val = 0, val2;
   size_t n = 0;
-  while ( --p >= start && p[ 0 ] >= '0' && p[ 0 ] <= '9' && n < 20 )
-    val += tens[ n++ ] * (uint64_t) ( p[ 0 ] - '0' );
-  return p;
+  v = 0;
+  for (;;) {
+    if ( --p < start || p[ 0 ] < '0' || p[ 0 ] > '9' ) {
+      v = val;
+      if ( n == 0 )
+        return NULL;
+      return p;
+    }
+    if ( n < 18 )
+      val += tens[ n++ ] * (uint64_t) ( p[ 0 ] - '0' );
+    else {
+      val2 = (uint64_t) ( p[ 0 ] - '0' );
+      n = 1;
+      for (;;) {
+        if ( --p < start || p[ 0 ] < '0' || p[ 0 ] > '9' ) {
+          if ( val2 > 18 || ( val2 == 18 && val > 446744073709551615ULL ) )
+            return NULL;
+          v = val + val2 * tens[ 18 ];
+          return p;
+        }
+        if ( n >= 2 )
+          return NULL;
+        val2 += tens[ n++ ] * (uint64_t) ( p[ 0 ] - '0' );
+      }
+    }
+  }
 }
 
 static inline size_t
@@ -69,8 +93,7 @@ struct StreamId {
   const char * id;     /* ths string id */
   size_t       idlen;  /* length of id[] */
   uint64_t     x, y;   /* x = first part, utc millisecs, y = serial number */
-  bool         is_xy;  /* if in fmt timems-serial */
-  StreamId() : id( 0 ), idlen( 0 ), x( 0 ), y( 0 ), is_xy( false ) {}
+  StreamId() : id( 0 ), idlen( 0 ), x( 0 ), y( 0 ) {}
 
   bool str_to_id( const char *id,  size_t idlen ) {
     const char * p;
@@ -80,23 +103,23 @@ struct StreamId {
     this->idlen = idlen;
     this->x     = 0;
     this->y     = 0;
-    this->is_xy = true;
-    val = 0;
     p = md_rev_get_uint( &id[ idlen ], id, val );
+    if ( p == NULL )
+      return false;
     if ( p < id ) { /* if only one number, use zero as serial */
       this->x = val;
       return true;
     }
     if ( p[ 0 ] == '-' && p > id ) {
       this->y = val;
-      val = 0;
       p = md_rev_get_uint( p, id, val );
+      if ( p == NULL )
+        return false;
       if ( p < id ) { /* two numbers */
         this->x = val;
         return true;
       }
     }
-    this->is_xy = false;
     return false;
   }
 
@@ -110,7 +133,6 @@ struct StreamId {
     this->idlen = ms_digs + ser_digs + 1;
     this->x     = ms;
     this->y     = ser;
-    this->is_xy = true;
     md_uint_to_str( ms, idval, ms_digs );
     idval[ ms_digs ] = '-';
     md_uint_to_str( ser, &idval[ ms_digs + 1 ], ser_digs );
@@ -413,6 +435,11 @@ struct StreamData {
     }
     return -1;
   }
+  /* vheck if group exists */
+  bool group_exists( StreamArgs &sa,  MDMsgMem &tmp ) {
+    ListData ld;
+    return this->scan( this->group, sa.gname, sa.glen, ld, tmp ) != -1;
+  }
   /* update or add a group with last-sent-id = id */
   StreamStatus update_group( StreamArgs &sa,  MDMsgMem &tmp ) {
     ListData * xl, ld;
@@ -439,17 +466,19 @@ struct StreamData {
     if ( off != -1 ) {
       this->group.lrem( off );
       this->remove_pending( sa, tmp );
-      return STRM_OK;
+      sa.cnt = 1;
     }
-    return STRM_NOT_FOUND;
+    else {
+      sa.cnt = 0;
+    }
+    return STRM_OK;
   }
   /* locate pending elem by gname, cname and remove it */
   StreamStatus remove_pending( StreamArgs &sa,  MDMsgMem &tmp ) {
     ListData     ld;
     size_t       pos,
-                 count = this->pending.count(),
-                 rem_count = 0;
-
+                 count = this->pending.count();
+    sa.cnt = 0;
     for ( pos = 0; pos < count; ) {
       StreamStatus xstat = this->sindex( this->pending, pos, ld, tmp );
       if ( xstat != STRM_OK )
@@ -460,14 +489,12 @@ struct StreamData {
             ld.lindex_cmp_key( P_GRP, sa.gname, sa.glen ) == LIST_OK ) {
         this->pending.lrem( pos );
         count--;
-        rem_count++;
+        sa.cnt++;
       }
       else {
         pos++;
       }
     }
-    if ( rem_count == 0 )
-      return STRM_NOT_FOUND;
     return STRM_OK;
   }
   /* locate pending elem by gname, id and remove it */
@@ -567,7 +594,7 @@ struct StreamData {
       sa.idval = s;
       off = this->bsearch_str( this->stream, sa.idval, sa.idlen, true, tmp );
       if ( off < 0 )
-        return STRM_NOT_FOUND;
+        return STRM_BAD_ID;
       grp.first = off;
       /* the number of records available up to maxcnt */
       if ( maxcnt == 0 || maxcnt + off > strm_cnt )
@@ -579,7 +606,8 @@ struct StreamData {
       StreamId srch, val;
       size_t   pend_cnt = this->pending.count(),
                pos;
-      srch.str_to_id( sa.idval, sa.idlen );
+      if ( ! srch.str_to_id( sa.idval, sa.idlen ) )
+        return STRM_BAD_ID;
       /* scan pending list, find the ids and index them to stream */
       for ( pos = 0; pos < pend_cnt; pos++ ) {
         xstat = this->sindex( this->pending, pos, ld, tmp );
