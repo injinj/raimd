@@ -29,9 +29,9 @@ struct JsonParser {
   JsonParser( MDMsgMem &m ) : mem( m ) {}
   /* result contains the offset of json[] consumed as well as the memory
      allocated, if any */
-  int parse( JsonStreamInput &input );
+  int parse( JsonStreamInput &input ) noexcept;
 
-  int parse( JsonBufInput &input );
+  int parse( JsonBufInput &input ) noexcept;
 };
 
 struct JsonBoolean;
@@ -42,14 +42,14 @@ struct JsonArray;
 
 struct JsonValue {
   JsonType type;
-  int print( MDOutput *out );
+  int print( MDOutput *out ) noexcept;
   JsonBoolean *to_bool( void ) const;
   JsonNumber *to_num( void ) const;
   JsonString *to_str( void ) const;
   JsonObject *to_obj( void ) const;
   JsonArray *to_arr( void ) const;
-  int to_double( double &v ) const; /* return double */
-  int to_int( int64_t &v ) const;  /* return int */
+  int to_double( double &v ) const noexcept; /* return double */
+  int to_int( int64_t &v ) const noexcept;  /* return int */
 };
 
 struct JsonBoolean : public JsonValue {
@@ -70,7 +70,7 @@ struct JsonObject : public JsonValue {
     JsonValue * val;
   } * val;
   size_t length;
-  JsonValue *find( const char *name ) const;
+  JsonValue *find( const char *name ) const noexcept;
 };
 
 struct JsonArray : public JsonValue {
@@ -98,8 +98,8 @@ struct JsonStreamInput {
          buf2_off;
   bool   is_eof;
 
-  virtual size_t read( uint8_t *buf,  size_t len );
-  bool fill_buf( void );
+  virtual size_t read( uint8_t *buf,  size_t len ) noexcept;
+  bool fill_buf( void ) noexcept;
   int  cur( void ) {
     do {
       if ( this->offset < this->length )
@@ -118,9 +118,9 @@ struct JsonStreamInput {
       return JSON_EOF;
     return this->cur();
   }
-  bool match( char c1,  char c2,  char c3,  char c4,  char c5 );
-  int  eat_white( void );
-  void skip_BOM( void );
+  bool match( char c1,  char c2,  char c3,  char c4,  char c5 ) noexcept;
+  int  eat_white( void ) noexcept;
+  void skip_BOM( void ) noexcept;
 
   JsonStreamInput() {
     this->init();
@@ -159,9 +159,9 @@ struct JsonBufInput {
     this->offset++;
     return this->cur();
   }
-  bool match( char c1,  char c2,  char c3,  char c4,  char c5 );
-  int  eat_white( void );
-  void skip_BOM( void );
+  bool match( char c1,  char c2,  char c3,  char c4,  char c5 ) noexcept;
+  int  eat_white( void ) noexcept;
+  void skip_BOM( void ) noexcept;
 
   JsonBufInput( const char *js = NULL,  unsigned int off = 0,
                 unsigned int len = 0 ) {

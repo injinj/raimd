@@ -7,13 +7,13 @@ using namespace rai;
 using namespace md;
 
 const char *
-RwfMsg::get_proto_string( void )
+RwfMsg::get_proto_string( void ) noexcept
 {
   return "RWF";
 }
 
 uint32_t
-RwfMsg::get_type_id( void )
+RwfMsg::get_type_id( void ) noexcept
 {
   return RWF_TYPE_ID;
 }
@@ -30,13 +30,13 @@ static MDMatch rwf_match = {
 };
 
 void
-RwfMsg::init_auto_unpack( void )
+RwfMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( rwf_match );
 }
 
 bool
-RwfMsg::is_rwf( void *bb,  size_t off,  size_t end,  uint32_t )
+RwfMsg::is_rwf( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 {
   RwfFieldListHdr hdr;
   return off < end &&
@@ -45,7 +45,7 @@ RwfMsg::is_rwf( void *bb,  size_t off,  size_t end,  uint32_t )
 
 int
 RwfMsg::parse_header( const uint8_t *buf,  size_t buflen,
-                      RwfFieldListHdr &hdr )
+                      RwfFieldListHdr &hdr ) noexcept
 {
   size_t   i = 0;
   uint32_t tp;
@@ -94,7 +94,7 @@ RwfMsg::parse_header( const uint8_t *buf,  size_t buflen,
 
 RwfMsg *
 RwfMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
-                MDDict *d,  MDMsgMem *m )
+                MDDict *d,  MDMsgMem *m ) noexcept
 {
   RwfFieldListHdr hdr;
   if ( RwfMsg::parse_header( &((uint8_t *) bb)[ off ],  end - off,
@@ -114,7 +114,7 @@ RwfMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
 }
 
 int
-RwfMsg::get_field_iter( MDFieldIter *&iter )
+RwfMsg::get_field_iter( MDFieldIter *&iter ) noexcept
 {
   void * ptr;
   this->mem->alloc( sizeof( RwfFieldIter ), &ptr );
@@ -123,7 +123,7 @@ RwfMsg::get_field_iter( MDFieldIter *&iter )
 }
 
 inline void
-RwfFieldIter::lookup_fid( void )
+RwfFieldIter::lookup_fid( void ) noexcept
 {
   if ( this->ftype == MD_NODATA ) {
     if ( this->iter_msg.dict != NULL )
@@ -138,7 +138,7 @@ RwfFieldIter::lookup_fid( void )
 }
 
 int
-RwfFieldIter::get_name( MDName &name )
+RwfFieldIter::get_name( MDName &name ) noexcept
 {
   this->lookup_fid();
   name.fid      = this->fid;
@@ -148,14 +148,14 @@ RwfFieldIter::get_name( MDName &name )
 }
 
 int
-RwfFieldIter::get_hint_reference( MDReference &mref )
+RwfFieldIter::get_hint_reference( MDReference &mref ) noexcept
 {
   mref.zero();
   return Err::NOT_FOUND;
 }
 
 int
-RwfFieldIter::get_enum( MDReference &mref,  MDEnum &enu )
+RwfFieldIter::get_enum( MDReference &mref,  MDEnum &enu ) noexcept
 {
   if ( mref.ftype == MD_ENUM ) {
     if ( this->iter_msg.dict != NULL ) {
@@ -270,7 +270,7 @@ get_short( const uint8_t *buf,  size_t &i,  const uint8_t *eos,
 }
 
 int
-RwfFieldIter::get_reference( MDReference &mref )
+RwfFieldIter::get_reference( MDReference &mref ) noexcept
 {
   uint8_t * buf = &((uint8_t *) this->iter_msg.msg_buf)[ this->data_off ];
   mref.fendian  = MD_BIG;
@@ -400,7 +400,8 @@ RwfFieldIter::get_reference( MDReference &mref )
 }
 
 int
-RwfFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
+RwfFieldIter::find( const char *name,  size_t name_len,
+                    MDReference &mref ) noexcept
 {
   if ( this->iter_msg.dict == NULL )
     return Err::NO_DICTIONARY;
@@ -423,7 +424,7 @@ RwfFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
 }
 
 int
-RwfFieldIter::first( void )
+RwfFieldIter::first( void ) noexcept
 {
   size_t fcnt  = (size_t) ((RwfMsg &) this->iter_msg).hdr.field_cnt,
          dstrt = ((RwfMsg &) this->iter_msg).hdr.data_start;
@@ -438,7 +439,7 @@ RwfFieldIter::first( void )
 }
 
 int
-RwfFieldIter::next( void )
+RwfFieldIter::next( void ) noexcept
 {
   size_t fcnt = (size_t) ((RwfMsg &) this->iter_msg).hdr.field_cnt;
   if ( ++this->field_idx >= fcnt )
@@ -451,7 +452,7 @@ RwfFieldIter::next( void )
 }
 
 int
-RwfFieldIter::unpack( void )
+RwfFieldIter::unpack( void ) noexcept
 {
   uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
   size_t    i   = this->field_start;
@@ -482,7 +483,7 @@ bad_bounds:;
   return Err::BAD_FIELD_BOUNDS;
 }
 
-RwfMsgWriter::RwfMsgWriter( MDDict *d,  void *bb,  size_t len )
+RwfMsgWriter::RwfMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept
     : dict( d ), buf( (uint8_t *) bb ), off( 15 ), buflen( len ),
       nflds( 0 ), flist( 0 )
 {
@@ -496,7 +497,7 @@ RwfMsgWriter::RwfMsgWriter( MDDict *d,  void *bb,  size_t len )
 
 int
 RwfMsgWriter::append_ival( const char *fname,  size_t fname_len,
-                           const void *ival,  size_t ilen,  MDType t )
+                           const void *ival,  size_t ilen,  MDType t ) noexcept
 {
   uint32_t fsize;
   MDType   ftype;
@@ -519,7 +520,8 @@ RwfMsgWriter::append_ival( const char *fname,  size_t fname_len,
 }
 
 int
-RwfMsgWriter::append_ival( MDFid fid,  const void *ival, size_t ilen, MDType t )
+RwfMsgWriter::append_ival( MDFid fid,  const void *ival, size_t ilen,
+                           MDType t ) noexcept
 {
   const char * fname;
   uint8_t      fname_len;
@@ -563,7 +565,8 @@ copy_rwf_int_val( const uint8_t *ival,  uint8_t *ptr,  size_t ilen )
 }
 
 int
-RwfMsgWriter::pack_uval( MDFid fid,  const uint8_t *ival,  size_t ilen )
+RwfMsgWriter::pack_uval( MDFid fid,  const uint8_t *ival,
+                         size_t ilen ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off ];
   MDValue   val;
@@ -662,7 +665,8 @@ pack_rwf_size( uint8_t *ptr,  size_t fsize )
 }
 
 int
-RwfMsgWriter::pack_ival( MDFid fid,  const uint8_t *ival,  size_t ilen )
+RwfMsgWriter::pack_ival( MDFid fid,  const uint8_t *ival,
+                         size_t ilen ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off ];
   ilen = get_rwf_int_len( ival, ilen );
@@ -684,7 +688,7 @@ RwfMsgWriter::pack_ival( MDFid fid,  const uint8_t *ival,  size_t ilen )
 
 int
 RwfMsgWriter::pack_partial( MDFid fid,  const uint8_t *fptr,  size_t fsize,
-                            size_t foffset )
+                            size_t foffset ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off ];
   size_t partial_len = ( foffset > 100 ? 3 : foffset > 10 ? 2 : 1 );
@@ -713,7 +717,7 @@ RwfMsgWriter::pack_partial( MDFid fid,  const uint8_t *fptr,  size_t fsize,
 }
 
 int
-RwfMsgWriter::append_ref( MDFid fid,  MDReference &mref )
+RwfMsgWriter::append_ref( MDFid fid,  MDReference &mref ) noexcept
 {
   const char * fname;
   uint8_t      fname_len;
@@ -727,7 +731,7 @@ RwfMsgWriter::append_ref( MDFid fid,  MDReference &mref )
 
 int
 RwfMsgWriter::append_ref( const char *fname,  size_t fname_len,
-                          MDReference &mref )
+                          MDReference &mref ) noexcept
 {
   uint32_t fsize;
   MDType   ftype;
@@ -740,7 +744,7 @@ RwfMsgWriter::append_ref( const char *fname,  size_t fname_len,
 
 int
 RwfMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
-                          MDReference &mref )
+                          MDReference &mref ) noexcept
 {
   char      str_buf[ 64 ];
   uint8_t * ptr  = &this->buf[ this->off ],
@@ -835,7 +839,7 @@ RwfMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
 
 int
 RwfMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
-                              MDDecimal &dec )
+                              MDDecimal &dec ) noexcept
 {
   MDReference mref;
 
@@ -880,7 +884,7 @@ RwfMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
 
 int
 RwfMsgWriter::append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
-                           MDTime &time )
+                           MDTime &time ) noexcept
 {
   MDReference mref;
 
@@ -928,7 +932,7 @@ RwfMsgWriter::append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
 
 int
 RwfMsgWriter::append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
-                           MDDate &date )
+                           MDDate &date ) noexcept
 {
   MDReference mref;
   
@@ -961,7 +965,7 @@ RwfMsgWriter::append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
 }
 
 int
-RwfMsgWriter::append_decimal( MDFid fid,  MDDecimal &dec )
+RwfMsgWriter::append_decimal( MDFid fid,  MDDecimal &dec ) noexcept
 {
   const char * fname;
   uint8_t      fname_len;
@@ -974,7 +978,7 @@ RwfMsgWriter::append_decimal( MDFid fid,  MDDecimal &dec )
 }
 
 int
-RwfMsgWriter::append_time( MDFid fid,  MDTime &time )
+RwfMsgWriter::append_time( MDFid fid,  MDTime &time ) noexcept
 {
   const char * fname;
   uint8_t      fname_len;
@@ -987,7 +991,7 @@ RwfMsgWriter::append_time( MDFid fid,  MDTime &time )
 }
 
 int
-RwfMsgWriter::append_date( MDFid fid,  MDDate &date )
+RwfMsgWriter::append_date( MDFid fid,  MDDate &date ) noexcept
 {
   const char * fname;
   uint8_t      fname_len;
@@ -1001,7 +1005,7 @@ RwfMsgWriter::append_date( MDFid fid,  MDDate &date )
 
 int
 RwfMsgWriter::append_decimal( const char *fname,  size_t fname_len,
-                              MDDecimal &dec )
+                              MDDecimal &dec ) noexcept
 {
   uint32_t fsize;
   MDType   ftype;
@@ -1014,7 +1018,7 @@ RwfMsgWriter::append_decimal( const char *fname,  size_t fname_len,
 
 int
 RwfMsgWriter::append_time( const char *fname,  size_t fname_len,
-                           MDTime &time )
+                           MDTime &time ) noexcept
 {
   uint32_t fsize;
   MDType   ftype;
@@ -1027,7 +1031,7 @@ RwfMsgWriter::append_time( const char *fname,  size_t fname_len,
 
 int
 RwfMsgWriter::append_date( const char *fname,  size_t fname_len,
-                           MDDate &date )
+                           MDDate &date ) noexcept
 {
   uint32_t fsize;
   MDType   ftype;

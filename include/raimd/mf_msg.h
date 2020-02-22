@@ -23,7 +23,7 @@ struct MktfdMsg : public MDMsg {
                   status;  /* a status code */
   uint16_t        func;    /* the function: 308/316/318/340/... */
 
-  int parse_header( void );
+  int parse_header( void ) noexcept;
 
   /* used by unpack() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }
@@ -33,15 +33,16 @@ struct MktfdMsg : public MDMsg {
       tagp( 0 ), ricp( 0 ), textp( 0 ), taglen( 0 ), riclen( 0 ), textlen( 0 ),
       rstatus( 0 ), flist( 0 ), rtl( 0 ), status( 0 ), func( 0 ) {}
 
-  virtual const char *get_proto_string( void ) final;
-  virtual uint32_t get_type_id( void ) final;
-  virtual int get_field_iter( MDFieldIter *&iter ) final;
+  virtual const char *get_proto_string( void ) noexcept final;
+  virtual uint32_t get_type_id( void ) noexcept final;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
 
   /* may return tibmsg, sass qform or rv */
-  static bool is_marketfeed( void *bb,  size_t off,  size_t end,  uint32_t h );
+  static bool is_marketfeed( void *bb,  size_t off,  size_t end,
+                             uint32_t h ) noexcept;
   static MktfdMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                           MDDict *d,  MDMsgMem *m );
-  static void init_auto_unpack( void );
+                           MDDict *d,  MDMsgMem *m ) noexcept;
+  static void init_auto_unpack( void ) noexcept;
 };
 
 struct MktfdFieldIter : public MDFieldIter {
@@ -66,15 +67,16 @@ struct MktfdFieldIter : public MDFieldIter {
       fname( 0 ), fnamelen( 0 ), fid( 0 ), data_off( 0 ), position( 0 ),
       repeat( 0 ) {}
 
-  void lookup_fid( void );
-  virtual int get_name( MDName &name ) final;
-  virtual int get_enum( MDReference &mref,  MDEnum &enu ) final;
-  virtual int get_reference( MDReference &mref ) final;
-  virtual int get_hint_reference( MDReference &mref ) final;
-  virtual int find( const char *name, size_t name_len, MDReference &mref )final;
-  virtual int first( void ) final;
-  virtual int next( void ) final;
-  int unpack( void );
+  void lookup_fid( void ) noexcept;
+  virtual int get_name( MDName &name ) noexcept final;
+  virtual int get_enum( MDReference &mref,  MDEnum &enu ) noexcept final;
+  virtual int get_reference( MDReference &mref ) noexcept final;
+  virtual int get_hint_reference( MDReference &mref ) noexcept final;
+  virtual int find( const char *name, size_t name_len,
+                    MDReference &mref ) noexcept final;
+  virtual int first( void ) noexcept final;
+  virtual int next( void ) noexcept final;
+  int unpack( void ) noexcept;
 };
 
 }

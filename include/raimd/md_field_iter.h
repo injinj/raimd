@@ -15,17 +15,18 @@ struct MDFieldIter { /* generic field iterator */
     : iter_msg( m ), field_start( 0 ), field_end( 0 ) {}
 
   /* these fuctions implemented in subclass */
-  virtual int get_name( MDName &name );
-  virtual int get_reference( MDReference &mref );
-  virtual int get_hint_reference( MDReference &mref );
-  virtual int get_enum( MDReference &mref, MDEnum &enu );
-  virtual int find( const char *name,  size_t name_len,  MDReference &mref );
-  virtual int first( void );
-  virtual int next( void );
+  virtual int get_name( MDName &name ) noexcept;
+  virtual int get_reference( MDReference &mref ) noexcept;
+  virtual int get_hint_reference( MDReference &mref ) noexcept;
+  virtual int get_enum( MDReference &mref, MDEnum &enu ) noexcept;
+  virtual int find( const char *name,  size_t name_len,
+                    MDReference &mref ) noexcept;
+  virtual int first( void ) noexcept;
+  virtual int next( void ) noexcept;
 
   /* escaped strings is used for json escaping */
   int print( MDOutput *out, int indent_newline, const char *fname_fmt,
-             const char *type_fmt );
+             const char *type_fmt ) noexcept;
   int print( MDOutput *out ) {
     return this->print( out, 1, "%-18s : " /* fname fmt */,
                                 "%-10s %3d : " /* type fmt */);

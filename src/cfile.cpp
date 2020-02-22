@@ -23,7 +23,7 @@ static CFileKeyword
 static const int EOF_CHAR = 256;
 
 void
-CFile::clear_ident( void )
+CFile::clear_ident( void ) noexcept
 {
   this->stmt         = CFT_ERROR;
   this->is_primitive = this->is_fixed  = this->is_partial = 0;
@@ -36,7 +36,7 @@ CFile::clear_ident( void )
 }
 
 void
-CFile::set_ident( void )
+CFile::set_ident( void ) noexcept
 {
   size_t len = ( this->tok_sz > 255 ? 255 : this->tok_sz );
   ::memcpy( this->ident, this->tok_buf, len );
@@ -46,7 +46,7 @@ CFile::set_ident( void )
 }
 
 void
-CFile::add_field( void )
+CFile::add_field( void ) noexcept
 {
   this->fld.push_tl( 
     new ( ::malloc( sizeof( CFRecField ) ) )
@@ -54,14 +54,14 @@ CFile::add_field( void )
 }
 
 void
-CFile::set_field_class_name( void )
+CFile::set_field_class_name( void ) noexcept
 {
   if ( this->fld.tl != NULL )
     this->fld.tl->set_class( this->tok_buf, this->tok_sz );
 }
 
 CFileTok
-CFile::get_token( void )
+CFile::get_token( void ) noexcept
 {
   for (;;) {
     switch ( this->eat_white() ) {
@@ -125,7 +125,7 @@ CFile::get_token( void )
 
 CFile *
 CFile::push_path( CFile *tos,  const char *path,  const char *filename,
-                  size_t file_sz )
+                  size_t file_sz ) noexcept
 {
   char path2[ 1024 ];
   if ( DictParser::find_file( path, filename, file_sz, path2 ) ) {
@@ -183,7 +183,8 @@ static bool sb( uint8_t &bval,  bool v ) {
 }
 
 int
-CFile::parse_path( MDDictBuild &dict_build,  const char *path,  const char *fn )
+CFile::parse_path( MDDictBuild &dict_build,  const char *path,
+                   const char *fn ) noexcept
 {
   CFile * p = NULL, * x;
   int ret = 0;

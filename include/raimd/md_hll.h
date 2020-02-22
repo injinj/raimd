@@ -8,7 +8,7 @@ namespace md {
 
 /* precompute log tables, they are used for the estimations */
 void hll_ginit( uint32_t htsz, uint32_t lzsz, double *lz_sum,
-                double *ht_beta, double *ht_lib );
+                double *ht_beta, double *ht_lib ) noexcept;
 
 template <const uint32_t HT_BITS> /* 14b = 12k ht sz using 6 bit lz per entry */
 struct HyperLogLogT {
@@ -159,14 +159,15 @@ struct HLLMsg : public MDMsg {
   HLLMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, len, d, m ) {}
 
-  virtual const char *get_proto_string( void ) final;
-  virtual uint32_t get_type_id( void ) final;
-  virtual int get_reference( MDReference &mref ) final;
+  virtual const char *get_proto_string( void ) noexcept final;
+  virtual uint32_t get_type_id( void ) noexcept final;
+  virtual int get_reference( MDReference &mref ) noexcept final;
 
-  static bool is_hllmsg( void *bb,  size_t off,  size_t len,  uint32_t h );
+  static bool is_hllmsg( void *bb,  size_t off,  size_t len,
+                         uint32_t h ) noexcept;
   static MDMsg *unpack( void *bb,  size_t off,  size_t len,  uint32_t h,
-                        MDDict *d,  MDMsgMem *m );
-  static void init_auto_unpack( void );
+                        MDDict *d,  MDMsgMem *m ) noexcept;
+  static void init_auto_unpack( void ) noexcept;
 };
 
 }

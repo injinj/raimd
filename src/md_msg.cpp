@@ -25,7 +25,7 @@ static uint8_t md_match_ftype[ MATCH_HASH_SIZE ];
 }
 
 void
-MDMatchGroup::add_match( MDMatch &ma ) /* add match to matchgroup */
+MDMatchGroup::add_match( MDMatch &ma ) noexcept /* add match to matchgroup */
 {
   if ( this->count == 0 ) {
     this->off    = ma.off;
@@ -64,8 +64,8 @@ cmp_wd( MDMatch &ma,  void *y )
 }
 
 MDMsg *
-MDMatchGroup::match( void *bb,  size_t off,  size_t end,
-                     uint32_t h,  MDDict *d,  MDMsgMem *m ) /* try matchgroup */
+MDMatchGroup::match( void *bb,  size_t off,  size_t end, /* try matchgroup */
+                     uint32_t h,  MDDict *d,  MDMsgMem *m ) noexcept
 {
   uint16_t i   = 1;
   void   * val = NULL;
@@ -91,7 +91,8 @@ MDMatchGroup::match( void *bb,  size_t off,  size_t end,
 }
 
 MDMatch *
-MDMatchGroup::is_msg_type( void *bb,  size_t off,  size_t end,  uint32_t h )
+MDMatchGroup::is_msg_type( void *bb,  size_t off,  size_t end,
+                           uint32_t h ) noexcept
 {
   uint16_t i   = 1;
   void   * val = NULL;
@@ -116,7 +117,7 @@ MDMatchGroup::is_msg_type( void *bb,  size_t off,  size_t end,  uint32_t h )
 }
 
 void
-MDMsg::add_match( MDMatch &ma ) /* add msg matcher to a match group */
+MDMsg::add_match( MDMatch &ma ) noexcept /* add msg matcher to a match group */
 {
   MDMatchGroup * mg = NULL;
   uint32_t i;
@@ -169,7 +170,7 @@ MDMsg::add_match( MDMatch &ma ) /* add msg matcher to a match group */
 
 MDMsg *
 MDMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-               MDDict *d,  MDMsgMem *m )
+               MDDict *d,  MDMsgMem *m ) noexcept
 {
   MDMatchGroup * mg;
   MDMsg        * msg;
@@ -209,7 +210,7 @@ MDMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
 }
 
 uint32_t
-MDMsg::is_msg_type( void *bb,  size_t off,  size_t end,  uint32_t h )
+MDMsg::is_msg_type( void *bb,  size_t off,  size_t end,  uint32_t h ) noexcept
 {
   MDMatchGroup * mg;
   MDMatch      * ma;
@@ -254,7 +255,7 @@ found_msg_type:;
 }
 
 void
-MDMsgMem::alloc_slow( size_t size,  void *ptr )
+MDMsgMem::alloc_slow( size_t size,  void *ptr ) noexcept
 {
   void  * p,
        ** area = (void **) this->mem[ 0 ],
@@ -273,7 +274,7 @@ MDMsgMem::alloc_slow( size_t size,  void *ptr )
 }
 
 void
-MDMsgMem::extend( size_t old_size,  size_t new_size,  void *ptr )
+MDMsgMem::extend( size_t old_size,  size_t new_size,  void *ptr ) noexcept
 {
   void  ** area = (void **) this->mem[ 0 ],
          * tmp;
@@ -293,7 +294,7 @@ MDMsgMem::extend( size_t old_size,  size_t new_size,  void *ptr )
 }
 
 void
-MDMsgMem::reuse( void )
+MDMsgMem::reuse( void ) noexcept
 {
   /* release malloc()ed mem */
   while ( this->mem[ 0 ] != (void *) this->mem ) {
@@ -307,7 +308,7 @@ MDMsgMem::reuse( void )
 
 void
 MDMsg::print( MDOutput *out,  int indent_newline,  const char *fname_fmt,
-              const char *type_fmt )
+              const char *type_fmt ) noexcept
 {
   MDMsgMemSwap swap( this->mem ); /* temporary mem pushed on the stack */
   MDFieldIter *f;
@@ -332,7 +333,7 @@ MDMsg::print( MDOutput *out,  int indent_newline,  const char *fname_fmt,
 }
 
 MDError
-Err::err( int status )
+Err::err( int status ) noexcept
 {
   static const char       mod[] = "MD";
   static const MDErrorRec err[] = {

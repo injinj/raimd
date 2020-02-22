@@ -16,17 +16,18 @@ struct TibMsg : public MDMsg {
   TibMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, len, d, m ) {}
 
-  virtual const char *get_proto_string( void ) final;
-  virtual uint32_t get_type_id( void ) final;
-  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) final;
-  virtual int get_field_iter( MDFieldIter *&iter ) final;
+  virtual const char *get_proto_string( void ) noexcept final;
+  virtual uint32_t get_type_id( void ) noexcept final;
+  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept final;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
   /* convert tib decimal to md decimal */
-  static bool set_decimal( MDDecimal &dec,  double val,  uint8_t tib_hint );
-
-  static bool is_tibmsg( void *bb,  size_t off,  size_t len,  uint32_t h );
+  static bool set_decimal( MDDecimal &dec,  double val,
+                           uint8_t tib_hint ) noexcept;
+  static bool is_tibmsg( void *bb,  size_t off,  size_t len,
+                         uint32_t h ) noexcept;
   static TibMsg *unpack( void *bb,  size_t off,  size_t len,  uint32_t h,
-                         MDDict *d,  MDMsgMem *m );
-  static void init_auto_unpack( void );
+                         MDDict *d,  MDMsgMem *m ) noexcept;
+  static void init_auto_unpack( void ) noexcept;
 };
 
 struct TibFieldIter : public MDFieldIter {
@@ -47,13 +48,14 @@ struct TibFieldIter : public MDFieldIter {
   TibFieldIter( MDMsg &m ) : MDFieldIter( m ), size( 0 ), hint_size( 0 ),
     name_len( 0 ), type( 0 ), hint_type( 0 ) {}
 
-  virtual int get_name( MDName &name ) final;
-  virtual int get_reference( MDReference &mref ) final;
-  virtual int get_hint_reference( MDReference &mref ) final;
-  virtual int find( const char *name, size_t name_len, MDReference &mref )final;
-  virtual int first( void ) final;
-  virtual int next( void ) final;
-  int unpack( void );
+  virtual int get_name( MDName &name ) noexcept final;
+  virtual int get_reference( MDReference &mref ) noexcept final;
+  virtual int get_hint_reference( MDReference &mref ) noexcept final;
+  virtual int find( const char *name, size_t name_len,
+                    MDReference &mref ) noexcept final;
+  virtual int first( void ) noexcept final;
+  virtual int next( void ) noexcept final;
+  int unpack( void ) noexcept;
 };
 
 struct TibMsgWriter {
@@ -63,8 +65,8 @@ struct TibMsgWriter {
 
   TibMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 0 ),
                                           buflen( len ) {}
-  int append_ref( const char *fname,  size_t fname_len,  MDReference &mref );
-
+  int append_ref( const char *fname,  size_t fname_len,
+                  MDReference &mref ) noexcept;
   bool has_space( size_t len ) const {
     return this->off + 9 + len <= this->buflen;
   }
@@ -115,9 +117,12 @@ struct TibMsgWriter {
     return this->append_ref( fname, fname_len, mref );
   }
 
-  int append_decimal( const char *fname,  size_t fname_len, MDDecimal &dec );
-  int append_time( const char *fname,  size_t fname_len,  MDTime &time );
-  int append_date( const char *fname,  size_t fname_len,  MDDate &date );
+  int append_decimal( const char *fname,  size_t fname_len,
+                      MDDecimal &dec ) noexcept;
+  int append_time( const char *fname,  size_t fname_len,
+                   MDTime &time ) noexcept;
+  int append_date( const char *fname,  size_t fname_len,
+                   MDDate &date ) noexcept;
 };
 
 }

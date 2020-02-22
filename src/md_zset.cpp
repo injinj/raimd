@@ -5,13 +5,13 @@ using namespace rai;
 using namespace md;
 
 const char *
-ZSetMsg::get_proto_string( void )
+ZSetMsg::get_proto_string( void ) noexcept
 {
   return "MD_ZSET";
 }
 
 uint32_t
-ZSetMsg::get_type_id( void )
+ZSetMsg::get_type_id( void ) noexcept
 {
   return MD_ZSET;
 }
@@ -39,14 +39,14 @@ is_zset( void *bb,  size_t off,  size_t &end )
 }
 
 bool
-ZSetMsg::is_zsetmsg( void *bb,  size_t off,  size_t end,  uint32_t )
+ZSetMsg::is_zsetmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 {
   return is_zset( bb, off, end );
 }
 
 MDMsg *
 ZSetMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                 MDMsgMem *m )
+                 MDMsgMem *m ) noexcept
 {
   if ( ! is_zset( bb, off, end ) )
     return NULL;
@@ -59,13 +59,13 @@ ZSetMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
 }
 
 void
-ZSetMsg::init_auto_unpack( void )
+ZSetMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( zsetmsg_match );
 }
 
 int
-ZSetMsg::get_field_iter( MDFieldIter *&iter )
+ZSetMsg::get_field_iter( MDFieldIter *&iter ) noexcept
 {
   void * ptr;
   this->mem->alloc( sizeof( ZSetFieldIter ), &ptr );
@@ -74,7 +74,7 @@ ZSetMsg::get_field_iter( MDFieldIter *&iter )
 }
 
 int
-ZSetFieldIter::get_name( MDName &name )
+ZSetFieldIter::get_name( MDName &name ) noexcept
 {
   if ( this->keylen == 0 ) {
     if ( this->zset.zindex( this->field_start+1, this->val ) != ZSET_OK )
@@ -89,7 +89,7 @@ ZSetFieldIter::get_name( MDName &name )
 }
 
 int
-ZSetFieldIter::get_reference( MDReference &mref )
+ZSetFieldIter::get_reference( MDReference &mref ) noexcept
 {
   if ( this->keylen == 0 ) {
     MDName n;
@@ -109,7 +109,7 @@ ZSetFieldIter::get_reference( MDReference &mref )
 }
 
 int
-ZSetFieldIter::first( void )
+ZSetFieldIter::first( void ) noexcept
 {
   this->field_start = 0;
   this->field_end   = 0;
@@ -121,7 +121,7 @@ ZSetFieldIter::first( void )
 }
 
 int
-ZSetFieldIter::next( void )
+ZSetFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   this->keylen      = 0;

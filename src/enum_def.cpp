@@ -8,7 +8,7 @@ using namespace rai;
 using namespace md;
 
 void
-EnumDef::clear_enum( void )
+EnumDef::clear_enum( void ) noexcept
 {
   while ( ! this->acro.is_empty() )
     delete this->acro.pop();
@@ -20,7 +20,7 @@ EnumDef::clear_enum( void )
 }
 
 void
-EnumDef::define_enum( MDDictBuild &dict_build )
+EnumDef::define_enum( MDDictBuild &dict_build ) noexcept
 {
   EnumValue * v;
   size_t      i,
@@ -69,7 +69,7 @@ EnumDef::define_enum( MDDictBuild &dict_build )
 }
 
 void
-EnumDef::push_acro( char *buf,  size_t len,  int fid,  int ln )
+EnumDef::push_acro( char *buf,  size_t len,  int fid,  int ln ) noexcept
 {
   void *p = malloc( EnumValue::alloc_size( len ) );
   this->acro.push_tl( new ( p ) EnumValue( buf, len, fid, ln ) );
@@ -85,7 +85,7 @@ hexval( char c )
 }
 
 void
-EnumDef::push_enum( uint32_t value,  char *buf,  size_t len,  int ln )
+EnumDef::push_enum( uint32_t value,  char *buf,  size_t len,  int ln ) noexcept
 {
   uint8_t tmp[ 256 ];
   size_t  j = 0;
@@ -109,7 +109,7 @@ EnumDef::push_enum( uint32_t value,  char *buf,  size_t len,  int ln )
 }
 
 EnumDefTok
-EnumDef::consume_hex( void )
+EnumDef::consume_hex( void ) noexcept
 {
   size_t i = 1;
   int    c;
@@ -128,7 +128,7 @@ EnumDef::consume_hex( void )
 }
 
 EnumDefTok
-EnumDef::get_token( void )
+EnumDef::get_token( void ) noexcept
 {
   int c;
   for (;;) {
@@ -155,7 +155,7 @@ EnumDef::get_token( void )
 }
 
 EnumDef *
-EnumDef::open_path( const char *path,  const char *filename )
+EnumDef::open_path( const char *path,  const char *filename ) noexcept
 {
   char path2[ 1024 ];
   if ( DictParser::find_file( path, filename, ::strlen( filename ),
@@ -168,7 +168,7 @@ EnumDef::open_path( const char *path,  const char *filename )
 
 int
 EnumDef::parse_path( MDDictBuild &dict_build,  const char *path,
-                     const char *fn )
+                     const char *fn ) noexcept
 {
   EnumDef  * p = NULL;
   char       buf[ 256 ];

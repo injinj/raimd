@@ -13,22 +13,34 @@
 using namespace rai;
 using namespace md;
 
-const char * MDMsg::get_proto_string( void ) { return "NO PROTOCOL"; }
-uint32_t MDMsg::get_type_id( void ) { return 0; }
-int MDMsg::get_field_iter( MDFieldIter *&iter ) { iter = NULL; return Err::INVALID_MSG; }
-int MDMsg::get_sub_msg( MDReference &,  MDMsg *&msg ) { msg = NULL; return Err::INVALID_MSG; }
-int MDMsg::get_reference( MDReference &mref ) { mref.zero(); return Err::INVALID_MSG; }
-int MDMsg::get_array_ref( MDReference &,  size_t,  MDReference &aref ) { aref.zero(); return Err::INVALID_MSG; }
+const char * MDMsg::get_proto_string( void ) noexcept
+{ return "NO PROTOCOL"; }
+uint32_t MDMsg::get_type_id( void ) noexcept
+{ return 0; }
+int MDMsg::get_field_iter( MDFieldIter *&iter ) noexcept
+{ iter = NULL; return Err::INVALID_MSG; }
+int MDMsg::get_sub_msg( MDReference &,  MDMsg *&msg ) noexcept
+{ msg = NULL; return Err::INVALID_MSG; }
+int MDMsg::get_reference( MDReference &mref ) noexcept
+{ mref.zero(); return Err::INVALID_MSG; }
+int MDMsg::get_array_ref( MDReference &,  size_t,  MDReference &aref ) noexcept
+{ aref.zero(); return Err::INVALID_MSG; }
 
-int MDFieldIter::get_name( MDName &name ) { name.zero(); return 0; }
-int MDFieldIter::get_reference( MDReference &mref ) { mref.zero(); return Err::NOT_FOUND; }
-int MDFieldIter::get_hint_reference( MDReference &mref ) { mref.zero(); return Err::NOT_FOUND; }
-int MDFieldIter::find( const char *,  size_t,  MDReference & ) { return Err::NOT_FOUND; }
-int MDFieldIter::first( void ) { return Err::NOT_FOUND; }
-int MDFieldIter::next( void ) { return Err::NOT_FOUND; }
+int MDFieldIter::get_name( MDName &name ) noexcept
+{ name.zero(); return 0; }
+int MDFieldIter::get_reference( MDReference &mref ) noexcept
+{ mref.zero(); return Err::NOT_FOUND; }
+int MDFieldIter::get_hint_reference( MDReference &mref ) noexcept
+{ mref.zero(); return Err::NOT_FOUND; }
+int MDFieldIter::find( const char *,  size_t,  MDReference & ) noexcept
+{ return Err::NOT_FOUND; }
+int MDFieldIter::first( void ) noexcept
+{ return Err::NOT_FOUND; }
+int MDFieldIter::next( void ) noexcept
+{ return Err::NOT_FOUND; }
 
 int
-MDDecimal::get_decimal( const MDReference &mref )
+MDDecimal::get_decimal( const MDReference &mref ) noexcept
 {
   switch ( mref.ftype ) {
     case MD_DECIMAL:
@@ -60,7 +72,7 @@ MDDecimal::get_decimal( const MDReference &mref )
 }
 
 int
-MDTime::get_time( const MDReference &mref )
+MDTime::get_time( const MDReference &mref ) noexcept
 {
   if ( mref.ftype == MD_TIME ) {
     if ( mref.fsize == sizeof( MDTime ) ) {
@@ -89,7 +101,7 @@ MDTime::get_time( const MDReference &mref )
 }
 
 int
-MDDate::get_date( const MDReference &mref )
+MDDate::get_date( const MDReference &mref ) noexcept
 {
   if ( mref.ftype == MD_DATE ) {
     if ( mref.fsize == sizeof( MDDate ) ) {
@@ -104,7 +116,7 @@ MDDate::get_date( const MDReference &mref )
 }
 
 int
-MDFieldIter::get_enum( MDReference &,  MDEnum &enu )
+MDFieldIter::get_enum( MDReference &,  MDEnum &enu ) noexcept
 {
   /* fetch enum from dictionary */
   enu.zero();
@@ -112,35 +124,35 @@ MDFieldIter::get_enum( MDReference &,  MDEnum &enu )
 }
 
 int
-MDMsg::msg_to_string( MDReference &,  char *&,  size_t & )
+MDMsg::msg_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
   /* TODO */
   return Err::INVALID_MSG;
 }
 
 int
-MDMsg::hash_to_string( MDReference &,  char *&,  size_t & )
+MDMsg::hash_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
   /* TODO */
   return Err::INVALID_MSG;
 }
 
 int
-MDMsg::zset_to_string( MDReference &,  char *&,  size_t & )
+MDMsg::zset_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
   /* TODO */
   return Err::INVALID_MSG;
 }
 
 int
-MDMsg::geo_to_string( MDReference &,  char *&,  size_t & )
+MDMsg::geo_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
   /* TODO */
   return Err::INVALID_MSG;
 }
 
 int
-MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
 {
   static char mt[] = "[]";
   MDMsgMem    tmp,
@@ -184,7 +196,7 @@ MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len )
 }
 
 int
-MDMsg::list_to_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::list_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
 {
   static char mt[] = "[]";
   MDMsgMem    tmp,
@@ -226,7 +238,7 @@ MDMsg::list_to_string( MDReference &mref,  char *&buf,  size_t &len )
 }
 
 int
-MDMsg::set_to_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::set_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
 {
   static char mt[] = "[]";
   MDMsgMem    tmp,
@@ -269,7 +281,8 @@ MDMsg::set_to_string( MDReference &mref,  char *&buf,  size_t &len )
 
 int
 MDMsg::concat_array_to_string( char **str,  size_t *k,  size_t num_entries,
-                               size_t tot_len,  char *&buf,  size_t &len )
+                               size_t tot_len,  char *&buf,
+                               size_t &len ) noexcept
 {
   char * astr = NULL;
   size_t i, j;
@@ -293,7 +306,7 @@ MDMsg::concat_array_to_string( char **str,  size_t *k,  size_t num_entries,
 }
 
 int
-MDMsg::hll_to_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::hll_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
 {
   HyperLogLog * hll = (HyperLogLog *) (void *) mref.fptr;
   double e  = hll->estimate();
@@ -306,14 +319,14 @@ MDMsg::hll_to_string( MDReference &mref,  char *&buf,  size_t &len )
 }
 
 int
-MDMsg::stream_to_string( MDReference &,  char *&,  size_t & )
+MDMsg::stream_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
   /* TODO */
   return 0;
 }
 
 int
-MDMsg::time_to_string( MDReference &,  char *&,  size_t & )
+MDMsg::time_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
   /* TODO */
   return 0;
@@ -323,7 +336,7 @@ static char   nul_string[]   = "null";
 static size_t nul_string_len = 4;
 
 int
-MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
 {
   char   num[ 128 ];
   char * str;
@@ -459,7 +472,8 @@ return_num:;
 }
 
 int
-MDMsg::get_quoted_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::get_quoted_string( MDReference &mref,  char *&buf,
+                          size_t &len ) noexcept
 {
   switch ( mref.ftype ) {
     case MD_STRING:
@@ -479,7 +493,7 @@ MDMsg::get_quoted_string( MDReference &mref,  char *&buf,  size_t &len )
 
 int
 MDMsg::get_escaped_string( MDReference &mref,  const char *quotes,
-                           char *&buf,  size_t &len )
+                           char *&buf,  size_t &len ) noexcept
 {
   uint8_t * ptr = mref.fptr;
   char    * str;
@@ -549,7 +563,8 @@ break_loop:;
 }
 
 int
-MDMsg::get_subject_string( MDReference &mref,  char *&buf,  size_t &len )
+MDMsg::get_subject_string( MDReference &mref,  char *&buf,
+                           size_t &len ) noexcept
 {
   static char bad_subject[] = "bad.subject";
   char * str = NULL;
@@ -599,7 +614,7 @@ bad_subject:;
 }
 
 int
-MDOutput::printf( const char *fmt, ... )
+MDOutput::printf( const char *fmt, ... ) noexcept
 {
   va_list ap;
   int n;
@@ -610,7 +625,7 @@ MDOutput::printf( const char *fmt, ... )
 }
 
 int
-MDOutput::puts( const char *s )
+MDOutput::puts( const char *s ) noexcept
 {
   if ( s != NULL )
     return fputs( s, stdout );
@@ -618,7 +633,7 @@ MDOutput::puts( const char *s )
 }
 
 int
-MDOutput::print_hex( const void *buf,  size_t buflen )
+MDOutput::print_hex( const void *buf,  size_t buflen ) noexcept
 {
   MDHexDump hex;
   int n = 0;
@@ -631,7 +646,7 @@ MDOutput::print_hex( const void *buf,  size_t buflen )
 }
 
 const char *
-rai::md::md_type_str( MDType type,  size_t size )
+rai::md::md_type_str( MDType type,  size_t size ) noexcept
 {
   switch ( type ) {
     case MD_NODATA:    return "nodata";
@@ -686,7 +701,7 @@ rai::md::md_type_str( MDType type,  size_t size )
 
 int
 MDFieldIter::print( MDOutput *out, int indent_newline,
-                    const char *fname_fmt,  const char *type_fmt )
+                    const char *fname_fmt,  const char *type_fmt ) noexcept
 {
   MDMsgMemSwap swap( this->iter_msg.mem );
   MDName      name;
@@ -862,7 +877,7 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
 }
 
 bool 
-rai::md::string_is_true( const char *s )
+rai::md::string_is_true( const char *s ) noexcept
 {
   if ( s != NULL )
     switch ( *s ) {
@@ -885,7 +900,7 @@ static const double   md_dec_powers_f[] = MD_DECIMAL_POWERS;
 static const uint64_t md_dec_powers_i[] = MD_DECIMAL_POWERS;
 
 int
-MDDecimal::parse( const char *s,  const size_t fsize )
+MDDecimal::parse( const char *s,  const size_t fsize ) noexcept
 {
   const uint8_t * fptr  = (const uint8_t *) s;
   /* stk[] is up to 3 numbers separated by '.', '/', and/or 'e' */
@@ -1127,7 +1142,7 @@ end_of_float:;
 }
 
 int
-MDDecimal::get_real( double &res ) const
+MDDecimal::get_real( double &res ) const noexcept
 {
   int64_t val  = this->ival;
   int     hint = this->hint;
@@ -1183,7 +1198,7 @@ MDDecimal::get_real( double &res ) const
 }
 
 void
-MDDecimal::degrade( int8_t new_hint )
+MDDecimal::degrade( int8_t new_hint ) noexcept
 {
   if ( this->hint <= MD_DEC_LOGn10_1 ) {
     if ( new_hint == MD_DEC_INTEGER || new_hint <= MD_DEC_LOGn10_1 ) {
@@ -1197,7 +1212,7 @@ MDDecimal::degrade( int8_t new_hint )
 }
 
 void
-MDDecimal::set_real( double fval )
+MDDecimal::set_real( double fval ) noexcept
 {
   this->ival = 0;
   if ( isnan( fval ) ) {
@@ -1295,7 +1310,8 @@ MDDecimal::set_real( double fval )
 }
 
 size_t
-MDDecimal::get_string( char *str,  size_t len,  bool expand_fractions ) const
+MDDecimal::get_string( char *str,  size_t len,
+                       bool expand_fractions ) const noexcept
 {
   int64_t  val  = this->ival;
   int      hint = this->hint;
@@ -1458,7 +1474,7 @@ out_of_space:;
 }
 
 int
-MDTime::parse( const char *fptr,  const size_t fsize )
+MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
 {
   uint64_t ms = 0, val = 0;
   uint32_t digits = 0, colon = 0, dot = 0;
@@ -1689,7 +1705,7 @@ static bool parse_excel_date( const char *p,  uint32_t n,  uint32_t &m,
 }
 
 int
-MDDate::parse( const char *fptr,  const size_t fsize )
+MDDate::parse( const char *fptr,  const size_t fsize ) noexcept
 {
   uint32_t m, d, yr;
   uint32_t sz, sz2;
@@ -1932,7 +1948,7 @@ cpy3( char *ptr,  size_t len,  uint32_t t1, const char *mon1,
 }
 
 size_t
-MDTime::get_string( char *str,  size_t len )
+MDTime::get_string( char *str,  size_t len ) noexcept
 {
   uint32_t places, digit;
   size_t   n = 0;
@@ -1984,7 +2000,7 @@ MDTime::get_string( char *str,  size_t len )
 
 
 size_t
-MDDate::get_string( char *str,  size_t len,  MDDateFormat fmt )
+MDDate::get_string( char *str,  size_t len,  MDDateFormat fmt ) noexcept
 {
   static const char *MONTH_STR[] = {
    0, "JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC" };

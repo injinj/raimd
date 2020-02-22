@@ -6,13 +6,13 @@ using namespace rai;
 using namespace md;
 
 const char *
-MktfdMsg::get_proto_string( void )
+MktfdMsg::get_proto_string( void ) noexcept
 {
   return "MARKETFEED";
 }
 
 uint32_t
-MktfdMsg::get_type_id( void )
+MktfdMsg::get_type_id( void ) noexcept
 {
   return MARKETFEED_TYPE_ID;
 }
@@ -47,13 +47,14 @@ enum {
 }
 
 void
-MktfdMsg::init_auto_unpack( void )
+MktfdMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( mktfd_match );
 }
 
 bool
-MktfdMsg::is_marketfeed( void *bb,  size_t off,  size_t end,  uint32_t )
+MktfdMsg::is_marketfeed( void *bb,  size_t off,  size_t end,
+                         uint32_t ) noexcept
 {
   if ( off + 5 < end ) {
     const uint8_t *buf = (uint8_t *) bb;
@@ -158,7 +159,7 @@ enum {
 };
 
 int
-MktfdMsg::parse_header( void )
+MktfdMsg::parse_header( void ) noexcept
 {
   uint8_t * buf = (uint8_t *) this->msg_buf;
   size_t    i   = this->msg_off;
@@ -234,7 +235,7 @@ MktfdMsg::parse_header( void )
 
 MktfdMsg *
 MktfdMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
-                  MDDict *d,  MDMsgMem *m )
+                  MDDict *d,  MDMsgMem *m ) noexcept
 {
   if ( off + 2 > end ||
        ((uint8_t *) bb)[ off ] != FS_ ||
@@ -256,7 +257,7 @@ MktfdMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
 }
 
 int
-MktfdMsg::get_field_iter( MDFieldIter *&iter )
+MktfdMsg::get_field_iter( MDFieldIter *&iter ) noexcept
 {
   void * ptr;
   this->mem->alloc( sizeof( MktfdFieldIter ), &ptr );
@@ -265,7 +266,7 @@ MktfdMsg::get_field_iter( MDFieldIter *&iter )
 }
 
 inline void
-MktfdFieldIter::lookup_fid( void )
+MktfdFieldIter::lookup_fid( void ) noexcept
 {
   if ( this->ftype == MD_NODATA ) {
     if ( this->iter_msg.dict != NULL )
@@ -280,7 +281,7 @@ MktfdFieldIter::lookup_fid( void )
 }
 
 int
-MktfdFieldIter::get_name( MDName &name )
+MktfdFieldIter::get_name( MDName &name ) noexcept
 {
   this->lookup_fid();
   name.fid      = this->fid;
@@ -344,14 +345,14 @@ encoded_integer( uint8_t *fptr,  size_t fsize,  uint64_t &ival )
 }
 
 int
-MktfdFieldIter::get_hint_reference( MDReference &mref )
+MktfdFieldIter::get_hint_reference( MDReference &mref ) noexcept
 {
   mref.zero();
   return Err::NOT_FOUND;
 }
 
 int
-MktfdFieldIter::get_enum( MDReference &mref,  MDEnum &enu )
+MktfdFieldIter::get_enum( MDReference &mref,  MDEnum &enu ) noexcept
 {
   if ( mref.ftype == MD_ENUM ) {
     if ( this->iter_msg.dict != NULL ) {
@@ -366,7 +367,7 @@ MktfdFieldIter::get_enum( MDReference &mref,  MDEnum &enu )
 }
 
 int
-MktfdFieldIter::get_reference( MDReference &mref )
+MktfdFieldIter::get_reference( MDReference &mref ) noexcept
 {
   uint8_t * buf = &((uint8_t *) this->iter_msg.msg_buf)[ this->data_off ];
   char * eos;
@@ -521,7 +522,8 @@ MktfdFieldIter::get_reference( MDReference &mref )
 }
 
 int
-MktfdFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
+MktfdFieldIter::find( const char *name,  size_t name_len,
+                      MDReference &mref ) noexcept
 {
   if ( this->iter_msg.dict == NULL )
     return Err::NO_DICTIONARY;
@@ -544,7 +546,7 @@ MktfdFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
 }
 
 int
-MktfdFieldIter::first( void )
+MktfdFieldIter::first( void ) noexcept
 {
   this->field_start = ((MktfdMsg &) this->iter_msg).data_start;
   this->field_end   = ((MktfdMsg &) this->iter_msg).data_end;
@@ -554,7 +556,7 @@ MktfdFieldIter::first( void )
 }
 
 int
-MktfdFieldIter::next( void )
+MktfdFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   this->field_end   = ((MktfdMsg &) this->iter_msg).data_end;
@@ -564,7 +566,7 @@ MktfdFieldIter::next( void )
 }
 
 int
-MktfdFieldIter::unpack( void )
+MktfdFieldIter::unpack( void ) noexcept
 {
   uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
   size_t    i   = this->field_start;

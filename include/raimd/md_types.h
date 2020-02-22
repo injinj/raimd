@@ -19,9 +19,9 @@ struct MDMsg;
 struct MDReference;
 struct MDOutput {
   MDOutput() {}
-  virtual int puts( const char *s ); /* default funcs send output to stdout */
-  virtual int printf( const char *fmt, ... );
-  int print_hex( const void *buf,  size_t buflen ); /* print hex buffer */
+  virtual int puts( const char *s ) noexcept; /* funcs send output to stdout */
+  virtual int printf( const char *fmt, ... ) noexcept;
+  int print_hex( const void *buf,  size_t buflen ) noexcept; /* print hex buf */
   int indent( int i ) { /* message data indented */
     if ( i > 0 )
       return this->printf( "%*s", i, "" );
@@ -142,16 +142,16 @@ struct MDDecimal { /* base 10 decimal */
   MDDecimal() {}
   MDDecimal( int64_t i,  int8_t h ) : ival( i ), hint( h ) {}
   MDDecimal( double fval ) { this->set_real( fval ); }
-  MDDecimal( double fval,  int h );
+  MDDecimal( double fval,  int h ) noexcept;
   int parse( const char *s ) { return this->parse( s, ::strlen( s ) ); }
-  int parse( const char *s,  const size_t fsize );
+  int parse( const char *s,  const size_t fsize ) noexcept;
   void zero( void ) { ival = 0; hint = 0; }
-  int get_real( double &val ) const;
-  void degrade( int8_t new_hint );
-  void set_real( double fval );
-  int get_decimal( const MDReference &mref );
+  int get_real( double &val ) const noexcept;
+  void degrade( int8_t new_hint ) noexcept;
+  void set_real( double fval ) noexcept;
+  int get_decimal( const MDReference &mref ) noexcept;
   size_t get_string( char *str,  size_t len,  bool expand_fractions = true
-                  /* if expand is true, display .5 else 1/2 */ ) const;
+                  /* if expand is true, display .5 else 1/2 */ ) const noexcept;
 };
 
 struct MDTime {
@@ -163,16 +163,16 @@ struct MDTime {
   MDTime() {}
   MDTime( uint8_t h,  uint8_t m,  uint8_t s,  uint32_t f,  uint8_t r )
     : hour( h ), min( m ), sec( s ), resolution( r ), fraction( f ) {}
-  int parse( const char *fptr, const size_t fsize );
+  int parse( const char *fptr, const size_t fsize ) noexcept;
   void zero( void ) { hour = 0; min = 0; sec = 0; resolution = 0; fraction = 0;}
-  size_t get_string( char *str,  size_t len );
+  size_t get_string( char *str,  size_t len ) noexcept;
   bool is_null( void ) const { return ( this->resolution & MD_RES_NULL ) != 0; }
   uint8_t res( void ) const { return this->resolution & ~MD_RES_NULL; }
   const char *res_string( void ) {
     static const char *res_str[] = { "s", "ms", "us", "ns", "m", 0, 0, 0, 0 };
     return res_str[ this->res() & 7 ];
   }
-  int get_time( const MDReference &mref );
+  int get_time( const MDReference &mref ) noexcept;
 };
 
 enum MDDateFormat { /* formats for converting MDDate to string */
@@ -230,12 +230,12 @@ struct MDDate {
   MDDate( uint16_t y,  uint8_t m,  uint8_t d ) : year( y ), mon( m ), day( d ) {}
   void zero( void ) { year = 0; mon = 0; day = 0; }
   size_t get_string( char *str,  size_t len,
-                     MDDateFormat fmt = MD_DATE_FMT_default );
+                     MDDateFormat fmt = MD_DATE_FMT_default ) noexcept;
   bool is_null( void ) const { return this->year == 0 && this->mon == 0 &&
                                       this->day == 0; }
-  static int parse_format( const char *s,  MDDateFormat &fmt );
-  int parse( const char *fptr,  const size_t flen );
-  int get_date( const MDReference &mref );
+  static int parse_format( const char *s,  MDDateFormat &fmt ) noexcept;
+  int parse( const char *fptr,  const size_t flen ) noexcept;
+  int get_date( const MDReference &mref ) noexcept;
 };
 
 /* XXX not used at the moment */
@@ -245,7 +245,7 @@ struct MDStamp {
   MDStamp() {}
   MDStamp( uint64_t s,  uint8_t r ) : stamp( s ), resolution( r ) {}
   void zero( void ) { this->stamp = 0; this->resolution = 0; }
-  size_t get_string( char *str,  size_t len );
+  size_t get_string( char *str,  size_t len ) noexcept;
   bool is_null( void ) const { return ( this->resolution & MD_RES_NULL ) != 0; }
   uint8_t res( void ) const { return this->resolution & ~MD_RES_NULL; }
 };
@@ -294,11 +294,11 @@ union MDValue { /* used for setting fptr temporary above w/string msg formats */
   bool      b;
 };
 
-bool string_is_true( const char *s ); /* string to boolean */
+bool string_is_true( const char *s ) noexcept; /* string to boolean */
 
-const char *md_type_str( MDType type,  size_t size = 0 ); /* type to string */
+const char *md_type_str( MDType type,  size_t size = 0 ) noexcept;
 
-MDType md_str_type( const char *str,  size_t &size ); /* string to type */
+MDType md_str_type( const char *str,  size_t &size ) noexcept; /* str to type */
 
 struct MDErrorRec {
   int          status; /* enum error below */
@@ -352,7 +352,7 @@ namespace Err {
     ALLOC_FAIL            = 42, /* Allocation failed */
     BAD_SUBJECT           = 43  /* Bad subject */
   };
-  MDError err( int status );
+  MDError err( int status ) noexcept;
 }
 
 }

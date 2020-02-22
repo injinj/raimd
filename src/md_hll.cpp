@@ -18,13 +18,13 @@ using namespace rai;
 using namespace md;
 
 const char *
-HLLMsg::get_proto_string( void )
+HLLMsg::get_proto_string( void ) noexcept
 {
   return "MD_HYPERLOGLOG";
 }
 
 uint32_t
-HLLMsg::get_type_id( void )
+HLLMsg::get_type_id( void ) noexcept
 {
   return MD_HYPERLOGLOG;
 }
@@ -41,7 +41,7 @@ static MDMatch hllmsg_match = {
 };
 
 bool
-HLLMsg::is_hllmsg( void *bb,  size_t off,  size_t end,  uint32_t )
+HLLMsg::is_hllmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 {
   uint8_t * buf = &((uint8_t *) bb)[ off ];
   size_t    len = end - off;
@@ -52,7 +52,7 @@ HLLMsg::is_hllmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 
 MDMsg *
 HLLMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-                MDMsgMem *m )
+                MDMsgMem *m ) noexcept
 {
   if ( ! is_hllmsg( bb, off, end, h ) )
     return NULL;
@@ -65,13 +65,13 @@ HLLMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
 }
 
 void
-HLLMsg::init_auto_unpack( void )
+HLLMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( hllmsg_match );
 }
 
 int
-HLLMsg::get_reference( MDReference &mref )
+HLLMsg::get_reference( MDReference &mref ) noexcept
 {
   mref.zero();
   mref.ftype = MD_HYPERLOGLOG;
@@ -97,7 +97,7 @@ beta( double ez )
 }
 void
 rai::md::hll_ginit( uint32_t htsz,  uint32_t lzsz,  double *lz_sum,
-                    double *ht_beta,  double *ht_lin )
+                    double *ht_beta,  double *ht_lin ) noexcept
 {
   uint32_t i;
   /* linear counting is an estimate of card based on how full ht[] is */

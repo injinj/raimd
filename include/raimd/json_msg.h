@@ -21,22 +21,23 @@ struct JsonMsg : public MDMsg {
   JsonMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, end, d, m ), js( 0 ) {}
 
-  virtual const char *get_proto_string( void ) final;
-  virtual uint32_t get_type_id( void ) final;
-  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) final;
-  virtual int get_reference( MDReference &mref ) final;
-  virtual int get_field_iter( MDFieldIter *&iter ) final;
+  virtual const char *get_proto_string( void ) noexcept final;
+  virtual uint32_t get_type_id( void ) noexcept final;
+  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept final;
+  virtual int get_reference( MDReference &mref ) noexcept final;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
   virtual int get_array_ref( MDReference &mref, size_t i,
-                             MDReference &aref ) final;
-  static int value_to_ref( MDReference &mref,  JsonValue &x );
-  static bool is_jsonmsg( void *bb,  size_t off,  size_t end,  uint32_t h );
+                             MDReference &aref ) noexcept final;
+  static int value_to_ref( MDReference &mref,  JsonValue &x ) noexcept;
+  static bool is_jsonmsg( void *bb,  size_t off,  size_t end,
+                          uint32_t h ) noexcept;
   /* unpack only objects delimited by '{' '}' */
   static JsonMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                          MDDict *d,  MDMsgMem *m );
+                          MDDict *d,  MDMsgMem *m ) noexcept;
   /* try to parse any json:  array, string, number */
   static JsonMsg *unpack_any( void *bb,  size_t off,  size_t end,  uint32_t h,
-                              MDDict *d,  MDMsgMem *m );
-  static void init_auto_unpack( void );
+                              MDDict *d,  MDMsgMem *m ) noexcept;
+  static void init_auto_unpack( void ) noexcept;
 };
 
 struct JsonFieldIter : public MDFieldIter {
@@ -48,11 +49,12 @@ struct JsonFieldIter : public MDFieldIter {
   JsonFieldIter( JsonMsg &m,  JsonObject &o ) : MDFieldIter( m ),
     me( m ), obj( o ) {}
 
-  virtual int get_name( MDName &name ) final;
-  virtual int get_reference( MDReference &mref ) final;
-  virtual int find( const char *name, size_t name_len, MDReference &mref )final;
-  virtual int first( void ) final;
-  virtual int next( void ) final;
+  virtual int get_name( MDName &name ) noexcept final;
+  virtual int get_reference( MDReference &mref ) noexcept final;
+  virtual int find( const char *name, size_t name_len,
+                    MDReference &mref ) noexcept final;
+  virtual int first( void ) noexcept final;
+  virtual int next( void ) noexcept final;
 };
 
 }

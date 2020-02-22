@@ -61,7 +61,7 @@ tok_to_type( AppATok t )
 }
 
 void
-AppA::clear_line( void )
+AppA::clear_line( void ) noexcept
 {
   this->fid             = 0;
   this->length          = 0;
@@ -75,7 +75,7 @@ AppA::clear_line( void )
 }
 
 void
-AppA::set_ident( char *id_buf )
+AppA::set_ident( char *id_buf ) noexcept
 {
   size_t len = ( this->tok_sz > 255 ? 255 : this->tok_sz );
   ::memcpy( id_buf, this->tok_buf, len );
@@ -83,7 +83,7 @@ AppA::set_ident( char *id_buf )
 }
 
 AppATok
-AppA::get_token( void )
+AppA::get_token( void ) noexcept
 {
   int c;
   for (;;) {
@@ -192,7 +192,7 @@ AppA::get_token( void )
 }
 
 AppA *
-AppA::open_path( const char *path,  const char *filename )
+AppA::open_path( const char *path,  const char *filename ) noexcept
 {
   char path2[ 1024 ];
   if ( DictParser::find_file( path, filename, ::strlen( filename ),
@@ -233,7 +233,7 @@ app_a_type_str( AppATok type )
 }
 #endif
 void
-AppA::get_type_size( MDType &type,  uint32_t &size )
+AppA::get_type_size( MDType &type,  uint32_t &size ) noexcept
 {
   switch ( this->field_type ) {
     case ATK_ALPHANUMERIC:
@@ -333,7 +333,8 @@ AppA::get_type_size( MDType &type,  uint32_t &size )
 }
 
 int
-AppA::parse_path( MDDictBuild &dict_build,  const char *path,  const char *fn )
+AppA::parse_path( MDDictBuild &dict_build,  const char *path,
+                  const char *fn ) noexcept
 {
   AppA * p = NULL;
   int ret = 0, curlineno = 0, n;

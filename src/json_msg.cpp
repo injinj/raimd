@@ -5,13 +5,13 @@ using namespace rai;
 using namespace md;
 
 const char *
-JsonMsg::get_proto_string( void )
+JsonMsg::get_proto_string( void ) noexcept
 {
   return "JSON";
 }
 
 uint32_t
-JsonMsg::get_type_id( void )
+JsonMsg::get_type_id( void ) noexcept
 {
   return JSON_TYPE_ID;
 }
@@ -28,7 +28,7 @@ static MDMatch json_match = {
 };
 
 bool
-JsonMsg::is_jsonmsg( void *bb,  size_t off,  size_t end,  uint32_t )
+JsonMsg::is_jsonmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 {
   if ( end-off >= 2 ) {
     const uint8_t *buf = (const uint8_t *) bb;
@@ -46,7 +46,7 @@ JsonMsg::is_jsonmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 
 JsonMsg *
 JsonMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                 MDDict *d,  MDMsgMem *m )
+                 MDDict *d,  MDMsgMem *m ) noexcept
 {
   if ( ! JsonMsg::is_jsonmsg( bb, off, end, h ) )
     return NULL;
@@ -55,7 +55,7 @@ JsonMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
 
 JsonMsg *
 JsonMsg::unpack_any( void *bb,  size_t off,  size_t end,  uint32_t,
-                     MDDict *d,  MDMsgMem *m )
+                     MDDict *d,  MDMsgMem *m ) noexcept
 {
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
@@ -77,13 +77,13 @@ JsonMsg::unpack_any( void *bb,  size_t off,  size_t end,  uint32_t,
 }
 
 void
-JsonMsg::init_auto_unpack( void )
+JsonMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( json_match );
 }
 
 int
-JsonMsg::get_field_iter( MDFieldIter *&iter )
+JsonMsg::get_field_iter( MDFieldIter *&iter ) noexcept
 {
   void * ptr;
   if ( this->js == NULL || this->js->type != JSON_OBJECT ) {
@@ -96,13 +96,13 @@ JsonMsg::get_field_iter( MDFieldIter *&iter )
 }
 
 int
-JsonMsg::get_reference( MDReference &mref )
+JsonMsg::get_reference( MDReference &mref ) noexcept
 {
   return JsonMsg::value_to_ref( mref, *this->js );
 }
 
 int
-JsonMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg )
+JsonMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg ) noexcept
 {
   JsonMsg * jmsg;
   void    * ptr;
@@ -118,7 +118,7 @@ JsonMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg )
 }
 
 int
-JsonFieldIter::get_name( MDName &name )
+JsonFieldIter::get_name( MDName &name ) noexcept
 {
   JsonObject::Pair &pair = this->obj.val[ this->field_start ];
   name.fname    = (char *) pair.name;
@@ -128,7 +128,7 @@ JsonFieldIter::get_name( MDName &name )
 }
 
 int
-JsonMsg::value_to_ref( MDReference &mref,  JsonValue &x )
+JsonMsg::value_to_ref( MDReference &mref,  JsonValue &x ) noexcept
 {
   mref.fendian  = md_endian;
   mref.fentrysz = 0;
@@ -181,14 +181,15 @@ JsonMsg::value_to_ref( MDReference &mref,  JsonValue &x )
 }
 
 int
-JsonFieldIter::get_reference( MDReference &mref )
+JsonFieldIter::get_reference( MDReference &mref ) noexcept
 {
   JsonObject::Pair &pair = this->obj.val[ this->field_start ];
   return JsonMsg::value_to_ref( mref, *pair.val );
 }
 
 int
-JsonMsg::get_array_ref( MDReference &mref,  size_t i,  MDReference &aref )
+JsonMsg::get_array_ref( MDReference &mref,  size_t i,
+                        MDReference &aref ) noexcept
 {
   JsonArray *arr = (JsonArray *) (void *) mref.fptr;
   JsonValue *val = arr->val[ i ];
@@ -196,7 +197,7 @@ JsonMsg::get_array_ref( MDReference &mref,  size_t i,  MDReference &aref )
 }
 
 int
-JsonFieldIter::find( const char *name,  size_t,  MDReference &mref )
+JsonFieldIter::find( const char *name,  size_t,  MDReference &mref ) noexcept
 {
   if ( name != NULL ) {
     for ( size_t i = 0; i < this->obj.length; i++ ) {
@@ -212,7 +213,7 @@ JsonFieldIter::find( const char *name,  size_t,  MDReference &mref )
 }
 
 int
-JsonFieldIter::first( void )
+JsonFieldIter::first( void ) noexcept
 {
   this->field_start = 0;
   this->field_end   = 0;
@@ -223,7 +224,7 @@ JsonFieldIter::first( void )
 }
 
 int
-JsonFieldIter::next( void )
+JsonFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   if ( this->field_start >= this->obj.length )
