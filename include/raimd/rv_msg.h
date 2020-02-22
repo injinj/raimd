@@ -15,20 +15,21 @@ struct RvMsg : public MDMsg {
   RvMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, end, d, m ) {}
 
-  virtual const char *get_proto_string( void ) final;
-  virtual uint32_t get_type_id( void ) final;
-  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) final;
-  virtual int get_field_iter( MDFieldIter *&iter ) final;
+  virtual const char *get_proto_string( void ) noexcept final;
+  virtual uint32_t get_type_id( void ) noexcept final;
+  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept final;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
 
   /* may return tibmsg, sass qform or rv */
-  static bool is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t h );
+  static bool is_rvmsg( void *bb,  size_t off,  size_t end,
+                        uint32_t h ) noexcept;
   static RvMsg *unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t h,
-                           MDDict *d,  MDMsgMem *m );
+                           MDDict *d,  MDMsgMem *m ) noexcept;
   static MDMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                        MDDict *d,  MDMsgMem *m );
-  static void init_auto_unpack( void );
+                        MDDict *d,  MDMsgMem *m ) noexcept;
+  static void init_auto_unpack( void ) noexcept;
   static MDMsg *opaque_extract( uint8_t *bb,  size_t off,  size_t end,
-                                MDDict *d,  MDMsgMem *m );
+                                MDDict *d,  MDMsgMem *m ) noexcept;
 };
 
 struct RvFieldIter : public MDFieldIter {
@@ -42,12 +43,13 @@ struct RvFieldIter : public MDFieldIter {
   RvFieldIter( MDMsg &m )
     : MDFieldIter( m ), size( 0 ), type( 0 ), name_len( 0 ) {}
 
-  virtual int get_name( MDName &name ) final;
-  virtual int get_reference( MDReference &mref ) final;
-  virtual int find( const char *name, size_t name_len, MDReference &mref )final;
-  virtual int first( void ) final;
-  virtual int next( void ) final;
-  int unpack( void );
+  virtual int get_name( MDName &name ) noexcept final;
+  virtual int get_reference( MDReference &mref ) noexcept final;
+  virtual int find( const char *name, size_t name_len,
+                    MDReference &mref ) noexcept final;
+  virtual int first( void ) noexcept final;
+  virtual int next( void ) noexcept final;
+  int unpack( void ) noexcept;
 };
 
 struct RvMsgWriter {
@@ -57,8 +59,8 @@ struct RvMsgWriter {
 
   RvMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 8 ),
                                          buflen( len ) {}
-  int append_ref( const char *fname,  size_t fname_len,  MDReference &mref );
-
+  int append_ref( const char *fname,  size_t fname_len,
+                  MDReference &mref ) noexcept;
   bool has_space( size_t len ) const {
     return this->off + len <= this->buflen;
   }
@@ -78,8 +80,8 @@ struct RvMsgWriter {
    * msg.append_msg( "m", 2, submsg );
    * submsg.append_int<int32_t>( "i", 2, 100 );
    * len = msg.update_hdr( submsg ); */
-  int append_msg( const char *fname,  size_t fname_len, RvMsgWriter &submsg );
-
+  int append_msg( const char *fname,  size_t fname_len,
+                  RvMsgWriter &submsg ) noexcept;
   size_t update_hdr( RvMsgWriter &submsg ) {
     this->off += submsg.update_hdr();
     return this->update_hdr();
@@ -118,10 +120,14 @@ struct RvMsgWriter {
     return this->append_ref( fname, fname_len, mref );
   }
   /* subject format is string "XYZ.REC.INST.EX" */
-  int append_subject( const char *fname,  size_t fname_len,  const char *subj );
-  int append_decimal( const char *fname,  size_t fname_len, MDDecimal &dec );
-  int append_time( const char *fname,  size_t fname_len,  MDTime &time );
-  int append_date( const char *fname,  size_t fname_len,  MDDate &date );
+  int append_subject( const char *fname,  size_t fname_len,
+                      const char *subj ) noexcept;
+  int append_decimal( const char *fname,  size_t fname_len,
+                      MDDecimal &dec ) noexcept;
+  int append_time( const char *fname,  size_t fname_len,
+                   MDTime &time ) noexcept;
+  int append_date( const char *fname,  size_t fname_len,
+                   MDDate &date ) noexcept;
 };
 
 }

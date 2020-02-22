@@ -16,15 +16,16 @@ struct TibSassMsg : public MDMsg {
   TibSassMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, end, d, m ) {}
 
-  virtual const char *get_proto_string( void ) final;
-  virtual uint32_t get_type_id( void ) final;
-  virtual int get_field_iter( MDFieldIter *&iter ) final;
+  virtual const char *get_proto_string( void ) noexcept final;
+  virtual uint32_t get_type_id( void ) noexcept final;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
 
   /* may return tibmsg, sass qform or rv */
-  static bool is_tibsassmsg( void *bb,  size_t off,  size_t end,  uint32_t h );
+  static bool is_tibsassmsg( void *bb,  size_t off,  size_t end,
+                             uint32_t h ) noexcept;
   static TibSassMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                             MDDict *d,  MDMsgMem *m );
-  static void init_auto_unpack( void );
+                             MDDict *d,  MDMsgMem *m ) noexcept;
+  static void init_auto_unpack( void ) noexcept;
 };
 
 static inline size_t tib_sass_pack_size( size_t fsize ) {
@@ -50,13 +51,14 @@ struct TibSassFieldIter : public MDFieldIter {
   TibSassFieldIter( MDMsg &m ) : MDFieldIter( m ), fname( 0 ), fsize( 0 ),
                                  fid( 0 ), ftype( MD_NODATA ), fnamelen( 0 ) {}
 
-  virtual int get_name( MDName &name ) final;
-  virtual int get_reference( MDReference &mref ) final;
-  virtual int get_hint_reference( MDReference &mref ) final;
-  virtual int find( const char *name, size_t name_len, MDReference &mref )final;
-  virtual int first( void ) final;
-  virtual int next( void ) final;
-  int unpack( void );
+  virtual int get_name( MDName &name ) noexcept final;
+  virtual int get_reference( MDReference &mref ) noexcept final;
+  virtual int get_hint_reference( MDReference &mref ) noexcept final;
+  virtual int find( const char *name, size_t name_len,
+                    MDReference &mref ) noexcept final;
+  virtual int first( void ) noexcept final;
+  virtual int next( void ) noexcept final;
+  int unpack( void ) noexcept;
 
   size_t pack_size( void ) const {
     return tib_sass_pack_size( this->fsize );
@@ -72,11 +74,13 @@ struct TibSassMsgWriter {
   size_t    off,
             buflen;
 
-  TibSassMsgWriter( MDDict *d,  void *bb,  size_t len );
+  TibSassMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept;
 
-  int append_ref( MDFid fid,  MDReference &mref );
-  int append_ref( const char *fname,  size_t fname_len,  MDReference &mref );
-  int append_ref( MDFid fid, MDType ftype, uint32_t fsize, MDReference &mref );
+  int append_ref( MDFid fid,  MDReference &mref ) noexcept;
+  int append_ref( const char *fname,  size_t fname_len,
+                  MDReference &mref ) noexcept;
+  int append_ref( MDFid fid, MDType ftype, uint32_t fsize,
+                  MDReference &mref ) noexcept;
 
   bool has_space( size_t len ) const {
     return this->off + 8 + len <= this->buflen;
@@ -160,19 +164,22 @@ struct TibSassMsgWriter {
   }
 
   int append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
-                      MDDecimal &dec );
+                      MDDecimal &dec ) noexcept;
   int append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
-                   MDTime &time );
+                   MDTime &time ) noexcept;
   int append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
-                   MDDate &date );
+                   MDDate &date ) noexcept;
 
-  int append_decimal( MDFid fid,  MDDecimal &dec );
-  int append_time( MDFid,  MDTime &time );
-  int append_date( MDFid,  MDDate &date );
+  int append_decimal( MDFid fid,  MDDecimal &dec ) noexcept;
+  int append_time( MDFid,  MDTime &time ) noexcept;
+  int append_date( MDFid,  MDDate &date ) noexcept;
 
-  int append_decimal( const char *fname,  size_t fname_len,  MDDecimal &dec );
-  int append_time( const char *fname,  size_t fname_len,  MDTime &time );
-  int append_date( const char *fname,  size_t fname_len,  MDDate &date );
+  int append_decimal( const char *fname,  size_t fname_len,
+                      MDDecimal &dec ) noexcept;
+  int append_time( const char *fname,  size_t fname_len,
+                   MDTime &time ) noexcept;
+  int append_date( const char *fname,  size_t fname_len,
+                   MDDate &date ) noexcept;
 };
 
 }

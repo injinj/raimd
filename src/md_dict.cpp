@@ -9,13 +9,13 @@ using namespace md;
 
 /* crc_c */
 uint32_t
-MDDict::dict_hash( const void *key,  size_t len,  uint32_t seed )
+MDDict::dict_hash( const void *key,  size_t len,  uint32_t seed ) noexcept
 {
   return hash32( key, len, seed );
 }
 
 uint32_t
-MDDictIdx::file_lineno( const char *filename,  uint32_t lineno )
+MDDictIdx::file_lineno( const char *filename,  uint32_t lineno ) noexcept
 {
   if ( this->file_q.is_empty() ||
        ::strcmp( filename, this->file_q.hd->filename ) != 0 ) {
@@ -29,7 +29,7 @@ MDDictIdx::file_lineno( const char *filename,  uint32_t lineno )
 }
 
 size_t
-MDDictIdx::total_size( void )
+MDDictIdx::total_size( void ) noexcept
 {
   size_t sz = 0;
   for ( MDEntryData *d = this->data_q.hd; d != NULL; d = d->next )
@@ -38,7 +38,7 @@ MDDictIdx::total_size( void )
 }
 
 size_t
-MDDictIdx::fname_size( uint8_t &shft,  uint8_t &align )
+MDDictIdx::fname_size( uint8_t &shft,  uint8_t &align ) noexcept
 {
   size_t sz = 0, sz2 = 0, sz4 = 0, sz8 = 0;
   uint8_t n;
@@ -69,7 +69,7 @@ MDDictIdx::fname_size( uint8_t &shft,  uint8_t &align )
 }
 
 bool
-MDDupHash::test_set( uint32_t h )
+MDDupHash::test_set( uint32_t h ) noexcept
 {
   size_t    i = ( h & ( 64 * 1024 - 1 ) ),
             j = ( ( h >> 16 ) & ( 64 * 1024 - 1 ) );
@@ -83,7 +83,8 @@ MDDupHash::test_set( uint32_t h )
 }
 
 uint32_t
-MDDictIdx::check_dup( const char *fname,  uint8_t fnamelen,  bool &xdup )
+MDDictIdx::check_dup( const char *fname,  uint8_t fnamelen,
+                      bool &xdup ) noexcept
 {
   if ( this->dup_hash == NULL )
     this->dup_hash = this->alloc<MDDupHash>( sizeof( MDDupHash ) );
@@ -94,7 +95,7 @@ MDDictIdx::check_dup( const char *fname,  uint8_t fnamelen,  bool &xdup )
 
 template< class TYPE >
 TYPE *
-MDDictIdx::alloc( size_t sz )
+MDDictIdx::alloc( size_t sz ) noexcept
 {
   void * ptr;
   if ( this->data_q.is_empty() ||
@@ -108,7 +109,7 @@ MDDictIdx::alloc( size_t sz )
   return new ( ptr ) TYPE();
 }
 
-MDDictIdx::~MDDictIdx()
+MDDictIdx::~MDDictIdx() noexcept
 {
   MDEntryData *p;
   while ( (p = this->data_q.pop()) != NULL )
@@ -120,7 +121,7 @@ MDDictIdx::~MDDictIdx()
 }
 
 bool
-MDTypeHash::insert( uint32_t x )
+MDTypeHash::insert( uint32_t x ) noexcept
 {
   uint32_t h = ( ( ( x >> 5 ) * 0x5bd1e995 ) ^ (uint32_t) ( x & 0x1f ) ), i;
 
@@ -139,7 +140,7 @@ MDTypeHash::insert( uint32_t x )
 }
 
 uint32_t
-MDTypeHash::find( uint32_t x )
+MDTypeHash::find( uint32_t x ) noexcept
 {
   uint32_t h = ( ( ( x >> 5 ) * 0x5bd1e995 ) ^ (uint32_t) ( x & 0x1f ) ), i;
 
@@ -150,7 +151,7 @@ MDTypeHash::find( uint32_t x )
 }
 
 MDDictIdx *
-MDDictBuild::get_dict_idx( void )
+MDDictBuild::get_dict_idx( void ) noexcept
 {
   MDDictIdx * dict = this->idx;
   if ( dict == NULL ) {
@@ -166,7 +167,7 @@ MDDictBuild::get_dict_idx( void )
 int
 MDDictBuild::add_enum_map( uint32_t map_num,  uint16_t max_value,
                            uint32_t value_cnt,  uint16_t *value,
-                           uint16_t map_len,  uint8_t *map )
+                           uint16_t map_len,  uint8_t *map ) noexcept
 {
   MDEnumList * emap;
   uint16_t   * value_cp;
@@ -198,7 +199,7 @@ int
 MDDictBuild::add_entry( MDFid fid,  uint32_t fsize,  MDType ftype,
                         const char *fname,  const char *name,
                         const char *ripple,  const char *filename,
-                        uint32_t lineno,  MDDictEntry **eret )
+                        uint32_t lineno,  MDDictEntry **eret ) noexcept
 {
   MDDictEntry * entry;
   size_t        fnamelen,
@@ -354,7 +355,7 @@ mkpow2( size_t i )
 }
 
 int
-MDDictBuild::index_dict( const char *dtype,  MDDict *&dict )
+MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
 {
   MDDict * next = dict;
   MDDictIdx * dict_idx = this->idx;
@@ -480,7 +481,7 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict )
 
 bool
 MDDict::get_enum_text( MDFid fid,  uint16_t val,  const char *&disp,
-                       size_t &disp_len )
+                       size_t &disp_len ) noexcept
 {
   const char * fname;
   uint32_t     fsize;
@@ -496,7 +497,7 @@ MDDict::get_enum_text( MDFid fid,  uint16_t val,  const char *&disp,
 
 bool
 MDDict::get_enum_map_text( uint32_t map_num,  uint16_t val,  const char *&disp,
-                           size_t &disp_len )
+                           size_t &disp_len ) noexcept
 {
   if ( map_num >= this->map_count )
     return false;
@@ -539,7 +540,7 @@ MDDict::get_enum_map_text( uint32_t map_num,  uint16_t val,  const char *&disp,
 
 bool
 MDDict::get_enum_val( MDFid fid,  const char *disp,  size_t disp_len,
-                      uint16_t &val )
+                      uint16_t &val ) noexcept
 {
   const char * fname;
   uint32_t     fsize;
@@ -555,7 +556,7 @@ MDDict::get_enum_val( MDFid fid,  const char *disp,  size_t disp_len,
 
 bool
 MDDict::get_enum_map_val( uint32_t map_num,  const char *disp,  size_t disp_len,
-                          uint16_t &val )
+                          uint16_t &val ) noexcept
 {
   if ( map_num >= this->map_count )
     return false;
@@ -584,14 +585,14 @@ MDDict::get_enum_map_val( uint32_t map_num,  const char *disp,  size_t disp_len,
   return false;
 }
 
-MDDictBuild::~MDDictBuild()
+MDDictBuild::~MDDictBuild() noexcept
 {
   if ( this->idx != NULL )
     delete this->idx;
 }
 
 void
-MDDictBuild::clear_build( void )
+MDDictBuild::clear_build( void ) noexcept
 {
   if ( this->idx != NULL ) {
     delete this->idx;
@@ -601,7 +602,7 @@ MDDictBuild::clear_build( void )
 
 bool
 DictParser::find_file( const char *path,  const char *filename,
-                       size_t file_sz,  char *path_found )
+                       size_t file_sz,  char *path_found ) noexcept
 {
   const char *next = NULL, * e;
   size_t path_sz;
@@ -637,7 +638,7 @@ DictParser::find_file( const char *path,  const char *filename,
 }
 
 bool
-DictParser::fillbuf( void )
+DictParser::fillbuf( void ) noexcept
 {
   size_t x = this->len - this->off, y = 0;
   if ( x > 0 )
@@ -658,7 +659,7 @@ DictParser::fillbuf( void )
 }
 
 bool
-DictParser::get_char( size_t i,  int &c )
+DictParser::get_char( size_t i,  int &c ) noexcept
 {
   if ( this->off + i >= this->len ) {
     if ( ! this->fillbuf() ) {
@@ -671,7 +672,7 @@ DictParser::get_char( size_t i,  int &c )
 }
 
 int
-DictParser::eat_white( void )
+DictParser::eat_white( void ) noexcept
 {
   int c;
   while ( this->get_char( 0, c ) ) {
@@ -687,7 +688,7 @@ DictParser::eat_white( void )
 }
 
 void
-DictParser::eat_comment( void )
+DictParser::eat_comment( void ) noexcept
 {
   int c;
   if ( ! this->get_char( 0, c ) || c == '\n' )
@@ -700,7 +701,7 @@ DictParser::eat_comment( void )
 }
 
 bool
-DictParser::match( const char *s,  size_t sz )
+DictParser::match( const char *s,  size_t sz ) noexcept
 {
   while ( this->off + sz > this->len )
     if ( ! this->fillbuf() )
@@ -710,7 +711,7 @@ DictParser::match( const char *s,  size_t sz )
 }
 
 int
-DictParser::consume_tok( int k,  size_t sz )
+DictParser::consume_tok( int k,  size_t sz ) noexcept
 {
   ::memcpy( this->tok_buf, &this->buf[ this->off ], sz );
   this->tok_sz = sz;
@@ -720,7 +721,7 @@ DictParser::consume_tok( int k,  size_t sz )
 }
 
 int
-DictParser::consume_int_tok( void )
+DictParser::consume_int_tok( void ) noexcept
 {
   size_t sz;
   int c;
@@ -737,7 +738,7 @@ DictParser::consume_int_tok( void )
 }
 
 int
-DictParser::consume_ident_tok( void )
+DictParser::consume_ident_tok( void ) noexcept
 {
   size_t sz;
   int c;
@@ -751,7 +752,7 @@ DictParser::consume_ident_tok( void )
 }
 
 int
-DictParser::consume_string_tok( void )
+DictParser::consume_string_tok( void ) noexcept
 {
   size_t sz;
   int c;

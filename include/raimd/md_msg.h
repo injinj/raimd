@@ -42,9 +42,9 @@ struct MDMsgMem {
     this->alloc_slow( size, ptr );
   }
   /* when out of static space, add mem block using malloc() */
-  void alloc_slow( size_t size,  void *ptr );
+  void alloc_slow( size_t size,  void *ptr ) noexcept;
   /* extend last alloc for more space */
-  void extend( size_t old_size,  size_t new_size,  void *ptr );
+  void extend( size_t old_size,  size_t new_size,  void *ptr ) noexcept;
   /* alloc for strings */
   char *stralloc( size_t len,  const char *str ) {
     char * s = NULL;
@@ -55,7 +55,7 @@ struct MDMsgMem {
     }
     return s;
   }
-  void reuse( void ); /* reuse all memory (overwritting existing) */
+  void reuse( void ) noexcept; /* reuse all memory (overwritting existing) */
 };
 
 struct MDMsgMemSwap { /* push new local allocation for the current stack */
@@ -105,10 +105,11 @@ struct MDMatchGroup {
   MDMatchGroup() : matches( 0 ), off( 0 ), haslen( 0 ), count( 0 ) {
     ::memset( this->xoff, 0, sizeof( this->xoff ) );
   }
-  void add_match( MDMatch &ma );
+  void add_match( MDMatch &ma ) noexcept;
   MDMsg * match( void *bb,  size_t off,  size_t end,  uint32_t h,
-                 MDDict *d,  MDMsgMem *m );
-  MDMatch * is_msg_type( void *bb,  size_t off,  size_t end,  uint32_t h );
+                 MDDict *d,  MDMsgMem *m ) noexcept;
+  MDMatch * is_msg_type( void *bb,  size_t off,  size_t end,
+                         uint32_t h ) noexcept;
 };
 
 struct MDMsg {
@@ -125,11 +126,12 @@ struct MDMsg {
     : msg_buf( bb ), msg_off( off ), msg_end( end ), dict( d ), mem( m ) {}
   ~MDMsg() { this->release(); }
 
-  static void add_match( MDMatch &ma );
+  static void add_match( MDMatch &ma ) noexcept;
   /* Unpack message and make available for extracting field values */
   static MDMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h = 0,
-                        MDDict *d = NULL, MDMsgMem *m = NULL );
-  static uint32_t is_msg_type( void *b,  size_t off,  size_t end,  uint32_t h );
+                        MDDict *d = NULL, MDMsgMem *m = NULL ) noexcept;
+  static uint32_t is_msg_type( void *b,  size_t off,  size_t end,
+                               uint32_t h ) noexcept;
   /* dereference msg mem */
   void release( void ) {
     if ( this->mem != NULL && this->mem->ref_cnt != MDMsgMem::NO_REF_COUNT ) {
@@ -146,35 +148,39 @@ struct MDMsg {
   }
   /* Print message with printf style fmts */
   void print( MDOutput *out,  int indent_newline,  const char *fname_fmt,
-              const char *type_fmt );
+              const char *type_fmt ) noexcept;
   /* Print buffer hex values */
   static void print_hex( MDOutput *out,  const void *msgBuf,
-                         size_t offset,  size_t length );
+                         size_t offset,  size_t length ) noexcept;
   /* Used by field iterators to creae a sub message */
-  virtual const char *get_proto_string( void );
-  virtual uint32_t get_type_id( void );
-  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg );
-  virtual int get_reference( MDReference &mref );
-  virtual int get_field_iter( MDFieldIter *&iter );
-  virtual int get_array_ref( MDReference &mref, size_t i, MDReference &aref );
-
-  int msg_to_string( MDReference &mref,  char *&buf,  size_t &len );
-  int hash_to_string( MDReference &mref,  char *&buf,  size_t &len );
-  int set_to_string( MDReference &mref,  char *&buf,  size_t &len );
-  int zset_to_string( MDReference &mref,  char *&buf,  size_t &len );
-  int geo_to_string( MDReference &mref,  char *&buf,  size_t &len );
-  int hll_to_string( MDReference &mref,  char *&buf,  size_t &len );
-  int stream_to_string( MDReference &mref,  char *&buf,  size_t &len );
-  int get_quoted_string( MDReference &mref,  char *&buf,  size_t &len );
+  virtual const char *get_proto_string( void ) noexcept;
+  virtual uint32_t get_type_id( void ) noexcept;
+  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept;
+  virtual int get_reference( MDReference &mref ) noexcept;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept;
+  virtual int get_array_ref( MDReference &mref, size_t i,
+                             MDReference &aref ) noexcept;
+  int msg_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int hash_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int set_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int zset_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int geo_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int hll_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int stream_to_string( MDReference &mref,  char *&buf,
+                        size_t &len ) noexcept;
+  int get_quoted_string( MDReference &mref,  char *&buf,
+                         size_t &len ) noexcept;
   int get_escaped_string( MDReference &mref,  const char *quotes,
-                           char *&buf,  size_t &len );
-  int get_string( MDReference &mref,  char *&buf,  size_t &len );
-  int get_subject_string( MDReference &mref,  char *&buf,  size_t &len );
-  int time_to_string( MDReference &mref,  char *&buf,  size_t &len );
-  int array_to_string( MDReference &mref,  char *&buf,  size_t &len );
-  int list_to_string( MDReference &mref,  char *&buf,  size_t &len );
+                           char *&buf,  size_t &len ) noexcept;
+  int get_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int get_subject_string( MDReference &mref,  char *&buf,
+                          size_t &len ) noexcept;
+  int time_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int array_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int list_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
   int concat_array_to_string( char **str,  size_t *k,  size_t num_entries,
-                              size_t tot_len,  char *&buf,  size_t &len );
+                              size_t tot_len,  char *&buf,
+                              size_t &len ) noexcept;
 };
 
 }

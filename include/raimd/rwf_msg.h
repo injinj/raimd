@@ -28,22 +28,23 @@ struct RwfMsg : public MDMsg {
   RwfFieldListHdr hdr;
 
   static int parse_header( const uint8_t *buf,  size_t buflen,
-                           RwfFieldListHdr &hdr );
+                           RwfFieldListHdr &hdr ) noexcept;
   /* used by UnPack() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }
 
   RwfMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, end, d, m ) {}
 
-  virtual const char *get_proto_string( void ) final;
-  virtual uint32_t get_type_id( void ) final;
-  virtual int get_field_iter( MDFieldIter *&iter ) final;
+  virtual const char *get_proto_string( void ) noexcept final;
+  virtual uint32_t get_type_id( void ) noexcept final;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
 
   /* may return tibmsg, sass qform or rv */
-  static bool is_rwf( void *bb,  size_t off,  size_t end,  uint32_t h );
+  static bool is_rwf( void *bb,  size_t off,  size_t end,
+                      uint32_t h ) noexcept;
   static RwfMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                         MDDict *d,  MDMsgMem *m );
-  static void init_auto_unpack( void );
+                         MDDict *d,  MDMsgMem *m ) noexcept;
+  static void init_auto_unpack( void ) noexcept;
 };
 
 struct RwfFieldIter : public MDFieldIter {
@@ -67,15 +68,16 @@ struct RwfFieldIter : public MDFieldIter {
       fname( 0 ), fnamelen( 0 ), fid( 0 ), data_off( 0 ), field_idx( 0 ),
       position( 0 ) {}
 
-  void lookup_fid( void );
-  virtual int get_name( MDName &name ) final;
-  virtual int get_enum( MDReference &mref,  MDEnum &enu ) final;
-  virtual int get_reference( MDReference &mref ) final;
-  virtual int get_hint_reference( MDReference &mref ) final;
-  virtual int find( const char *name, size_t name_len, MDReference &mref )final;
-  virtual int first( void ) final;
-  virtual int next( void ) final;
-  int unpack( void );
+  void lookup_fid( void ) noexcept;
+  virtual int get_name( MDName &name ) noexcept final;
+  virtual int get_enum( MDReference &mref,  MDEnum &enu ) noexcept final;
+  virtual int get_reference( MDReference &mref ) noexcept final;
+  virtual int get_hint_reference( MDReference &mref ) noexcept final;
+  virtual int find( const char *name, size_t name_len,
+                    MDReference &mref ) noexcept final;
+  virtual int first( void ) noexcept final;
+  virtual int next( void ) noexcept final;
+  int unpack( void ) noexcept;
 };
 
 /* 0     1     2     3     4     5     6      7      <- offset
@@ -90,11 +92,13 @@ struct RwfMsgWriter {
   uint16_t  nflds,
             flist;
 
-  RwfMsgWriter( MDDict *d,  void *bb,  size_t len );
+  RwfMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept;
 
-  int append_ref( MDFid fid,  MDReference &mref );
-  int append_ref( const char *fname,  size_t fname_len,  MDReference &mref );
-  int append_ref( MDFid fid, MDType ftype, uint32_t fsize, MDReference &mref );
+  int append_ref( MDFid fid,  MDReference &mref ) noexcept;
+  int append_ref( const char *fname,  size_t fname_len,
+                  MDReference &mref ) noexcept;
+  int append_ref( MDFid fid, MDType ftype, uint32_t fsize,
+                  MDReference &mref ) noexcept;
 
   bool has_space( size_t len ) const {
     return this->off + len <= this->buflen;
@@ -139,16 +143,16 @@ struct RwfMsgWriter {
     return this->append_ref( fname, fname_len, mref );
   }
 
-  int append_ival( MDFid fid,  const void *ival,  size_t ilen,  MDType t );
-
+  int append_ival( MDFid fid,  const void *ival,  size_t ilen,
+                   MDType t ) noexcept;
   int append_ival( const char *fname,  size_t fname_len,  const void *ival,
-                   size_t ilen,  MDType t );
-  int pack_uval( MDFid fid,  const uint8_t *ival,  size_t ilen );
+                   size_t ilen,  MDType t ) noexcept;
+  int pack_uval( MDFid fid,  const uint8_t *ival,  size_t ilen ) noexcept;
 
-  int pack_ival( MDFid fid,  const uint8_t *ival,  size_t ilen );
+  int pack_ival( MDFid fid,  const uint8_t *ival,  size_t ilen ) noexcept;
 
   int pack_partial( MDFid fid, const uint8_t *fptr,  size_t fsize,
-                    size_t foffset );
+                    size_t foffset ) noexcept;
   template< class T >
   int append_int( MDFid fid,  T ival ) {
     return this->append_ival( fid, &ival, sizeof( ival ), MD_INT );
@@ -195,19 +199,22 @@ struct RwfMsgWriter {
   }
 
   int append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
-                      MDDecimal &dec );
+                      MDDecimal &dec ) noexcept;
   int append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
-                   MDTime &time );
+                   MDTime &time ) noexcept;
   int append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
-                   MDDate &date );
+                   MDDate &date ) noexcept;
 
-  int append_decimal( MDFid fid,  MDDecimal &dec );
-  int append_time( MDFid,  MDTime &time );
-  int append_date( MDFid,  MDDate &date );
+  int append_decimal( MDFid fid,  MDDecimal &dec ) noexcept;
+  int append_time( MDFid,  MDTime &time ) noexcept;
+  int append_date( MDFid,  MDDate &date ) noexcept;
 
-  int append_decimal( const char *fname,  size_t fname_len,  MDDecimal &dec );
-  int append_time( const char *fname,  size_t fname_len,  MDTime &time );
-  int append_date( const char *fname,  size_t fname_len,  MDDate &date );
+  int append_decimal( const char *fname,  size_t fname_len,
+                      MDDecimal &dec ) noexcept;
+  int append_time( const char *fname,  size_t fname_len,
+                   MDTime &time ) noexcept;
+  int append_date( const char *fname,  size_t fname_len,
+                   MDDate &date ) noexcept;
 };
 
 }

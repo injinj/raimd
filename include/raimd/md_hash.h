@@ -855,14 +855,15 @@ struct HashMsg : public MDMsg {
   HashMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, len, d, m ) {}
 
-  virtual const char *get_proto_string( void ) final;
-  virtual uint32_t get_type_id( void ) final;
-  virtual int get_field_iter( MDFieldIter *&iter ) final;
+  virtual const char *get_proto_string( void ) noexcept final;
+  virtual uint32_t get_type_id( void ) noexcept final;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
 
-  static bool is_hashmsg( void *bb,  size_t off,  size_t len,  uint32_t h );
+  static bool is_hashmsg( void *bb,  size_t off,  size_t len,
+                          uint32_t h ) noexcept;
   static MDMsg *unpack( void *bb,  size_t off,  size_t len,  uint32_t h,
-                        MDDict *d,  MDMsgMem *m );
-  static void init_auto_unpack( void );
+                        MDDict *d,  MDMsgMem *m ) noexcept;
+  static void init_auto_unpack( void ) noexcept;
 };
 
 struct HashFieldIter : public MDFieldIter {
@@ -874,10 +875,10 @@ struct HashFieldIter : public MDFieldIter {
     this->hash.open();
     this->val.zero();
   }
-  virtual int get_name( MDName &name ) final;
-  virtual int first( void ) final;
-  virtual int next( void ) final;
-  virtual int get_reference( MDReference &mref ) final;
+  virtual int get_name( MDName &name ) noexcept final;
+  virtual int first( void ) noexcept final;
+  virtual int next( void ) noexcept final;
+  virtual int get_reference( MDReference &mref ) noexcept final;
 };
 
 }

@@ -9,7 +9,7 @@ using namespace rai;
 using namespace md;
 
 int
-JsonValue::to_double( double &v ) const {
+JsonValue::to_double( double &v ) const noexcept {
   if ( this->type != JSON_NUMBER ) {
     if ( this->type == JSON_STRING ) {
       const JsonString * js = (const JsonString *) this;
@@ -23,7 +23,7 @@ JsonValue::to_double( double &v ) const {
 }
 
 int
-JsonValue::to_int( int64_t &v ) const {
+JsonValue::to_int( int64_t &v ) const noexcept {
   double x;
   if ( this->type != JSON_NUMBER ) {
     if ( this->type == JSON_STRING ) {
@@ -39,7 +39,7 @@ JsonValue::to_int( int64_t &v ) const {
 }
 
 JsonValue *
-JsonObject::find( const char *name ) const {
+JsonObject::find( const char *name ) const noexcept {
   for ( size_t i = 0; i < this->length; i++ )
     if ( ::strcmp( this->val[ i ].name, name ) == 0 )
       return this->val[ i ].val;
@@ -52,13 +52,13 @@ namespace md {
 struct JsonValueP : public JsonValue {
   void * operator new( size_t, void *ptr ) { return ptr; }
   JsonValueP() { this->type = JSON_NULL; }
-  int print( MDOutput *out );
+  int print( MDOutput *out ) noexcept;
 };
 
 struct JsonBooleanP : public JsonBoolean {
   void * operator new( size_t, void *ptr ) { return ptr; }
   JsonBooleanP(  bool v = false ) { this->type = JSON_BOOLEAN; this->val = v; }
-  int print( MDOutput *out );
+  int print( MDOutput *out ) noexcept;
 };
 
 struct JsonNumberP : public JsonNumber {
@@ -67,25 +67,25 @@ struct JsonNumberP : public JsonNumber {
     this->type = JSON_NUMBER;
     this->val.zero();
   }
-  int print( MDOutput *out );
+  int print( MDOutput *out ) noexcept;
 };
 
 struct JsonStringP : public JsonString {
   void * operator new( size_t, void *ptr ) { return ptr; }
   JsonStringP() { this->type = JSON_STRING; this->val = NULL; }
-  int print( MDOutput *out );
+  int print( MDOutput *out ) noexcept;
 };
 
 struct JsonObjectP : public JsonObject {
   void * operator new( size_t, void *ptr ) { return ptr; }
   JsonObjectP() { this->type = JSON_OBJECT; this->val = 0; this->length = 0; }
-  int print( MDOutput *out );
+  int print( MDOutput *out ) noexcept;
 };
 
 struct JsonArrayP : public JsonArray {
   void * operator new( size_t, void *ptr ) { return ptr; }
   JsonArrayP() { this->type = JSON_ARRAY; this->val = NULL; this->length = 0; }
-  int print( MDOutput *out );
+  int print( MDOutput *out ) noexcept;
 };
 
 
@@ -94,13 +94,13 @@ struct JsonContext {
 
   JsonContext( JsonParser *p ) : parser( *p ) {}
 
-  void *alloc( size_t sz );
+  void *alloc( size_t sz ) noexcept;
 
-  void *extend( void *p,  size_t cursz,  size_t addsz );
+  void *extend( void *p,  size_t cursz,  size_t addsz ) noexcept;
 };
 
 void *
-JsonContext::alloc( size_t sz )
+JsonContext::alloc( size_t sz ) noexcept
 {
   void * p;
   this->parser.mem.alloc( sz, &p );
@@ -108,7 +108,7 @@ JsonContext::alloc( size_t sz )
 }
 
 void *
-JsonContext::extend( void *p,  size_t cursz,  size_t addsz )
+JsonContext::extend( void *p,  size_t cursz,  size_t addsz ) noexcept
 {
   this->parser.mem.extend( cursz, cursz + addsz, &p );
   return p;
@@ -141,25 +141,25 @@ struct JsonOne {
   JsonValueP *create_null( void ) {
     return new ( this->ctx.alloc( sizeof( JsonValueP ) ) ) JsonValueP();
   }
-  int parse( JsonValue *&val );
-  int parse_number( JsonNumberP &num );
-  int parse_array( JsonArrayP &ar );
-  int parse_object( JsonObjectP &obj );
-  int parse_string( JsonStringP &string );
-  int parse_ident( JsonStringP &string );
+  int parse( JsonValue *&val ) noexcept;
+  int parse_number( JsonNumberP &num ) noexcept;
+  int parse_array( JsonArrayP &ar ) noexcept;
+  int parse_object( JsonObjectP &obj ) noexcept;
+  int parse_string( JsonStringP &string ) noexcept;
+  int parse_ident( JsonStringP &string ) noexcept;
 };
 
 }
 } // namespace rai
 
 size_t
-JsonStreamInput::read( uint8_t *,  size_t )
+JsonStreamInput::read( uint8_t *,  size_t ) noexcept
 {
   return 0;
 }
 
 bool
-JsonStreamInput::fill_buf( void )
+JsonStreamInput::fill_buf( void ) noexcept
 {
   size_t len = 0;
   if ( ! this->is_eof ) {
@@ -198,7 +198,8 @@ JsonStreamInput::fill_buf( void )
 }
 
 bool
-JsonStreamInput::match( char c1,  char c2,  char c3,  char c4,  char c5 )
+JsonStreamInput::match( char c1,  char c2,  char c3,  char c4,
+                        char c5 ) noexcept
 {
   for (;;) {
     if ( this->offset + 5 >= this->length )
@@ -232,7 +233,7 @@ JsonStreamInput::match( char c1,  char c2,  char c3,  char c4,  char c5 )
 }
 
 int
-JsonStreamInput::eat_white( void )
+JsonStreamInput::eat_white( void ) noexcept
 {
   int c = this->cur();
   if ( isspace( c ) ) {
@@ -248,7 +249,7 @@ JsonStreamInput::eat_white( void )
 }
 
 void
-JsonStreamInput::skip_BOM( void )
+JsonStreamInput::skip_BOM( void ) noexcept
 {
   for (;;) {
     if ( this->offset + 3 > this->length )
@@ -272,7 +273,7 @@ JsonStreamInput::skip_BOM( void )
 }
 
 int
-JsonBufInput::eat_white( void )
+JsonBufInput::eat_white( void ) noexcept
 {
   int c = this->cur();
   if ( isspace( c ) ) {
@@ -288,7 +289,7 @@ JsonBufInput::eat_white( void )
 }
 
 bool
-JsonBufInput::match( char c1,  char c2,  char c3,  char c4,  char c5 )
+JsonBufInput::match( char c1,  char c2,  char c3,  char c4,  char c5 ) noexcept
 {
   if ( this->offset + 4 > this->length ||
        c1 != this->json[ this->offset ] ||
@@ -308,7 +309,7 @@ JsonBufInput::match( char c1,  char c2,  char c3,  char c4,  char c5 )
 }
 
 void
-JsonBufInput::skip_BOM( void )
+JsonBufInput::skip_BOM( void ) noexcept
 {
   /* Skip UTF-8 BOM */
   if ( this->offset + 3 <= this->length &&
@@ -319,7 +320,7 @@ JsonBufInput::skip_BOM( void )
 }
 
 int
-JsonParser::parse( JsonStreamInput &input )
+JsonParser::parse( JsonStreamInput &input ) noexcept
 {
   JsonContext ctx( this );
   JsonOne<JsonStreamInput> one( input, ctx );
@@ -328,7 +329,7 @@ JsonParser::parse( JsonStreamInput &input )
 }
 
 int
-JsonParser::parse( JsonBufInput &input )
+JsonParser::parse( JsonBufInput &input ) noexcept
 {
   JsonContext ctx( this );
   JsonOne<JsonBufInput> one( input, ctx );
@@ -350,7 +351,7 @@ is_ident_char2( int c ) {
 
 template<class JsonInput>
 int
-JsonOne<JsonInput>::parse( JsonValue *&val )
+JsonOne<JsonInput>::parse( JsonValue *&val ) noexcept
 {
   int c = this->input.eat_white();
   int res = 0;
@@ -416,7 +417,7 @@ JsonOne<JsonInput>::parse( JsonValue *&val )
 
 template <class JsonInput>
 int
-JsonOne<JsonInput>::parse_number( JsonNumberP &num )
+JsonOne<JsonInput>::parse_number( JsonNumberP &num ) noexcept
 {
   char buf[ 64 ];
   size_t n = 0;
@@ -479,7 +480,7 @@ break_loop:;
 
 template <class JsonInput>
 int
-JsonOne<JsonInput>::parse_array( JsonArrayP &ar )
+JsonOne<JsonInput>::parse_array( JsonArrayP &ar ) noexcept
 {
   size_t      sz = 0, tos = 0, i = 0, j;
   JsonValue * value,
@@ -548,7 +549,7 @@ JsonOne<JsonInput>::parse_array( JsonArrayP &ar )
 
 template <class JsonInput>
 int
-JsonOne<JsonInput>::parse_object( JsonObjectP &obj )
+JsonOne<JsonInput>::parse_object( JsonObjectP &obj ) noexcept
 {
   size_t             sz = 0, tos = 0, i = 0, j;
   JsonObject::Pair * val[ 40 ],
@@ -645,7 +646,7 @@ hex_value( int c )
 
 template <class JsonInput>
 int
-JsonOne<JsonInput>::parse_string( JsonStringP &string )
+JsonOne<JsonInput>::parse_string( JsonStringP &string ) noexcept
 {
   size_t sz = 8;
   char * str = string.val = (char *) this->ctx.alloc( 8 ),
@@ -725,7 +726,7 @@ JsonOne<JsonInput>::parse_string( JsonStringP &string )
 
 template <class JsonInput>
 int
-JsonOne<JsonInput>::parse_ident( JsonStringP &string )
+JsonOne<JsonInput>::parse_ident( JsonStringP &string ) noexcept
 {
   size_t sz = 8;
   char * str = string.val = (char *) this->ctx.alloc( 8 ),
@@ -748,7 +749,7 @@ JsonOne<JsonInput>::parse_ident( JsonStringP &string )
 }
 
 int
-JsonValue::print( MDOutput *out )
+JsonValue::print( MDOutput *out ) noexcept
 {
   switch ( this->type ) {
     default:           return ((JsonValueP *) this)->print( out );
@@ -761,19 +762,19 @@ JsonValue::print( MDOutput *out )
 }
 
 int
-JsonValueP::print( MDOutput *out )
+JsonValueP::print( MDOutput *out ) noexcept
 {
   return out->puts( "null" );
 }
 
 int
-JsonBooleanP::print( MDOutput *out )
+JsonBooleanP::print( MDOutput *out ) noexcept
 {
   return out->puts( this->val ? "true" : "false" );
 }
 
 int
-JsonNumberP::print( MDOutput *out )
+JsonNumberP::print( MDOutput *out ) noexcept
 {
   char buf[ 64 ];
   size_t n = this->val.get_string( buf, sizeof( buf ) );
@@ -782,7 +783,7 @@ JsonNumberP::print( MDOutput *out )
 }
 
 int
-JsonArrayP::print( MDOutput *out )
+JsonArrayP::print( MDOutput *out ) noexcept
 {
   int n = out->puts( "[" );
   if ( this->length > 0 )
@@ -795,7 +796,7 @@ JsonArrayP::print( MDOutput *out )
 }
 
 int
-JsonObjectP::print( MDOutput *out )
+JsonObjectP::print( MDOutput *out ) noexcept
 {
   int n = out->puts( "{" );
   if ( this->length > 0 ) {
@@ -811,7 +812,7 @@ JsonObjectP::print( MDOutput *out )
 }
 
 int
-JsonStringP::print( MDOutput *out )
+JsonStringP::print( MDOutput *out ) noexcept
 {
   return out->printf( "\"%s\"", this->val );
 }

@@ -101,8 +101,8 @@ struct AppA : public DictParser {
     this->clear_line();
     this->close();
   }
-  void clear_line( void );
-  void set_ident( char *id_buf );
+  void clear_line( void ) noexcept;
+  void set_ident( char *id_buf ) noexcept;
   AppATok consume( AppATok k,  size_t sz ) {
     return (AppATok) this->DictParser::consume_tok( k, sz );
   }
@@ -118,16 +118,16 @@ struct AppA : public DictParser {
   AppATok consume_string( void ) {
     return (AppATok) this->DictParser::consume_string_tok();
   }
-  AppATok get_token( void );
+  AppATok get_token( void ) noexcept;
   bool match( AppAKeyword &kw ) {
     return this->DictParser::match( kw.str, kw.len );
   }
-  void get_type_size( MDType &type,  uint32_t &size );
+  void get_type_size( MDType &type,  uint32_t &size ) noexcept;
 
-  static AppA * open_path( const char *path,  const char *filename );
+  static AppA * open_path( const char *path,  const char *filename ) noexcept;
 
   static int parse_path( MDDictBuild &dict_build,  const char *path,
-                         const char *fn );
+                         const char *fn ) noexcept;
 };
 
 }

@@ -78,8 +78,8 @@ struct MDDict {
            pad[ 3 ];    /* pad to an int32 size */
 
   /* used by get() below */
-  static uint32_t dict_hash( const void *key,  size_t len,  uint32_t seed );
-
+  static uint32_t dict_hash( const void *key,  size_t len,
+                             uint32_t seed ) noexcept;
   /* lookup fid, return {type, size, name/len} if found */
   bool lookup( MDFid fid,  MDType &ftype,  uint32_t &fsize,
                uint8_t &fnamelen,  const char *&fname ) const {
@@ -155,16 +155,16 @@ struct MDDict {
   }
   /* get display text using fid & value */
   bool get_enum_text( MDFid fid,  uint16_t val,  const char *&disp,
-                      size_t &disp_len );
+                      size_t &disp_len ) noexcept;
   /* get display text using map number & value */
   bool get_enum_map_text( uint32_t map_num,  uint16_t val,  const char *&disp,
-                          size_t &disp_len );
+                          size_t &disp_len ) noexcept;
   /* get value using fid & display text (reverse lookup) */
   bool get_enum_val( MDFid fid,  const char *disp,  size_t disp_len,  
-                     uint16_t &val );
+                     uint16_t &val ) noexcept;
   /* get value using map num & display text (reverse lookup) */
   bool get_enum_map_val( uint32_t map_num,  const char *disp,  size_t disp_len,  
-                         uint16_t &val );
+                         uint16_t &val ) noexcept;
 };
 
 /* The following structures are used to build the MDDict, only used when
@@ -175,16 +175,16 @@ struct MDDictBuild {
   MDDictIdx * idx;
 
   MDDictBuild() : idx( 0 ) {}
-  ~MDDictBuild();
+  ~MDDictBuild() noexcept;
 
-  MDDictIdx *get_dict_idx( void );
+  MDDictIdx *get_dict_idx( void ) noexcept;
   int add_entry( MDFid fid,  uint32_t fsize,  MDType ftype,  const char *fname,
                  const char *name,  const char *ripple,  const char *filename,
-                 uint32_t lineno,  MDDictEntry **eret = NULL );
+                 uint32_t lineno,  MDDictEntry **eret = NULL ) noexcept;
   int add_enum_map( uint32_t map_num,  uint16_t max_value,  uint32_t value_cnt,
-                    uint16_t *value,  uint16_t val_len,  uint8_t *map );
-  int index_dict( const char *dtype,  MDDict *&dict );
-  void clear_build( void );
+                    uint16_t *value,  uint16_t val_len, uint8_t *map ) noexcept;
+  int index_dict( const char *dtype,  MDDict *&dict ) noexcept;
+  void clear_build( void ) noexcept;
 };
 
 template <class LIST>
@@ -282,7 +282,7 @@ struct MDDupHash {
     ::memset( this->ht2, 0, sizeof( this->ht2 ) );
   }
   MDDupHash() { this->zero(); }
-  bool test_set( uint32_t h );
+  bool test_set( uint32_t h ) noexcept;
 };
 
 struct MDTypeHash {
@@ -302,9 +302,9 @@ struct MDTypeHash {
     this->htsize = htsz;
     ::memset( this->ht, 0, sizeof( uint32_t ) * htsz ); /* zero is empty */
   }
-  bool insert( uint32_t x ); /* insert unique, if tab full, return false */
+  bool insert( uint32_t x ) noexcept; /* insert unique, if full, return false */
 
-  uint32_t find( uint32_t x ); /* find element, return index of type */
+  uint32_t find( uint32_t x ) noexcept; /* find element, return index of type */
 
   bool insert( MDType ftype,  uint32_t fsize ) {
     return this->insert( ( fsize << 5 ) | (uint32_t) ftype );
@@ -381,12 +381,13 @@ struct MDDictIdx {
                 entry_count( 0 ), map_cnt( 0 ), map_size( 0 ) {
     ::memset( this->enum_ht, 0, sizeof( this->enum_ht ) );
   }
-  ~MDDictIdx();
-  uint32_t file_lineno( const char *filename,  uint32_t lineno );
-  uint32_t check_dup( const char *fname,  uint8_t fnamelen,  bool &xdup );
-  size_t total_size( void );
-  size_t fname_size( uint8_t &shft,  uint8_t &align );
-  template< class TYPE > TYPE * alloc( size_t sz );
+  ~MDDictIdx() noexcept;
+  uint32_t file_lineno( const char *filename,  uint32_t lineno ) noexcept;
+  uint32_t check_dup( const char *fname,  uint8_t fnamelen,
+                      bool &xdup ) noexcept;
+  size_t total_size( void ) noexcept;
+  size_t fname_size( uint8_t &shft,  uint8_t &align ) noexcept;
+  template< class TYPE > TYPE * alloc( size_t sz ) noexcept;
 };
 
 struct DictParser {
@@ -430,17 +431,17 @@ struct DictParser {
       this->fp = NULL;
     }
   }
-  bool fillbuf( void );
-  bool get_char( size_t i,  int &c );
-  int eat_white( void );
-  void eat_comment( void );
-  bool match( const char *s,  size_t sz );
-  int consume_tok( int k,  size_t sz );
-  int consume_int_tok( void );
-  int consume_ident_tok( void );
-  int consume_string_tok( void );
+  bool fillbuf( void ) noexcept;
+  bool get_char( size_t i,  int &c ) noexcept;
+  int eat_white( void ) noexcept;
+  void eat_comment( void ) noexcept;
+  bool match( const char *s,  size_t sz ) noexcept;
+  int consume_tok( int k,  size_t sz ) noexcept;
+  int consume_int_tok( void ) noexcept;
+  int consume_ident_tok( void ) noexcept;
+  int consume_string_tok( void ) noexcept;
   static bool find_file( const char *path,  const char *filename,
-                         size_t file_sz,  char *path_found );
+                         size_t file_sz,  char *path_found ) noexcept;
 };
 
 }

@@ -54,10 +54,10 @@ struct EnumDef : public DictParser {
     this->clear_enum();
     this->close();
   }
-  void define_enum( MDDictBuild &dict_build );
-  void push_acro( char *buf,  size_t len,  int fid,  int ln );
-  void push_enum( uint32_t value,  char *buf,  size_t len,  int ln );
-  void clear_enum( void );
+  void define_enum( MDDictBuild &dict_build ) noexcept;
+  void push_acro( char *buf,  size_t len,  int fid,  int ln ) noexcept;
+  void push_enum( uint32_t value,  char *buf,  size_t len,  int ln ) noexcept;
+  void clear_enum( void ) noexcept;
 
   EnumDefTok consume( EnumDefTok k,  size_t sz ) {
     return (EnumDefTok) this->DictParser::consume_tok( k, sz );
@@ -71,13 +71,13 @@ struct EnumDef : public DictParser {
   EnumDefTok consume_string( void ) {
     return (EnumDefTok) this->DictParser::consume_string_tok();
   }
-  EnumDefTok consume_hex( void );
-  EnumDefTok get_token( void );
+  EnumDefTok consume_hex( void ) noexcept;
+  EnumDefTok get_token( void ) noexcept;
 
-  static EnumDef * open_path( const char *path,  const char *filename );
-
+  static EnumDef * open_path( const char *path,
+                              const char *filename ) noexcept;
   static int parse_path( MDDictBuild &dict_build,  const char *path,
-                         const char *fn );
+                         const char *fn ) noexcept;
 };
 
 }

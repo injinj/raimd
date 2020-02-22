@@ -122,10 +122,10 @@ struct CFile : public DictParser {
     this->clear_ident();
     this->close();
   }
-  void clear_ident( void );
-  void set_ident( void );
-  void add_field( void );
-  void set_field_class_name( void );
+  void clear_ident( void ) noexcept;
+  void set_ident( void ) noexcept;
+  void add_field( void ) noexcept;
+  void set_field_class_name( void ) noexcept;
   CFileTok consume( CFileTok k,  size_t sz ) {
     return (CFileTok) this->DictParser::consume_tok( k, sz );
   }
@@ -141,15 +141,15 @@ struct CFile : public DictParser {
   CFileTok consume_string( void ) {
     return (CFileTok) this->DictParser::consume_string_tok();
   }
-  CFileTok get_token( void );
+  CFileTok get_token( void ) noexcept;
   bool match( CFileKeyword &kw ) {
     return this->DictParser::match( kw.str, kw.len );
   }
 
   static CFile * push_path( CFile *tos,  const char *path,
-                            const char *filename,  size_t file_sz );
+                            const char *filename,  size_t file_sz ) noexcept;
   static int parse_path( MDDictBuild &dict_build,  const char *path,
-                         const char *fn );
+                         const char *fn ) noexcept;
 };
 
 }

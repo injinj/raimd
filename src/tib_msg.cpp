@@ -50,13 +50,13 @@ namespace md {
 }
 
 const char *
-TibMsg::get_proto_string( void )
+TibMsg::get_proto_string( void ) noexcept
 {
   return "TIBMSG";
 }
 
 uint32_t
-TibMsg::get_type_id( void )
+TibMsg::get_type_id( void ) noexcept
 {
   return RAIMSG_TYPE_ID;
 }
@@ -73,7 +73,7 @@ static MDMatch tibmsg_match = {
 };
 
 bool
-TibMsg::is_tibmsg( void *bb,  size_t off,  size_t end,  uint32_t )
+TibMsg::is_tibmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 {
   uint32_t magic = 0;
   if ( off + 9 <= end )
@@ -83,7 +83,7 @@ TibMsg::is_tibmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 
 TibMsg *
 TibMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                MDMsgMem *m )
+                MDMsgMem *m ) noexcept
 {
   if ( off + 9 > end )
     return NULL;
@@ -103,13 +103,13 @@ TibMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
 }
 
 void
-TibMsg::init_auto_unpack( void )
+TibMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( tibmsg_match );
 }
 
 int
-TibMsg::get_sub_msg( MDReference &mref, MDMsg *&msg )
+TibMsg::get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept
 {
   uint8_t * bb    = (uint8_t *) this->msg_buf;
   size_t    start = (size_t) ( mref.fptr - bb );
@@ -122,7 +122,7 @@ TibMsg::get_sub_msg( MDReference &mref, MDMsg *&msg )
 }
 
 int
-TibMsg::get_field_iter( MDFieldIter *&iter )
+TibMsg::get_field_iter( MDFieldIter *&iter ) noexcept
 {
   void * ptr;
   this->mem->alloc( sizeof( TibFieldIter ), &ptr );
@@ -131,7 +131,7 @@ TibMsg::get_field_iter( MDFieldIter *&iter )
 }
 
 int
-TibFieldIter::get_name( MDName &name )
+TibFieldIter::get_name( MDName &name ) noexcept
 {
   uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
   name.fid      = 0;
@@ -144,7 +144,7 @@ TibFieldIter::get_name( MDName &name )
 }
 
 int
-TibFieldIter::get_reference( MDReference &mref )
+TibFieldIter::get_reference( MDReference &mref ) noexcept
 {
   uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
   mref.fendian  = MD_BIG;
@@ -184,7 +184,7 @@ TibFieldIter::get_reference( MDReference &mref )
 }
 
 int
-TibFieldIter::get_hint_reference( MDReference &mref )
+TibFieldIter::get_hint_reference( MDReference &mref ) noexcept
 {
   if ( this->hint_type != MD_NODATA ) {
     if ( this->type != TIB_PARTIAL && this->type != TIB_ARRAY ) {
@@ -203,7 +203,8 @@ TibFieldIter::get_hint_reference( MDReference &mref )
 }
 
 int
-TibFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
+TibFieldIter::find( const char *name,  size_t name_len,
+                    MDReference &mref ) noexcept
 {
   uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
   int status;
@@ -219,7 +220,7 @@ TibFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
 }
 
 int
-TibFieldIter::first( void )
+TibFieldIter::first( void ) noexcept
 {
   this->field_start = this->iter_msg.msg_off + 9;
   this->field_end   = this->iter_msg.msg_end;
@@ -229,7 +230,7 @@ TibFieldIter::first( void )
 }
 
 int
-TibFieldIter::next( void )
+TibFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   this->field_end   = this->iter_msg.msg_end;
@@ -239,7 +240,7 @@ TibFieldIter::next( void )
 }
 
 int
-TibFieldIter::unpack( void )
+TibFieldIter::unpack( void ) noexcept
 {
   const uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
   size_t          i   = this->field_start;
@@ -361,7 +362,7 @@ TibFieldIter::unpack( void )
 }
 
 bool
-TibMsg::set_decimal( MDDecimal &dec,  double val,  uint8_t tib_hint )
+TibMsg::set_decimal( MDDecimal &dec,  double val,  uint8_t tib_hint ) noexcept
 {
   uint32_t precision = 256;
   double   denom     = 0;
@@ -437,7 +438,7 @@ TibMsg::set_decimal( MDDecimal &dec,  double val,  uint8_t tib_hint )
 
 int
 TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
-                          MDReference &mref )
+                          MDReference &mref ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off + 9 ];
   size_t    len = 1 + fname_len + 1 + ( mref.fsize <= 0xffU ? 1 : 4 ) +
@@ -511,7 +512,7 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
 
 int
 TibMsgWriter::append_decimal( const char *fname,  size_t fname_len,
-                              MDDecimal &dec )
+                              MDDecimal &dec ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off + 9 ];
   size_t    len = 1 + fname_len + 1 + 1 + 8 + 3;
@@ -572,7 +573,8 @@ TibMsgWriter::append_decimal( const char *fname,  size_t fname_len,
 }
 
 int
-TibMsgWriter::append_time( const char *fname,  size_t fname_len,  MDTime &time )
+TibMsgWriter::append_time( const char *fname,  size_t fname_len,
+                           MDTime &time ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off + 9 ];
   char      sbuf[ 32 ];
@@ -606,7 +608,8 @@ TibMsgWriter::append_time( const char *fname,  size_t fname_len,  MDTime &time )
 }
 
 int
-TibMsgWriter::append_date( const char *fname,  size_t fname_len,  MDDate &date )
+TibMsgWriter::append_date( const char *fname,  size_t fname_len,
+                           MDDate &date ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off + 9 ];
   char      sbuf[ 32 ];

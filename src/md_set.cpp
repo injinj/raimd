@@ -5,13 +5,13 @@ using namespace rai;
 using namespace md;
 
 const char *
-SetMsg::get_proto_string( void )
+SetMsg::get_proto_string( void ) noexcept
 {
   return "MD_SET";
 }
 
 uint32_t
-SetMsg::get_type_id( void )
+SetMsg::get_type_id( void ) noexcept
 {
   return MD_SET;
 }
@@ -39,14 +39,14 @@ is_set( void *bb,  size_t off,  size_t &end )
 }
 
 bool
-SetMsg::is_setmsg( void *bb,  size_t off,  size_t end,  uint32_t )
+SetMsg::is_setmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 {
   return is_set( bb, off, end );
 }
 
 MDMsg *
 SetMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                MDMsgMem *m )
+                MDMsgMem *m ) noexcept
 {
   if ( ! is_set( bb, off, end ) )
     return NULL;
@@ -59,13 +59,13 @@ SetMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
 }
 
 void
-SetMsg::init_auto_unpack( void )
+SetMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( setmsg_match );
 }
 
 int
-SetMsg::get_reference( MDReference &mref )
+SetMsg::get_reference( MDReference &mref ) noexcept
 {
   mref.zero();
   mref.ftype = MD_SET;

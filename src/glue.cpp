@@ -27,7 +27,7 @@ struct BasicMsg : public MDMsg {
   BasicMsg( void *bb,  size_t off,  size_t end,  MDDict *d,
             MDMsgMem *m,  MDType t )
     : MDMsg( bb, off, end, d, m ), type( t ) {}
-  virtual int get_reference( MDReference &mref ) final {
+  virtual int get_reference( MDReference &mref ) noexcept final {
     mref.fptr     = &((uint8_t *) this->msg_buf)[ this->msg_off ];
     mref.fsize    = this->msg_end - this->msg_off;
     mref.ftype    = type;
@@ -36,10 +36,10 @@ struct BasicMsg : public MDMsg {
     mref.fentrysz = 0;
     return 0;
   }
-  virtual const char *get_proto_string( void ) final {
+  virtual const char *get_proto_string( void ) noexcept final {
     return md_type_str( this->type, this->msg_end - this->msg_off );
   }
-  virtual uint32_t get_type_id( void ) final {
+  virtual uint32_t get_type_id( void ) noexcept final {
     return this->type;
   }
 };

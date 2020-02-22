@@ -40,13 +40,13 @@ namespace md {
 }
 
 const char *
-RvMsg::get_proto_string( void )
+RvMsg::get_proto_string( void ) noexcept
 {
   return "RVMSG";
 }
 
 uint32_t
-RvMsg::get_type_id( void )
+RvMsg::get_type_id( void ) noexcept
 {
   return RVMSG_TYPE_ID;
 }
@@ -63,7 +63,7 @@ static MDMatch rvmsg_match = {
 };
 
 bool
-RvMsg::is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t )
+RvMsg::is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 {
   uint32_t magic = 0;
   if ( off + 8 <= end )
@@ -73,7 +73,7 @@ RvMsg::is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t )
 
 RvMsg *
 RvMsg::unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                  MDMsgMem *m )
+                  MDMsgMem *m ) noexcept
 {
   uint32_t magic    = get_u32<MD_BIG>( &((uint8_t *) bb)[ off + 4 ] );
   size_t   msg_size = get_u32<MD_BIG>( &((uint8_t *) bb)[ off ] );
@@ -93,7 +93,7 @@ RvMsg::unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
 
 MDMsg *
 RvMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-               MDMsgMem *m )
+               MDMsgMem *m ) noexcept
 {
   if ( off + 8 > end )
     return NULL;
@@ -130,7 +130,7 @@ cmp_field( uint8_t *x,  size_t off,  uint8_t *y,  size_t ylen )
 
 MDMsg *
 RvMsg::opaque_extract( uint8_t *bb,  size_t off,  size_t end,  MDDict *d,
-                       MDMsgMem *m )
+                       MDMsgMem *m ) noexcept
 {
   /* quick filter of below fields */
   if ( off+19 > end || bb[ off ] < 7 || bb[ off ] > 8 || bb[ off + 1 ] != '_' )
@@ -192,7 +192,7 @@ RvMsg::opaque_extract( uint8_t *bb,  size_t off,  size_t end,  MDDict *d,
 }
 
 void
-RvMsg::init_auto_unpack( void )
+RvMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( rvmsg_match );
 }
@@ -236,7 +236,7 @@ static const int rv_type_to_md_type[ 64 ] = {
 
 
 int
-RvMsg::get_sub_msg( MDReference &mref, MDMsg *&msg )
+RvMsg::get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept
 {
   uint8_t * bb    = (uint8_t *) this->msg_buf;
   size_t    start = (size_t) ( mref.fptr - bb );
@@ -249,7 +249,7 @@ RvMsg::get_sub_msg( MDReference &mref, MDMsg *&msg )
 }
 
 int
-RvMsg::get_field_iter( MDFieldIter *&iter )
+RvMsg::get_field_iter( MDFieldIter *&iter ) noexcept
 {
   void * ptr;
   this->mem->alloc( sizeof( RvFieldIter ), &ptr );
@@ -258,7 +258,7 @@ RvMsg::get_field_iter( MDFieldIter *&iter )
 }
 
 int
-RvFieldIter::get_name( MDName &name )
+RvFieldIter::get_name( MDName &name ) noexcept
 {
   uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
   name.fid      = 0;
@@ -271,7 +271,7 @@ RvFieldIter::get_name( MDName &name )
 }
 
 int
-RvFieldIter::get_reference( MDReference &mref )
+RvFieldIter::get_reference( MDReference &mref ) noexcept
 {
   uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
   mref.fendian = MD_BIG;
@@ -310,7 +310,8 @@ RvFieldIter::get_reference( MDReference &mref )
 }
 
 int
-RvFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
+RvFieldIter::find( const char *name,  size_t name_len,
+                   MDReference &mref ) noexcept
 {
   uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
   int status;
@@ -326,7 +327,7 @@ RvFieldIter::find( const char *name,  size_t name_len,  MDReference &mref )
 }
 
 int
-RvFieldIter::first( void )
+RvFieldIter::first( void ) noexcept
 {
   this->field_start = this->iter_msg.msg_off + 8;
   this->field_end   = this->iter_msg.msg_end;
@@ -336,7 +337,7 @@ RvFieldIter::first( void )
 }
 
 int
-RvFieldIter::next( void )
+RvFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   this->field_end   = this->iter_msg.msg_end;
@@ -346,7 +347,7 @@ RvFieldIter::next( void )
 }
 
 int
-RvFieldIter::unpack( void )
+RvFieldIter::unpack( void ) noexcept
 {
   const uint8_t * buf     = (uint8_t *) this->iter_msg.msg_buf;
   size_t          i       = this->field_start;
@@ -435,7 +436,7 @@ RvFieldIter::unpack( void )
 
 int
 RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
-                         RvMsgWriter &submsg )
+                         RvMsgWriter &submsg ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off ];
   size_t    len = 1 + fname_len + 1,
@@ -461,7 +462,7 @@ RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
 
 int
 RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
-                             const char *subj )
+                             const char *subj ) noexcept
 {
   uint8_t    * ptr = &this->buf[ this->off ];
   size_t       len = 1 + fname_len + 1,
@@ -521,7 +522,7 @@ RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
 
 int
 RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
-                         MDReference &mref )
+                         MDReference &mref ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off ];
   size_t    len = 1 + fname_len + 1 + mref.fsize,
@@ -600,7 +601,7 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
 
 int
 RvMsgWriter::append_decimal( const char *fname,  size_t fname_len,
-                              MDDecimal &dec )
+                             MDDecimal &dec ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off ];
   size_t    len = 1 + fname_len + 1 + 1 + 8;
@@ -632,7 +633,8 @@ RvMsgWriter::append_decimal( const char *fname,  size_t fname_len,
 }
 
 int
-RvMsgWriter::append_time( const char *fname,  size_t fname_len,  MDTime &time )
+RvMsgWriter::append_time( const char *fname,  size_t fname_len,
+                          MDTime &time ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off ];
   char      sbuf[ 32 ];
@@ -656,7 +658,8 @@ RvMsgWriter::append_time( const char *fname,  size_t fname_len,  MDTime &time )
 }
 
 int
-RvMsgWriter::append_date( const char *fname,  size_t fname_len,  MDDate &date )
+RvMsgWriter::append_date( const char *fname,  size_t fname_len,
+                          MDDate &date ) noexcept
 {
   uint8_t * ptr = &this->buf[ this->off ];
   char      sbuf[ 32 ];

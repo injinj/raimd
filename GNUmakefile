@@ -49,10 +49,10 @@ DEFINES    ?=
 includes   := $(INCLUDES)
 defines    := $(DEFINES)
 
-cppflags   := -fno-rtti -fno-exceptions
+#cppflags   := -fno-rtti -fno-exceptions
 #cppflags  := -fno-rtti -fno-exceptions -fsanitize=address
 #cpplink   := $(CC) -lasan
-cpplink    := $(CC)
+cpplink    := $(CXX)
 
 have_dec_submodule := $(shell if [ -d ./libdecnumber ]; then echo yes; else echo no; fi )
 

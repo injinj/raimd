@@ -5,13 +5,13 @@ using namespace rai;
 using namespace md;
 
 const char *
-StreamMsg::get_proto_string( void )
+StreamMsg::get_proto_string( void ) noexcept
 {
   return "MD_STREAM";
 }
 
 uint32_t
-StreamMsg::get_type_id( void )
+StreamMsg::get_type_id( void ) noexcept
 {
   return MD_STREAM;
 }
@@ -28,7 +28,8 @@ static MDMatch streammsg_match = {
 };
 
 bool
-StreamMsg::is_streammsg( void *bb,  size_t off,  size_t end,  uint32_t )
+StreamMsg::is_streammsg( void *bb,  size_t off,  size_t end,
+                         uint32_t ) noexcept
 {
   uint8_t * buf = &((uint8_t *) bb)[ off ];
   size_t    len = end - off, slen, glen, plen;
@@ -36,7 +37,7 @@ StreamMsg::is_streammsg( void *bb,  size_t off,  size_t end,  uint32_t )
 }
 
 StreamMsg::StreamMsg( void *bb,  size_t off,  size_t end,  MDDict *d,
-                      MDMsgMem *m ) : MDMsg( bb, off, end, d, m )
+                      MDMsgMem *m ) noexcept : MDMsg( bb, off, end, d, m )
 {
   uint8_t * buf = &((uint8_t *) bb)[ off ];
   size_t    len = end - off;
@@ -46,7 +47,7 @@ StreamMsg::StreamMsg( void *bb,  size_t off,  size_t end,  MDDict *d,
 
 MDMsg *
 StreamMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-                   MDMsgMem *m )
+                   MDMsgMem *m ) noexcept
 {
   if ( ! is_streammsg( bb, off, end, h ) )
     return NULL;
@@ -59,13 +60,13 @@ StreamMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
 }
 
 void
-StreamMsg::init_auto_unpack( void )
+StreamMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( streammsg_match );
 }
 
 int
-StreamMsg::get_field_iter( MDFieldIter *&iter )
+StreamMsg::get_field_iter( MDFieldIter *&iter ) noexcept
 {
   void * ptr;
   this->mem->alloc( sizeof( StreamFieldIter ), &ptr );
@@ -74,7 +75,7 @@ StreamMsg::get_field_iter( MDFieldIter *&iter )
 }
 
 int
-StreamFieldIter::get_name( MDName &name )
+StreamFieldIter::get_name( MDName &name ) noexcept
 {
   size_t i     = this->field_start,
          count = this->strm.stream.count();
@@ -94,7 +95,7 @@ StreamFieldIter::get_name( MDName &name )
 }
 
 int
-StreamFieldIter::get_reference( MDReference &mref )
+StreamFieldIter::get_reference( MDReference &mref ) noexcept
 {
   size_t  i     = this->field_start,
           count = this->strm.stream.count();
@@ -126,7 +127,7 @@ StreamFieldIter::get_reference( MDReference &mref )
 }
 
 int
-StreamFieldIter::first( void )
+StreamFieldIter::first( void ) noexcept
 {
   this->field_start = 0;
   this->field_end   = 0;
@@ -138,7 +139,7 @@ StreamFieldIter::first( void )
 }
 
 int
-StreamFieldIter::next( void )
+StreamFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   if ( this->field_start >= this->strm.stream.count() +

@@ -5,13 +5,13 @@ using namespace rai;
 using namespace md;
 
 const char *
-ListMsg::get_proto_string( void )
+ListMsg::get_proto_string( void ) noexcept
 {
   return "MD_LIST";
 }
 
 uint32_t
-ListMsg::get_type_id( void )
+ListMsg::get_type_id( void ) noexcept
 {
   return MD_LIST;
 }
@@ -39,14 +39,14 @@ is_list( void *bb,  size_t off,  size_t &end )
 }
 
 bool
-ListMsg::is_listmsg( void *bb,  size_t off,  size_t end,  uint32_t )
+ListMsg::is_listmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 {
   return is_list( bb, off, end );
 }
 
 MDMsg *
 ListMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                 MDMsgMem *m )
+                 MDMsgMem *m ) noexcept
 {
   if ( ! is_list( bb, off, end ) )
     return NULL;
@@ -59,13 +59,13 @@ ListMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
 }
 
 void
-ListMsg::init_auto_unpack( void )
+ListMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( listmsg_match );
 }
 
 int
-ListMsg::get_reference( MDReference &mref )
+ListMsg::get_reference( MDReference &mref ) noexcept
 {
   mref.zero();
   mref.ftype = MD_LIST;

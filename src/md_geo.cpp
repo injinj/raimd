@@ -5,13 +5,13 @@ using namespace rai;
 using namespace md;
 
 const char *
-GeoMsg::get_proto_string( void )
+GeoMsg::get_proto_string( void ) noexcept
 {
   return "MD_GEO";
 }
 
 uint32_t
-GeoMsg::get_type_id( void )
+GeoMsg::get_type_id( void ) noexcept
 {
   return MD_GEO;
 }
@@ -39,14 +39,14 @@ is_geo( void *bb,  size_t off,  size_t &end )
 }
 
 bool
-GeoMsg::is_geomsg( void *bb,  size_t off,  size_t end,  uint32_t )
+GeoMsg::is_geomsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 {
   return is_geo( bb, off, end );
 }
 
 MDMsg *
 GeoMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                 MDMsgMem *m )
+                 MDMsgMem *m ) noexcept
 {
   if ( ! is_geo( bb, off, end ) )
     return NULL;
@@ -59,13 +59,13 @@ GeoMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
 }
 
 void
-GeoMsg::init_auto_unpack( void )
+GeoMsg::init_auto_unpack( void ) noexcept
 {
   MDMsg::add_match( geomsg_match );
 }
 
 int
-GeoMsg::get_field_iter( MDFieldIter *&iter )
+GeoMsg::get_field_iter( MDFieldIter *&iter ) noexcept
 {
   void * ptr;
   this->mem->alloc( sizeof( GeoFieldIter ), &ptr );
@@ -88,7 +88,7 @@ hex_str( GeoIndx idx,  char *s )
 }
 
 int
-GeoFieldIter::get_name( MDName &name )
+GeoFieldIter::get_name( MDName &name ) noexcept
 {
   if ( this->keylen == 0 ) {
     if ( this->geo.geoindex( this->field_start+1, this->val ) != GEO_OK )
@@ -102,7 +102,7 @@ GeoFieldIter::get_name( MDName &name )
 }
 
 int
-GeoFieldIter::get_reference( MDReference &mref )
+GeoFieldIter::get_reference( MDReference &mref ) noexcept
 {
   if ( this->keylen == 0 ) {
     MDName n;
@@ -122,7 +122,7 @@ GeoFieldIter::get_reference( MDReference &mref )
 }
 
 int
-GeoFieldIter::first( void )
+GeoFieldIter::first( void ) noexcept
 {
   this->field_start = 0;
   this->field_end   = 0;
@@ -134,7 +134,7 @@ GeoFieldIter::first( void )
 }
 
 int
-GeoFieldIter::next( void )
+GeoFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   this->keylen      = 0;
