@@ -26,7 +26,15 @@ CC          ?= gcc
 CXX         ?= $(CC) -x c++
 cc          := $(CC)
 cpp         := $(CXX)
-arch_cflags := -std=c++11 -fno-omit-frame-pointer -mavx
+# if not linking libstdc++
+ifdef NO_STL
+cppflags    := -std=c++11 -fno-rtti -fno-exceptions
+cpplink     := $(CC)
+else
+cppflags    := -std=c++11
+cpplink     := $(CXX)
+endif
+arch_cflags := -fno-omit-frame-pointer -mavx
 gcc_wflags  := -Wall -Werror -Wextra
 fpicflags   := -fPIC
 soflag      := -shared
@@ -52,7 +60,7 @@ defines    := $(DEFINES)
 #cppflags   := -fno-rtti -fno-exceptions
 #cppflags  := -fno-rtti -fno-exceptions -fsanitize=address
 #cpplink   := $(CC) -lasan
-cpplink    := $(CXX)
+#cpplink    := $(CXX)
 
 have_dec_submodule := $(shell if [ -d ./libdecnumber ]; then echo yes; else echo no; fi )
 
