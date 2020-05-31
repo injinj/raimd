@@ -69,6 +69,7 @@ lnk_lib    :=
 
 ifeq (yes,$(have_dec_submodule))
 dec_lib     := libdecnumber/$(libd)/libdecnumber.a
+dec_dll     := libdecnumber/$(libd)/libdecnumber.so
 lnk_lib     += $(dec_lib)
 dlnk_lib    += -Llibdecnumber/$(libd) -ldecnumber
 rpath3       = ,-rpath,$(pwd)/libdecnumber/$(libd)
@@ -81,10 +82,10 @@ rpath      := -Wl,-rpath,$(pwd)/$(libd)$(rpath3)
 math_lib   := -lm
 
 .PHONY: everything
-everything: $(dec_lib) all
+everything: $(dec_lib) $(dec_dll) all
 
 ifeq (yes,$(have_dec_submodule))
-$(dec_lib):
+$(dec_lib) $(dec_dll):
 	$(MAKE) -C libdecnumber
 endif
 
@@ -114,7 +115,7 @@ libraimd_spec  := $(version)-$(build_num)
 libraimd_ver   := $(major_num).$(minor_num)
 
 $(libd)/libraimd.a: $(libraimd_objs)
-$(libd)/libraimd.so: $(libraimd_dbjs)
+$(libd)/libraimd.so: $(libraimd_dbjs) $(dec_dll)
 
 raimd_dlib := $(libd)/libraimd.so
 raimd_dlnk := -L$(libd) -lraimd $(dlnk_lib)
