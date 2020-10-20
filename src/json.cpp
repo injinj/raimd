@@ -119,7 +119,7 @@ struct JsonOne {
   JsonInput   & input;
   JsonContext & ctx;
 
-  void * operator new( size_t sz, void *ptr ) { return ptr; }
+  void * operator new( size_t, void *ptr ) { return ptr; }
 
   JsonOne( JsonInput &in,  JsonContext &c ) : input( in ), ctx( c ) {}
 

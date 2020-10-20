@@ -7,9 +7,15 @@
 namespace rai {
 namespace md {
 
+/*
 template<> double HyperLogLogT<14>::lz_sum[] = {};
 template<> double HyperLogLogT<14>::ht_lin[] = {};
 template<> double HyperLogLogT<14>::ht_beta[] = {};
+*/
+
+double HyperLogLog::lz_sum[] = {};
+double HyperLogLog::ht_lin[] = {};
+double HyperLogLog::ht_beta[] = {};
 
 }
 }

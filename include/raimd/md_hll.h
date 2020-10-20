@@ -10,8 +10,9 @@ namespace md {
 void hll_ginit( uint32_t htsz, uint32_t lzsz, double *lz_sum,
                 double *ht_beta, double *ht_lib ) noexcept;
 
-template <const uint32_t HT_BITS> /* 14b = 12k ht sz using 6 bit lz per entry */
-struct HyperLogLogT {
+/*template <const uint32_t HT_BITS> 14b = 12k ht sz using 6 bit lz per entry */
+struct HyperLogLog {
+  static const uint32_t HT_BITS    = 14;
   static const uint32_t LZ_BITS    = 6, /* bitsize for leading zeros register */
                         HASH_WIDTH = 64 - HT_BITS; /* word size of LZ calc */
   static const uint16_t LZSZ       = 1 << LZ_BITS,
@@ -117,7 +118,7 @@ struct HyperLogLogT {
     uint64_t i; ::memcpy( &i, p, sizeof( i ) ); return i;
   }
   /* merge hll into this */
-  void merge( const HyperLogLogT &hll ) {
+  void merge( const HyperLogLog &hll ) {
     uint32_t bitsleft = 0;
     uint64_t hbits = 0, mbits = 0;
     uint16_t x, y;
@@ -151,7 +152,7 @@ struct HyperLogLogT {
 };
 
 /* HTSZ (P) of 14 is the most commonly used and studied */
-typedef HyperLogLogT<14> HyperLogLog;
+/*typedef HyperLogLogT<14> HyperLogLog;*/
 
 struct HLLMsg : public MDMsg {
   void * operator new( size_t, void *ptr ) { return ptr; }

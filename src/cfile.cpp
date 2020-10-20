@@ -20,7 +20,7 @@ static CFileKeyword
   is_partial_tok       = { "is_partial",       10, CFT_IS_PARTIAL },
   is_primitive_tok     = { "is_primitive",     12, CFT_IS_PRIMITIVE };
 
-static const int EOF_CHAR = 256;
+/*static const int EOF_CHAR = 256;*/
 
 void
 CFile::clear_ident( void ) noexcept
