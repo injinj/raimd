@@ -71,6 +71,8 @@ main( int argc, char **argv )
   hash.hset( S( "twentythree" ), S( "23" ) );
   hash.hset( S( "twentyfour" ), S( "24" ) );
   hprint( buf, asz );
+  hash.hdel( S( "eight" ) );
+  hash.hdel( S( "fourteen" ) );
   hash.hdel( S( "twenty" ) );
   hash.hdel( S( "ten" ) );
   hash.hdel( S( "six" ) );
@@ -80,8 +82,24 @@ main( int argc, char **argv )
   hash.hset( S( "two" ), S( "twotwotwotwotwotwotwo" ) );
   hprint( buf, asz );
 
+  size_t bsz;
+  char buf2[ 1024 ];
+
+  bsz = hash.used_size( count, data_len );
+  ::memset( buf2, 0, bsz );
+  HashData hash2( buf2, bsz );
+  hash2.init( count, data_len );
+  hash.copy( hash2 );
+  hprint( buf2, bsz );
+
+  printf( "used size %lu curr size %lu\n", bsz, hash.size );
+  printf( "  count %lu data_len %lu\n", hash.count(), hash.data_len() );
+  printf( "  used count %lu data_len %lu\n", count, data_len );
+
   MDOutput mout;
   mout.print_hex( buf, asz );
+
+  mout.print_hex( buf2, bsz );
 
   return 0;
 }
