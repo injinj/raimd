@@ -783,7 +783,7 @@ struct ListData : public ListHeader {
   ListData() : listp( 0 ), size( 0 ) {}
   ListData( void *l,  size_t sz ) : listp( l ), size( sz ) {}
 
-  /* test what data storage used for listp */
+  /* test data storage used, alloc_size = the sum of idx_size + dat_size */
   static bool is_uint8( size_t alloc_size ) {
     return alloc_size < ( 0x100 << 1 );
   }
@@ -838,6 +838,11 @@ struct ListData : public ListHeader {
         idx_size = ListData::pow2size( idx_size + 1 );
     }
   }
+  /* this infers the amount of storange used by a blob by the header:
+   * test signature = sig8 | sig16 | sig32
+   * test length is larger than the header size
+   * test that the index mask and the data masks are pow2 - 1
+   * return the storage used by summing hdr + index + data size */
   static size_t mem_size( const void *ptr,  size_t len,  uint16_t sig8,
                           uint32_t sig16,  uint64_t sig32 ) {
     const uint8_t * buf = (const uint8_t *) ptr;
@@ -867,6 +872,12 @@ struct ListData : public ListHeader {
     dat_size += dat_size / 2 + 2;
     idx_size += this->count();
     idx_size += idx_size / 2 + 2;
+    return alloc_size( idx_size, dat_size );
+  }
+  /* return the amount of storage used */
+  size_t used_size( size_t &idx_size,  size_t &dat_size ) const {
+    dat_size = this->data_len();
+    idx_size = this->count();
     return alloc_size( idx_size, dat_size );
   }
   /* magic numbers for the headers */

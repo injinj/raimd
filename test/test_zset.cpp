@@ -9,8 +9,8 @@ static void
 zprint( void *buf,  size_t asz )
 {
   MDMsgMem mem;
-  MDMsg  * m;
   MDOutput mout;
+  MDMsg  * m;
 
   printf( "zset:\n" );
   m = MDMsg::unpack( buf, 0, asz, 0, NULL, &mem );
@@ -20,7 +20,6 @@ zprint( void *buf,  size_t asz )
   else {
     printf( "unpack failed\n" );
   }
-  mout.print_hex( buf, asz );
 }
 
 int
@@ -58,19 +57,39 @@ main( int argc, char **argv )
   zprint( buf, asz );
   zset.zadd( S( "funk" ), F( 2.2 ), ZADD_INCR );
   zset.zrem( S( "tree" ) );
-  zset.zadd( S( "jar" ), F( -6.66e18 ), ZADD_INCR );
+  zset.zadd( S( "jar" ), F( -6.66e3 ), ZADD_INCR );
   zprint( buf, asz );
   zset.zadd( S( "super" ), F( 7.75 ), ZADD_INCR );
   zset.zadd( S( "godzilla" ), F( 7.7 ), ZADD_INCR );
   zprint( buf, asz );
   zset.zadd( S( "dodge" ), F( 7.6 ), ZADD_INCR );
   zset.zadd( S( "ford" ), F( 3.6 ), ZADD_INCR );
+  zset.zadd( S( "jar" ), F( 7000 ), ZADD_INCR );
   zprint( buf, asz );
   zset.zrem( S( "funk" ) );
   zset.zrem( S( "two" ) );
   zset.zrem( S( "super" ) );
   zset.zrem( S( "dodge" ) );
   zprint( buf, asz );
+
+  size_t bsz;
+  char buf2[ 1024 ];
+
+  bsz = zset.used_size( count, data_len );
+  ::memset( buf2, 0, bsz );
+  ZSetData zset2( buf2, bsz );
+  zset2.init( count, data_len );
+  zset.copy( zset2 );
+  zprint( buf2, bsz );
+
+  printf( "used size %lu curr size %lu\n", bsz, zset.size );
+  printf( "  count %lu data_len %lu\n", zset.count(), zset.data_len() );
+  printf( "  used count %lu data_len %lu\n", count, data_len );
+
+  MDOutput mout;
+  mout.print_hex( buf, asz );
+
+  mout.print_hex( buf2, bsz );
 
   return 0;
 }

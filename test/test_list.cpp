@@ -77,21 +77,30 @@ main( int argc, char **argv )
   lprint( buf, asz );
 
   ListVal lv;
-  void * s;
-  char   buf2[ 64 ];
-  bool   is_a;
-  size_t buflen;
-
   for ( int i = 0; i < 5; i++ ) {
     list.rpop( lv );
-    buflen = lv.unitary( s, buf2, sizeof( buf2 ), is_a );
-    printf( "rpop: %.*s\n", (int) buflen, (char *) s );
+    printf( "rpop: %.*s%.*s\n", (int) lv.sz, (char *) lv.data,
+                                (int) lv.sz2, (char *) lv.data2 );
   }
+  size_t bsz;
+  char buf2[ 1024 ];
 
-  lprint( buf, asz );
+  bsz = list.used_size( count, data_len );
+  ::memset( buf2, 0, bsz );
+  ListData list2( buf2, bsz );
+  list2.init( count, data_len );
+  list.copy( list2 );
+
+  printf( "used size %lu curr size %lu\n", bsz, list.size );
+  printf( "  count %lu data_len %lu\n", list.count(), list.data_len() );
+  printf( "  used count %lu data_len %lu\n", count, data_len );
 
   MDOutput mout;
+  lprint( buf, asz );
   mout.print_hex( buf, asz );
+
+  lprint( buf2, bsz );
+  mout.print_hex( buf2, bsz );
 
   return 0;
 }

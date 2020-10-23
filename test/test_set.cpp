@@ -62,8 +62,24 @@ main( int argc, char **argv )
   set.sadd( S( "dodge" ) );
   sprint( buf, asz );
 
+  size_t bsz;
+  char buf2[ 1024 ];
+
+  bsz = set.used_size( count, data_len );
+  ::memset( buf2, 0, bsz );
+  SetData set2( buf2, bsz );
+  set2.init( count, data_len );
+  set.copy( set2 );
+
+  printf( "used size %lu curr size %lu\n", bsz, set.size );
+  printf( "  count %lu data_len %lu\n", set.count(), set.data_len() );
+  printf( "  used count %lu data_len %lu\n", count, data_len );
+
   MDOutput mout;
   mout.print_hex( buf, asz );
+
+  sprint( buf2, bsz );
+  mout.print_hex( buf2, bsz );
 
   return 0;
 }
