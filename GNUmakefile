@@ -102,6 +102,8 @@ all_libs    :=
 all_dlls    :=
 all_depends :=
 
+decimal_includes := -Ilibdecnumber/include
+
 libraimd_files := md_msg md_field_iter json json_msg rv_msg tib_msg \
                   tib_sass_msg mf_msg rwf_msg md_dict cfile app_a enum_def \
                   decimal md_list md_hash md_set md_zset md_geo md_hll \
