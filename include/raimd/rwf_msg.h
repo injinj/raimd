@@ -94,6 +94,11 @@ struct RwfMsgWriter {
 
   RwfMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept;
 
+  void reset( void ) {
+    this->off   = 15;
+    this->nflds = 0;
+    this->flist = 0;
+  }
   int append_ref( MDFid fid,  MDReference &mref ) noexcept;
   int append_ref( const char *fname,  size_t fname_len,
                   MDReference &mref ) noexcept;

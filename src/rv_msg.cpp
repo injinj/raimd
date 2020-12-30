@@ -462,7 +462,7 @@ RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
 
 int
 RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
-                             const char *subj ) noexcept
+                             const char *subj,  size_t subj_len ) noexcept
 {
   uint8_t    * ptr = &this->buf[ this->off ];
   size_t       len = 1 + fname_len + 1,
@@ -472,10 +472,12 @@ RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
              * x = subj;
   uint32_t     segs = 1;
 
-  for ( s = subj; *s != '\0'; s++ ) {
+  if ( subj_len == 0 )
+    subj_len = ::strlen( subj );
+  for ( s = subj; s < &subj[ subj_len ]; s++ ) {
     if ( *s == '.' ) {
       fsize += 2;
-      if ( s - x >= 254 || s - x == 1 )
+      if ( s - x >= 254 || s == x )
         return Err::BAD_FIELD_BOUNDS;
       x = s + 1;
       segs++;
@@ -501,7 +503,7 @@ RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
   uint32_t i = 2, j = 1;
   uint8_t * out = &ptr[ 4 ];
   segs = 1;
-  for ( s = subj; *s != '\0'; s++ ) {
+  for ( s = subj; s < &subj[ subj_len ]; s++ ) {
     if ( *s == '.' ) {
       out[ i++ ] = 0;
       out[ j ]   = (uint8_t) ( i - j );
@@ -546,14 +548,15 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
 
   switch ( mref.ftype ) {
     default:
-    case MD_OPAQUE:  ptr[ 0 ] = RV_OPAQUE; break;
+    case MD_OPAQUE:   ptr[ 0 ] = RV_OPAQUE;   break;
     case MD_PARTIAL:
-    case MD_STRING:  ptr[ 0 ] = RV_STRING; break;
-    case MD_BOOLEAN: ptr[ 0 ] = RV_BOOLEAN; break;
-    case MD_IPDATA:  ptr[ 0 ] = RV_IPDATA; break;
-    case MD_INT:     ptr[ 0 ] = RV_INT; break;
-    case MD_UINT:    ptr[ 0 ] = RV_UINT; break;
-    case MD_REAL:    ptr[ 0 ] = RV_REAL; break;
+    case MD_STRING:   ptr[ 0 ] = RV_STRING;   break;
+    case MD_BOOLEAN:  ptr[ 0 ] = RV_BOOLEAN;  break;
+    case MD_IPDATA:   ptr[ 0 ] = RV_IPDATA;   break;
+    case MD_INT:      ptr[ 0 ] = RV_INT;      break;
+    case MD_UINT:     ptr[ 0 ] = RV_UINT;     break;
+    case MD_REAL:     ptr[ 0 ] = RV_REAL;     break;
+    case MD_DATETIME: ptr[ 0 ] = RV_DATETIME; break;
   }
 
   if ( szbytes == 1 ) {
@@ -577,7 +580,8 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
   /* invert endian, for little -> big */
   if ( mref.fendian != MD_BIG && mref.fsize > 1 &&
        ( mref.ftype == MD_UINT || mref.ftype == MD_INT ||
-         mref.ftype == MD_REAL ) ) {
+         mref.ftype == MD_REAL || mref.ftype == MD_DATETIME ||
+         mref.ftype == MD_IPDATA ) ) {
     size_t off = mref.fsize;
     ptr[ 0 ] = mref.fptr[ --off ];
     ptr[ 1 ] = mref.fptr[ --off ];
