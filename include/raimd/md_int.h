@@ -342,6 +342,9 @@ static inline size_t float_str( double f,  char *buf ) {
 static inline char hexchar( uint8_t n ) {
   return (char) ( n <= 9 ? ( n + '0' ) : ( n - 10 + 'a' ) );
 }
+static inline char hexchar2( uint8_t n ) { /* upper case */
+  return (char) ( n <= 9 ? ( n + '0' ) : ( n - 10 + 'A' ) );
+}
 
 static inline int to_string( const MDReference &mref, char *sbuf,
                              size_t &slen ) {

@@ -65,6 +65,9 @@ struct TibMsgWriter {
 
   TibMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 0 ),
                                           buflen( len ) {}
+  void reset( void ) {
+    this->off = 0;
+  }
   int append_ref( const char *fname,  size_t fname_len,
                   MDReference &mref ) noexcept;
   bool has_space( size_t len ) const {

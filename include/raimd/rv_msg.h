@@ -59,6 +59,9 @@ struct RvMsgWriter {
 
   RvMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 8 ),
                                          buflen( len ) {}
+  void reset( void ) {
+    this->off = 8;
+  }
   int append_ref( const char *fname,  size_t fname_len,
                   MDReference &mref ) noexcept;
   bool has_space( size_t len ) const {
@@ -93,7 +96,7 @@ struct RvMsgWriter {
     mref.fptr    = (uint8_t *) (void *) &val;
     mref.fsize   = sizeof( val );
     mref.ftype   = t;
-    mref.fendian = md_endian;
+    mref.fendian = md_endian; /* machine endian */
     return this->append_ref( fname, fname_len, mref );
   } 
     
@@ -109,6 +112,15 @@ struct RvMsgWriter {
   int append_real( const char *fname,  size_t fname_len,  T rval ) {
     return this->append_type( fname, fname_len, rval, MD_REAL );
   }
+  template< class T >
+  int append_ipdata( const char *fname,  size_t fname_len,  T val ) {
+    MDReference mref;
+    mref.fptr    = (uint8_t *) (void *) &val;
+    mref.fsize   = sizeof( val );
+    mref.ftype   = MD_IPDATA;
+    mref.fendian = MD_BIG; /* alredy in network order */
+    return this->append_ref( fname, fname_len, mref );
+  }
 
   int append_string( const char *fname,  size_t fname_len,
                      const char *str,  size_t len ) {
@@ -121,7 +133,7 @@ struct RvMsgWriter {
   }
   /* subject format is string "XYZ.REC.INST.EX" */
   int append_subject( const char *fname,  size_t fname_len,
-                      const char *subj ) noexcept;
+                      const char *subj,  size_t subj_len = 0 ) noexcept;
   int append_decimal( const char *fname,  size_t fname_len,
                       MDDecimal &dec ) noexcept;
   int append_time( const char *fname,  size_t fname_len,
