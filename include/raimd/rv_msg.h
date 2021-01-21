@@ -121,13 +121,21 @@ struct RvMsgWriter {
     mref.fendian = MD_BIG; /* alredy in network order */
     return this->append_ref( fname, fname_len, mref );
   }
-
   int append_string( const char *fname,  size_t fname_len,
                      const char *str,  size_t len ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) str;
     mref.fsize   = len;
     mref.ftype   = MD_STRING;
+    mref.fendian = md_endian;
+    return this->append_ref( fname, fname_len, mref );
+  }
+  int append_opaque( const char *fname,  size_t fname_len,
+                     const void *ptr,  size_t len ) {
+    MDReference mref;
+    mref.fptr    = (uint8_t *) (void *) ptr;
+    mref.fsize   = len;
+    mref.ftype   = MD_OPAQUE;
     mref.fendian = md_endian;
     return this->append_ref( fname, fname_len, mref );
   }
