@@ -345,6 +345,20 @@ static inline char hexchar( uint8_t n ) {
 static inline char hexchar2( uint8_t n ) { /* upper case */
   return (char) ( n <= 9 ? ( n + '0' ) : ( n - 10 + 'A' ) );
 }
+static inline void hexstr32( uint32_t n,  char *s ) {
+  int j = 0;
+  for ( int i = 32; i > 0; ) {
+    i -= 4;
+    s[ j++ ] = hexchar2( ( n >> i ) & 0xf );
+  }
+}
+static inline void hexstr64( uint64_t n,  char *s ) {
+  int j = 0;
+  for ( int i = 64; i > 0; ) {
+    i -= 4;
+    s[ j++ ] = hexchar2( ( n >> i ) & 0xf );
+  }
+}
 
 static inline int to_string( const MDReference &mref, char *sbuf,
                              size_t &slen ) {
