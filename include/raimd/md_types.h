@@ -85,7 +85,13 @@ struct MDName {
     this->fnamelen = 0;
     this->fid      = 0;
   }
+  bool equals( const MDName &nm ) const {
+    return nm.fnamelen == this->fnamelen &&
+           ::memcmp( nm.fname, this->fname, this->fnamelen ) == 0;
+  }
 };
+/* for msg_type = { MDLIT( "MSG_TYPE" ), 4005 }; */
+#define MDLIT( STR ) STR, sizeof( STR )
 
 enum MDTimeResolution {
   MD_RES_SECONDS   = 0, /* resolution of MDTime, MDStamp */

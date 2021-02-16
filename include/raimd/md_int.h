@@ -205,8 +205,12 @@ static inline int cvt_number( const MDReference &mref, T &val ) {
       MDDecimal dec;
       double f;
       dec.get_decimal( mref );
-      dec.get_real( f );
-      val = f;
+      if ( dec.hint == MD_DEC_INTEGER )
+        val = dec.ival;
+      else {
+        dec.get_real( f );
+        val = f;
+      }
       return 0;
     }
     default: break;
