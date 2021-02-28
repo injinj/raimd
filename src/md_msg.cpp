@@ -50,7 +50,7 @@ icmp( void *p,  void *q )
   return ( x == y );
 }
 
-static bool
+static inline bool
 cmp_wd( MDMatch &ma,  void *y )
 {
   switch ( ma.len ) {
@@ -64,23 +64,14 @@ cmp_wd( MDMatch &ma,  void *y )
 }
 
 MDMsg *
-MDMatchGroup::match( void *bb,  size_t off,  size_t end, /* try matchgroup */
-                     uint32_t h,  MDDict *d,  MDMsgMem *m ) noexcept
+MDMatchGroup::match2( void *bb,  size_t off,  size_t end,  uint32_t h,
+                      MDDict *d,  MDMsgMem *m,  uint16_t i ) noexcept
 {
-  uint16_t i   = 1;
-  void   * val = NULL;
-  /* check that msg data at offset has a match */
-  if ( this->haslen ) {
-    val = (void *) &((uint8_t *) bb)[ off + this->off ];
-    i = this->xoff[ *(uint8_t *) val ]; /* if char matches, i > 0 */
-    if ( i == 0 )
-      return NULL;
-  }
   /* start at offset which matches and go to end */
   for ( ; i <= this->count; i++ ) {
     MDMatch & ma = *this->matches[ i - 1 ];
     if ( this->off + ma.len <= end ) {
-      if ( cmp_wd( ma, val ) ) {
+      if ( cmp_wd( ma, &((uint8_t *) bb)[ off + this->off ] ) ) {
         MDMsg *msg = ma.unpack( bb, off, end, h, d, m );
         if ( msg != NULL )
           return msg;
@@ -91,23 +82,14 @@ MDMatchGroup::match( void *bb,  size_t off,  size_t end, /* try matchgroup */
 }
 
 MDMatch *
-MDMatchGroup::is_msg_type( void *bb,  size_t off,  size_t end,
-                           uint32_t h ) noexcept
+MDMatchGroup::is_msg_type2( void *bb,  size_t off,  size_t end,
+                            uint32_t h,  uint16_t i ) noexcept
 {
-  uint16_t i   = 1;
-  void   * val = NULL;
-  /* check that msg data at offset has a match */
-  if ( this->haslen ) {
-    val = (void *) &((uint8_t *) bb)[ off + this->off ];
-    i = this->xoff[ *(uint8_t *) val ]; /* if char matches, i > 0 */
-    if ( i == 0 )
-      return NULL;
-  }
   /* start at offset which matches and go to end */
   for ( ; i <= this->count; i++ ) {
     MDMatch & ma = *this->matches[ i - 1 ];
     if ( this->off + ma.len <= end ) {
-      if ( cmp_wd( ma, val ) ) {
+      if ( cmp_wd( ma, &((uint8_t *) bb)[ off + this->off ] ) ) {
         if ( ma.is_msg_type( bb, off, end, h ) )
           return &ma;
       }
