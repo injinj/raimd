@@ -20,10 +20,10 @@ RwfMsg::get_type_id( void ) noexcept
 
 static MDMatch rwf_match = {
   .off         = 0,
-  .len         = 0, /* cnt of buf[] */
+  .len         = 4, /* cnt of buf[] */
   .hint_size   = 1, /* cnt of hint[] */
   .ftype       = (uint8_t) RWF_TYPE_ID,
-  .buf         = { 0 },
+  .buf         = { 0x25, 0xcd, 0xab, 0xca },
   .hint        = { RWF_TYPE_ID },
   .is_msg_type = RwfMsg::is_rwf,
   .unpack      = (md_msg_unpack_f) RwfMsg::unpack

@@ -113,7 +113,7 @@ libraimd_dbjs  := $(addprefix $(objd)/, $(addsuffix .fpic.o, $(libraimd_files)))
 libraimd_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(libraimd_files))) \
                   $(addprefix $(dependd)/, $(addsuffix .fpic.d, $(libraimd_files)))
 libraimd_dlnk  := $(dlnk_lib)
-libraimd_spec  := $(version)-$(build_num)
+libraimd_spec  := $(ver_build)
 libraimd_ver   := $(major_num).$(minor_num)
 
 $(libd)/libraimd.a: $(libraimd_objs)

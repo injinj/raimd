@@ -105,11 +105,41 @@ struct MDMatchGroup {
   MDMatchGroup() : matches( 0 ), off( 0 ), haslen( 0 ), count( 0 ) {
     ::memset( this->xoff, 0, sizeof( this->xoff ) );
   }
+  /* add a msg matcher to the match group */
   void add_match( MDMatch &ma ) noexcept;
+  /* check that if msg has a magic, that the char at offset matches the magic */
   MDMsg * match( void *bb,  size_t off,  size_t end,  uint32_t h,
-                 MDDict *d,  MDMsgMem *m ) noexcept;
+                 MDDict *d,  MDMsgMem *m ) {
+    uint16_t i;
+    /* if char matches, i > 0 */
+    if ( this->haslen ) {
+      /* if i == 0, there is no match, otherwise start matching at i */
+      if ((i = this->xoff[ ((uint8_t *) bb)[ off + this->off ] ]) == 0 )
+        return NULL;
+    }
+    else {
+      i = 1; /* start at head, there is no len for match group */
+    }
+    return this->match2( bb, off, end, h, d, m, i );
+  }
+  MDMsg * match2( void *bb,  size_t off,  size_t end,  uint32_t h,
+                  MDDict *d,  MDMsgMem *m,  uint16_t i ) noexcept;
   MDMatch * is_msg_type( void *bb,  size_t off,  size_t end,
-                         uint32_t h ) noexcept;
+                         uint32_t h ) {
+    uint16_t i;
+    /* if char matches, i > 0 */
+    if ( this->haslen ) {
+      /* if i == 0, there is no match, otherwise start matching at i */
+      if ((i = this->xoff[ ((uint8_t *) bb)[ off + this->off ] ]) == 0 )
+        return NULL;
+    }
+    else {
+      i = 1; /* start at head, there is no len for match group */
+    }
+    return this->is_msg_type2( bb, off, end, h, i );
+  }
+  MDMatch * is_msg_type2( void *bb,  size_t off,  size_t end,  uint32_t h,
+                          uint16_t i ) noexcept;
 };
 
 struct MDMsg {
