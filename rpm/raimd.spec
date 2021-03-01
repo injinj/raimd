@@ -12,6 +12,7 @@ Prefix:	        /usr
 BuildRequires:  gcc-c++
 BuildRequires:  chrpath
 BuildRequires:  libdecnumber
+BuildRequires:  git-core
 Requires:       libdecnumber
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
