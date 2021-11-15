@@ -24,25 +24,40 @@ struct MDMsgMem {
     this->mem_off  = 1;
   }
   ~MDMsgMem() {
-    if ( this->mem[ 0 ] != (void *) this->mem )
-      this->reuse();
+    this->reuse();
   }
-
+  void reuse( void ) {
+    if ( this->mem[ 0 ] != (void *) this->mem )
+      this->release();
+    this->mem_off = 1;
+  }
   static uint32_t mem_size( size_t sz ) {
     return ( sz + sizeof( void * ) - 1 ) / sizeof( void * );
   }
   void alloc( size_t size,  void *ptr ) {
+    void * next = this->mem_ptr();
+    size = this->mem_size( size );
+    if ( size + this->mem_off <= MEM_CNT )
+      this->mem_off += size;
+    else
+      next = this->alloc_slow( size );
+    *(void **) ptr = next;
+  }
+  void *mem_ptr( void ) const {
+    void ** area = (void **) this->mem[ 0 ];
+    return &area[ this->mem_off ];
+  }
+  void *make( size_t size ) {
+    void * next = this->mem_ptr();
     size = this->mem_size( size );
     if ( size + this->mem_off <= MEM_CNT ) {
-      void ** area = (void **) this->mem[ 0 ];
-      *(void **) ptr = &area[ this->mem_off ];
       this->mem_off += size;
-      return;
+      return next;
     }
-    this->alloc_slow( size, ptr );
+    return this->alloc_slow( size );
   }
   /* when out of static space, add mem block using malloc() */
-  void alloc_slow( size_t size,  void *ptr ) noexcept;
+  void *alloc_slow( size_t size ) noexcept;
   /* extend last alloc for more space */
   void extend( size_t old_size,  size_t new_size,  void *ptr ) noexcept;
   /* alloc for strings */
@@ -55,7 +70,7 @@ struct MDMsgMem {
     }
     return s;
   }
-  void reuse( void ) noexcept; /* reuse all memory (overwritting existing) */
+  void release( void ) noexcept; /* release alloced memory ) */
 };
 
 struct MDMsgMemSwap { /* push new local allocation for the current stack */
@@ -202,6 +217,8 @@ struct MDMsg {
                          size_t &len ) noexcept;
   int get_escaped_string( MDReference &mref,  const char *quotes,
                            char *&buf,  size_t &len ) noexcept;
+  int get_hex_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  int get_b64_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
   int get_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
   int get_subject_string( MDReference &mref,  char *&buf,
                           size_t &len ) noexcept;

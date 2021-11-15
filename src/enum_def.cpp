@@ -31,7 +31,7 @@ EnumDef::define_enum( MDDictBuild &dict_build ) noexcept
   uint16_t  * value = NULL;
 
   for ( v = this->acro.hd; v != NULL; v = v->next )
-    dict_build.add_entry( v->value, this->map_num, MD_ENUM,
+    dict_build.add_entry( v->value, this->map_num, MD_ENUM, 0,
                           v->str, NULL, NULL, this->fname, v->lineno );
 
   v = this->map.hd;

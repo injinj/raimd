@@ -123,7 +123,7 @@ MDDictIdx::~MDDictIdx() noexcept
 bool
 MDTypeHash::insert( uint32_t x ) noexcept
 {
-  uint32_t h = ( ( ( x >> 5 ) * 0x5bd1e995 ) ^ (uint32_t) ( x & 0x1f ) ), i;
+  uint32_t h = ( ( ( x >> 7 ) * 0x5bd1e995 ) ^ (uint32_t) ( x & 0x7f ) ), i;
 
   if ( this->htcnt >= this->htsize - 1 )
     return false;
@@ -142,7 +142,7 @@ MDTypeHash::insert( uint32_t x ) noexcept
 uint32_t
 MDTypeHash::find( uint32_t x ) noexcept
 {
-  uint32_t h = ( ( ( x >> 5 ) * 0x5bd1e995 ) ^ (uint32_t) ( x & 0x1f ) ), i;
+  uint32_t h = ( ( ( x >> 7 ) * 0x5bd1e995 ) ^ (uint32_t) ( x & 0x7f ) ), i;
 
   for ( i = h & ( this->htsize - 1 ); ; i = ( i + 1 ) % ( this->htsize - 1 ) ) {
     if ( this->ht[ i ] == x )
@@ -197,7 +197,7 @@ MDDictBuild::add_enum_map( uint32_t map_num,  uint16_t max_value,
 
 int
 MDDictBuild::add_entry( MDFid fid,  uint32_t fsize,  MDType ftype,
-                        const char *fname,  const char *name,
+                        uint8_t flags, const char *fname,  const char *name,
                         const char *ripple,  const char *filename,
                         uint32_t lineno,  MDDictEntry **eret ) noexcept
 {
@@ -285,10 +285,11 @@ MDDictBuild::add_entry( MDFid fid,  uint32_t fsize,  MDType ftype,
   if ( entry == NULL )
     return Err::ALLOC_FAIL;
 
-  entry->fid   = fid;
-  entry->fsize = fsize;
-  entry->ftype = ftype;
-  entry->hash  = h;
+  entry->fid       = fid;
+  entry->fsize     = fsize;
+  entry->ftype     = ftype;
+  entry->fld_flags = flags;
+  entry->hash      = h;
   if ( ! xdup )
     entry->fno = dict->file_lineno( filename, lineno );
   else
@@ -316,9 +317,9 @@ MDDictBuild::add_entry( MDFid fid,  uint32_t fsize,  MDType ftype,
 add_to_type_hash:;
   if ( eret != NULL )
     *eret = entry;
-  if ( dict->max_fid == 0 || fid > dict->max_fid )
+  if ( dict->entry_count == 1 || fid > dict->max_fid )
     dict->max_fid = fid;
-  if ( dict->min_fid == 0 || fid < dict->min_fid )
+  if ( dict->entry_count == 1 || fid < dict->min_fid )
     dict->min_fid = fid;
 
   if ( dict->type_hash == NULL ) {
@@ -327,7 +328,7 @@ add_to_type_hash:;
       return Err::ALLOC_FAIL;
     dict->type_hash->init( 6 );
   }
-  if ( ! dict->type_hash->insert( ftype, fsize ) ) {
+  if ( ! dict->type_hash->insert( ftype, fsize, flags ) ) {
     MDTypeHash * sav = dict->type_hash;
     dict->type_hash =
       dict->alloc<MDTypeHash>( MDTypeHash::alloc_size( sav->htshft + 1 ) );
@@ -338,7 +339,7 @@ add_to_type_hash:;
       if ( sav->ht[ i ] != 0 )
         dict->type_hash->insert( sav->ht[ i ] );
     }
-    dict->type_hash->insert( ftype, fsize );
+    dict->type_hash->insert( ftype, fsize, flags );
   }
 
   return 0;
@@ -427,7 +428,7 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
 
   ::memcpy( typetab, dict_idx->type_hash->ht, typetabsz );
   for ( MDDictEntry *fp = dict_idx->entry_q.hd; fp != NULL; fp = fp->next ) {
-    val = dict_idx->type_hash->find( fp->ftype, fp->fsize );
+    val = dict_idx->type_hash->find( fp->ftype, fp->fsize, fp->fld_flags );
     val = ( val << ( shft - algn ) ) | ( fname_off >> algn );
 
     fntab[ fname_off++ ] = fp->fnamelen;
@@ -486,9 +487,9 @@ MDDict::get_enum_text( MDFid fid,  uint16_t val,  const char *&disp,
   const char * fname;
   uint32_t     fsize;
   MDType       ftype;
-  uint8_t      fnamelen;
-
-  if ( ! this->lookup( fid, ftype, fsize, fnamelen, fname ) )
+  uint8_t      fnamelen,
+               flags;
+  if ( ! this->lookup( fid, ftype, fsize, flags, fnamelen, fname ) )
     return false;
   if ( ftype != MD_ENUM )
     return false;
@@ -545,9 +546,9 @@ MDDict::get_enum_val( MDFid fid,  const char *disp,  size_t disp_len,
   const char * fname;
   uint32_t     fsize;
   MDType       ftype;
-  uint8_t      fnamelen;
-
-  if ( ! this->lookup( fid, ftype, fsize, fnamelen, fname ) )
+  uint8_t      fnamelen,
+               flags;
+  if ( ! this->lookup( fid, ftype, fsize, flags, fnamelen, fname ) )
     return false;
   if ( ftype != MD_ENUM )
     return false;
@@ -646,13 +647,27 @@ DictParser::fillbuf( void ) noexcept
   this->off = 0;
   this->len = x;
   if ( ! this->is_eof ) {
-    if ( this->fp == NULL ) {
-      if ( (this->fp = ::fopen( this->fname, "r" )) == NULL ) {
-        this->is_eof = true;
-        return false;
+    if ( this->fname[ 0 ] != '\0' ) {
+      if ( this->fp == NULL ) {
+        if ( (this->fp = ::fopen( this->fname, "r" )) == NULL ) {
+          this->is_eof = true;
+          return false;
+        }
       }
+      y = ::fread( &this->buf[ x ], 1, sizeof( buf ) - x, this->fp );
     }
-    y = ::fread( &this->buf[ x ], 1, sizeof( buf ) - x, this->fp );
+    else if ( this->str_size != 0 ) {
+      y = sizeof( buf ) - x;
+      if ( y > this->str_size )
+        y = this->str_size;
+      ::memcpy( &this->buf[ x ], this->str_input, y );
+      this->str_input += y;
+      this->str_size  -= y;
+    }
+    else {
+      this->is_eof = true;
+      return false;
+    }
     this->len += y;
   }
   return y > 0;

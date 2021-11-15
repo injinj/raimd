@@ -16,9 +16,9 @@ struct TibSassMsg : public MDMsg {
   TibSassMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
     : MDMsg( bb, off, end, d, m ) {}
 
-  virtual const char *get_proto_string( void ) noexcept final;
-  virtual uint32_t get_type_id( void ) noexcept final;
-  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
+  virtual const char *get_proto_string( void ) noexcept;
+  virtual uint32_t get_type_id( void ) noexcept;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept;
 
   /* may return tibmsg, sass qform or rv */
   static bool is_tibsassmsg( void *bb,  size_t off,  size_t end,
@@ -34,13 +34,19 @@ static inline size_t tib_sass_pack_size( size_t fsize ) {
 static inline size_t tib_sass_partial_pack_size( size_t fsize ) {
   return tib_sass_pack_size( fsize + 4 ); /* fid + off + len, 2b aligned */
 }
+static inline size_t tib_sass_variable_pack_size( size_t asize, size_t fsize ) {
+  if ( fsize <= 0xffffU )
+    return tib_sass_pack_size( asize + 2 ); /* fid + len, 2b aligned */
+  return tib_sass_pack_size( asize + 4 ); /* fid + len, 2b aligned */
+}
 
 struct TibSassFieldIter : public MDFieldIter {
   const char * fname;
   uint32_t     fsize;
   MDFid        fid;
   MDType       ftype;
-  uint8_t      fnamelen;
+  uint8_t      flags,
+               fnamelen;
   MDDecimal    dec;
   MDTime       time;
   MDDate       date;
@@ -49,7 +55,7 @@ struct TibSassFieldIter : public MDFieldIter {
   void * operator new( size_t, void *ptr ) { return ptr; }
 
   TibSassFieldIter( MDMsg &m ) : MDFieldIter( m ), fname( 0 ), fsize( 0 ),
-                                 fid( 0 ), ftype( MD_NODATA ), fnamelen( 0 ) {}
+    fid( 0 ), ftype( MD_NODATA ), flags( MD_FIXED ), fnamelen( 0 ) {}
 
   virtual int get_name( MDName &name ) noexcept final;
   virtual int get_reference( MDReference &mref ) noexcept final;
@@ -65,6 +71,12 @@ struct TibSassFieldIter : public MDFieldIter {
   }
   static size_t partial_pack_size( uint16_t len ) {
     return tib_sass_partial_pack_size( len );
+  }
+  static size_t variable_pack_size_2( size_t asize ) {
+    return tib_sass_pack_size( asize + 2 ); /* fid + len, 2b aligned */
+  }
+  static size_t variable_pack_size_4( size_t asize ) {
+    return tib_sass_pack_size( asize + 4 ); /* fid + len, 2b aligned */
   }
 };
 
@@ -82,7 +94,7 @@ struct TibSassMsgWriter {
   int append_ref( MDFid fid,  MDReference &mref ) noexcept;
   int append_ref( const char *fname,  size_t fname_len,
                   MDReference &mref ) noexcept;
-  int append_ref( MDFid fid, MDType ftype, uint32_t fsize,
+  int append_ref( MDFid fid, MDType ftype, uint32_t fsize, uint8_t flags,
                   MDReference &mref ) noexcept;
 
   bool has_space( size_t len ) const {

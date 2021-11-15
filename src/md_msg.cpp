@@ -236,8 +236,8 @@ found_msg_type:;
   return ma->ftype;
 }
 
-void
-MDMsgMem::alloc_slow( size_t size,  void *ptr ) noexcept
+void *
+MDMsgMem::alloc_slow( size_t size ) noexcept
 {
   void  * p,
        ** area = (void **) this->mem[ 0 ],
@@ -252,7 +252,7 @@ MDMsgMem::alloc_slow( size_t size,  void *ptr ) noexcept
   this->mem[ 0 ] = (void *) next;
   area = next;
   this->mem_off = 1 + size;
-  *(void **) ptr = &area[ 1 ];
+  return &area[ 1 ];
 }
 
 void
@@ -276,7 +276,7 @@ MDMsgMem::extend( size_t old_size,  size_t new_size,  void *ptr ) noexcept
 }
 
 void
-MDMsgMem::reuse( void ) noexcept
+MDMsgMem::release( void ) noexcept
 {
   /* release malloc()ed mem */
   while ( this->mem[ 0 ] != (void *) this->mem ) {
@@ -284,8 +284,6 @@ MDMsgMem::reuse( void ) noexcept
     this->mem[ 0 ] = ((void **) next)[ 0 ];
     ::free( next );
   }
-  /* reset offset where alloc starts */
-  this->mem_off = 1;
 }
 
 void
@@ -363,7 +361,8 @@ Err::err( int status ) noexcept
   /* 41 */ { DICT_PARSE_ERROR,      "Dictionary parse error", mod },
   /* 42 */ { ALLOC_FAIL,            "Allocation failed", mod },
   /* 43 */ { BAD_SUBJECT,           "Bad subject", mod },
-  /* 44 */ { 44,                    "Unk", mod }
+  /* 44 */ { BAD_FORMAT,            "Bad msg structure", mod },
+  /* 45 */ { 45,                    "Unk", mod }
   };
   static const uint32_t num = sizeof( err ) / sizeof( err[ 0 ] ) - 1;
 

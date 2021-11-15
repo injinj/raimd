@@ -160,6 +160,15 @@ static inline int64_t parse_i64( const char *val,  char **end ) {
 static inline double parse_f64( const char *val,  char **end ) {
   return ::strtod( val, end );
 }
+static inline uint8_t parse_bool( const char *val,  size_t len ) {
+  if ( len > 0 ) {
+    switch ( val[ 0 ] ) {
+      case 't': case 'T': case '1': return 1;
+      case '0': case 'f': case 'F': default:  return 0;
+    }
+  }
+  return 0;
+}
 
 template<class T>
 static inline T parse_int( const char *val,  char **end ) {
@@ -348,6 +357,13 @@ static inline char hexchar( uint8_t n ) {
 }
 static inline char hexchar2( uint8_t n ) { /* upper case */
   return (char) ( n <= 9 ? ( n + '0' ) : ( n - 10 + 'A' ) );
+}
+static inline void hexstr16( uint16_t n,  char *s ) {
+  int j = 0;
+  for ( int i = 16; i > 0; ) {
+    i -= 4;
+    s[ j++ ] = hexchar2( ( n >> i ) & 0xf );
+  }
 }
 static inline void hexstr32( uint32_t n,  char *s ) {
   int j = 0;

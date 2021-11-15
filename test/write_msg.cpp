@@ -60,7 +60,7 @@ test_write( Writer &writer )
   date.day  = 9;
   writer.append_date( trade_date, sizeof( trade_date ), date );
 
-  static char head[] = "WORLD HEADLINE";
+  static char head[] = "*WORLD HEADLINE";
   MDReference mref;
   mref.zero();
   mref.fptr     = (uint8_t *) head;
@@ -99,6 +99,82 @@ load_dict_files( const char *path )
   printf( "cfile status %d+%s, RDM status %d+%s\n",
           x, Err::err( x )->descr, y, Err::err( y )->descr );
   return NULL;
+}
+
+static void
+test_json( void )
+{
+  MDMsgMem mem;
+  MDMsg  * m;
+  char buf[ 1024 ];
+  ::strcpy( buf, "{\n"
+                 "  MSG_TYPE : UPDATE,\n"
+                 "  REC_STATUS : OK,\n"
+                 "  TEXT : \"one two three\",\n"
+                 "  NAME : \"d\\'angelo\",\n"
+                 "  INF  : inf,\n"
+                 "  INF  : -inf,\n"
+                 "  NAN  : nan,\n"
+                 "  NAN  : -nan\n"
+                 "}" );
+  size_t len = ::strlen( buf );
+  m = MDMsg::unpack( buf, 0, len, 0, NULL, &mem );
+  if ( m != NULL ) {
+    MDOutput mout;
+    printf( "json mem %lu\n", mem.mem_off * sizeof( void * ) );
+    m->print( &mout );
+  }
+}
+
+static void
+test_variable( void )
+{
+  const char *str =
+"session     { CLASS_ID    1; DATA_SIZE 128; IS_FIXED false; DATA_TYPE string; }\n"
+"digest      { CLASS_ID    2; DATA_SIZE 16; DATA_TYPE opaque; }\n"
+"auth_digest { CLASS_ID    3; DATA_SIZE 16; DATA_TYPE opaque; }\n"
+"cnonce      { CLASS_ID    4; DATA_SIZE 16; DATA_TYPE opaque; }\n"
+"seqno       { CLASS_ID    5; DATA_TYPE u_int; }\n"
+"seqno_8     { CLASS_ID  261; DATA_TYPE u_long; }\n"
+"ack         { CLASS_ID   31; DATA_TYPE boolean; }\n";
+
+  MDDictBuild dict_build;
+  MDDict * str_dict = NULL;
+  char buf[ 1024 ];
+
+  CFile::parse_string( dict_build, str, ::strlen( str ) );
+  dict_build.index_dict( "cfile", str_dict );
+
+  static char session[] = "session";
+  static char digest[]  = "digest";
+  static char seqno[]   = "seqno";
+  static char seqno_8[] = "seqno_8";
+  static char ack[]     = "ack";
+  static char session_data[] = "sam.abcdefgh";
+  static char digest_data[]  = "0123456789abcdef";
+
+  TibSassMsgWriter w( str_dict, buf, sizeof( buf ) );
+
+  w.append_string( session, sizeof( session ), session_data,
+                   ::strlen( session_data ) );
+  w.append_string( digest, sizeof( digest ), digest_data,
+                   ::strlen( digest_data ) );
+  w.append_uint<uint8_t>( ack, sizeof( ack ), true );
+  w.append_uint<uint32_t>( seqno, sizeof( seqno ), 100 );
+  w.append_uint<uint64_t>( seqno_8, sizeof( seqno_8 ), 10010001 );
+  w.append_uint<uint8_t>( ack, sizeof( ack ), false );
+  size_t sz = w.update_hdr();
+
+  MDMsgMem mem;
+  MDMsg  * m;
+  m = MDMsg::unpack( buf, 0, sz, 0, str_dict, &mem );
+  if ( m != NULL ) {
+    MDOutput mout;
+    printf( "var msg test\n" );
+    mout.print_hex( buf, sz );
+    printf( "var msg sz %lu\n", sz );
+    m->print( &mout );
+  }
 }
 
 int
@@ -190,6 +266,8 @@ main( int argc, char **argv )
       m->print( &mout );
     mem.reuse();
   }
+  test_json();
+  test_variable();
 
   return 0;
 }

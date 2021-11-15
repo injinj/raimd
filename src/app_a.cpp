@@ -354,7 +354,7 @@ AppA::parse_path( MDDictBuild &dict_build,  const char *path,
         p->get_type_size( tp, sz );
         const char * dde = NULL, /*p->dde_acro,*/
                    * rip = NULL; /*p->ripple_to;*/
-        dict_build.add_entry( p->fid, sz, tp, p->acro, dde, rip, p->fname,
+        dict_build.add_entry( p->fid, sz, tp, 0, p->acro, dde, rip, p->fname,
                               curlineno, &entry );
                               
         if ( entry != NULL ) {

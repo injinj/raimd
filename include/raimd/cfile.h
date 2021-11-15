@@ -145,11 +145,14 @@ struct CFile : public DictParser {
   bool match( CFileKeyword &kw ) {
     return this->DictParser::match( kw.str, kw.len );
   }
-
   static CFile * push_path( CFile *tos,  const char *path,
                             const char *filename,  size_t file_sz ) noexcept;
   static int parse_path( MDDictBuild &dict_build,  const char *path,
                          const char *fn ) noexcept;
+  static int parse_string( MDDictBuild &dict_build,  const char *str_input,
+                           size_t str_size ) noexcept;
+  static int parse_loop( MDDictBuild &dict_build,  CFile *p,
+                         const char *path ) noexcept;
 };
 
 }
