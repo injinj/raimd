@@ -61,19 +61,74 @@ JsonMsg::unpack_any( void *bb,  size_t off,  size_t end,  uint32_t,
     m->ref_cnt++;
 
   void * ptr;
-  m->alloc( sizeof( JsonMsg ) + sizeof( JsonParser ), &ptr );
+  m->alloc( sizeof( JsonMsg ), &ptr );
 
   JsonMsg * msg = new ( ptr ) JsonMsg( bb, off, end, d, m );
-  ptr = (void *) &msg[ 1 ];
   JsonParser parser( *m );
 
   const uint8_t * buf = (const uint8_t *) bb;
-  JsonBufInput bin( (const char *) buf, off, end );
+  JsonBufInput bin( &((const char *) buf)[ off ], 0, end - off );
   if ( parser.parse( bin ) == 0 && parser.value != NULL ) {
     msg->js = parser.value;
+    msg->msg_end = msg->msg_off + bin.offset;
     return msg;
   }
   return NULL;
+}
+
+void
+JsonMsgCtx::release( void ) noexcept
+{
+  if ( this->mem != NULL ) {
+    if ( this->mem->ref_cnt != MDMsgMem::NO_REF_COUNT )
+      if ( --this->mem->ref_cnt == 0 )
+          delete this->mem;
+  }
+  this->msg    = NULL;
+  this->parser = NULL;
+  this->input  = NULL;
+  this->mem    = NULL;
+}
+
+JsonMsgCtx::~JsonMsgCtx() noexcept
+{
+  this->release();
+}
+
+int
+JsonMsgCtx::parse( void *bb,  size_t off,  size_t end,  MDDict *d,
+                   MDMsgMem *m,  bool is_yaml ) noexcept
+{
+  void * ptr;
+  int    status;
+
+  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
+    m->ref_cnt++;
+  this->release();
+  this->mem = m;
+
+  m->alloc( sizeof( JsonMsg ), &ptr );
+  this->msg = new ( ptr ) JsonMsg( bb, off, end, d, m );
+  m->alloc( sizeof( JsonParser ), &ptr );
+  this->parser = new ( ptr ) JsonParser( *m );
+
+  const uint8_t * buf = (const uint8_t *) bb;
+  m->alloc( sizeof( JsonBufInput ), &ptr );
+  this->input = new ( ptr )
+    JsonBufInput( &((const char *) buf)[ off ], 0, end - off );
+  if ( is_yaml )
+    status = this->parser->parse_yaml( *this->input );
+  else
+    status = this->parser->parse( *this->input );
+  if ( status == 0 ) {
+    if ( this->parser->value != NULL ) {
+      this->msg->js = this->parser->value;
+      this->msg->msg_end = this->msg->msg_off + this->input->offset;
+      return 0;
+    }
+    return Err::NOT_FOUND;
+  }
+  return status;
 }
 
 void
@@ -121,9 +176,29 @@ int
 JsonFieldIter::get_name( MDName &name ) noexcept
 {
   JsonObject::Pair &pair = this->obj.val[ this->field_start ];
-  name.fname    = (char *) pair.name;
-  name.fnamelen = ::strlen( name.fname ) + 1;
+  if ( pair.name.val[ pair.name.length ] != '\0' ) {
+    char * tmp;
+    this->me.mem->alloc( pair.name.length + 1, &tmp );
+    ::memcpy( tmp, pair.name.val, pair.name.length );
+    tmp[ pair.name.length ] = '\0';
+    pair.name.val = tmp;
+  }
+  name.fname    = pair.name.val;
+  name.fnamelen = pair.name.length + 1;
   name.fid      = 0;
+  return 0;
+}
+
+int
+JsonFieldIter::copy_name( char *name,  size_t &name_len,  MDFid &fid ) noexcept
+{
+  JsonObject::Pair &pair = this->obj.val[ this->field_start ];
+  size_t off = ( name_len < pair.name.length ? name_len : pair.name.length );
+  ::memcpy( name, pair.name.val, off );
+  if ( off < name_len )
+    name[ off++ ] = '\0';
+  name_len = off;
+  fid      = 0;
   return 0;
 }
 
@@ -166,7 +241,7 @@ JsonMsg::value_to_ref( MDReference &mref,  JsonValue &x ) noexcept
       JsonString *str = x.to_str();
       mref.fptr  = (uint8_t *) (void *) str->val;
       mref.ftype = MD_STRING;
-      mref.fsize = ::strlen( str->val ) + 1;
+      mref.fsize = str->length;
       break;
     }
     case JSON_BOOLEAN: {
@@ -192,17 +267,21 @@ JsonMsg::get_array_ref( MDReference &mref,  size_t i,
                         MDReference &aref ) noexcept
 {
   JsonArray *arr = (JsonArray *) (void *) mref.fptr;
+  if ( i >= arr->length )
+    return Err::NOT_FOUND;
   JsonValue *val = arr->val[ i ];
   return this->value_to_ref( aref, *val );
 }
 
 int
-JsonFieldIter::find( const char *name,  size_t,  MDReference &mref ) noexcept
+JsonFieldIter::find( const char *name,  size_t name_len,
+                     MDReference &mref ) noexcept
 {
   if ( name != NULL ) {
     for ( size_t i = 0; i < this->obj.length; i++ ) {
       JsonObject::Pair &pair = this->obj.val[ i ];
-      if ( ::strcmp( name, pair.name ) == 0 ) {
+      if ( pair.name.length + 1 == name_len &&
+           ::memcmp( pair.name.val, name, name_len ) == 0 ) {
         this->field_start = i;
         this->field_end   = i + 1;
         return this->get_reference( mref );

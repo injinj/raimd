@@ -269,9 +269,10 @@ inline void
 MktfdFieldIter::lookup_fid( void ) noexcept
 {
   if ( this->ftype == MD_NODATA ) {
+    uint8_t flags;
     if ( this->iter_msg.dict != NULL )
       this->iter_msg.dict->lookup( this->fid, this->ftype, this->fsize,
-                                   this->fnamelen, this->fname );
+                                   flags, this->fnamelen, this->fname );
     if ( this->ftype == MD_NODATA ) { /* undefined fid or no dictionary */
       this->ftype    = MD_STRING;
       this->fname    = NULL;
@@ -533,7 +534,8 @@ MktfdFieldIter::find( const char *name,  size_t name_len,
     MDFid    fid;
     MDType   ftype;
     uint32_t fsize;
-    if ( this->iter_msg.dict->get( name, name_len, fid, ftype, fsize ) ) {
+    uint8_t  flags;
+    if ( this->iter_msg.dict->get( name, name_len, fid, ftype, fsize, flags )) {
       if ( (status = this->first()) == 0 ) {
         do {
           if ( this->fid == fid )

@@ -40,6 +40,25 @@ int MDFieldIter::next( void ) noexcept
 { return Err::NOT_FOUND; }
 
 int
+MDFieldIter::copy_name( char *name_buf, size_t &name_len, MDFid &fid ) noexcept
+{
+  MDName nm;
+  int status = this->get_name( nm );
+  if ( status == 0 ) {
+    size_t off, size = ( name_len < nm.fnamelen ) ? name_len : nm.fnamelen;
+    fid = nm.fid;
+    for ( off = 0; off < size; off++ )
+      name_buf[ off ] = nm.fname[ off ];
+    name_len = size;
+  }
+  else {
+    fid = 0;
+    name_len = 0;
+  }
+  return status;
+}
+
+int
 MDDecimal::get_decimal( const MDReference &mref ) noexcept
 {
   switch ( mref.ftype ) {
@@ -96,8 +115,80 @@ MDTime::get_time( const MDReference &mref ) noexcept
       return 0;
     }
   }
+  else if ( mref.ftype == MD_STRING ) {
+    if ( this->parse( (const char *) mref.fptr, mref.fsize ) == 0 )
+      return 0;
+  }
   this->zero();
   return Err::BAD_TIME;
+}
+
+int
+MDStamp::get_stamp( const MDReference &mref ) noexcept
+{
+  if ( mref.ftype == MD_STAMP ) {
+    if ( mref.fsize == sizeof( MDStamp ) ||
+         mref.fsize == sizeof( this->stamp ) + sizeof( this->resolution ) ) {
+      this->stamp      = get_int<uint64_t>( mref.fptr, mref.fendian );
+      this->resolution = mref.fptr[ 8 ];
+      return 0;
+    }
+  }
+  else if ( mref.ftype == MD_UINT || mref.ftype == MD_INT ) {
+    this->stamp = get_int<uint64_t>( mref.fptr, mref.fendian );
+  determine_resolution:;
+    this->resolution = MD_RES_SECONDS;
+    if ( this->stamp > (uint64_t) 1000000000 * 1000 ) {
+      this->resolution = MD_RES_MILLISECS;
+      if ( this->stamp > (uint64_t) 1000000000 * 1000 * 1000 ) {
+        this->resolution = MD_RES_MICROSECS;
+        if ( this->stamp > (uint64_t) 1000000000 * 1000 * 1000 * 1000 ) {
+          this->resolution = MD_RES_NANOSECS;
+        }
+      }
+    }
+    return 0;
+  }
+  else if ( mref.ftype == MD_DECIMAL || mref.ftype == MD_REAL ) {
+    MDDecimal d;
+    if ( d.get_decimal( mref ) == 0 ) {
+      this->stamp = d.ival;
+      if ( d.hint == MD_DEC_INTEGER ) {
+        goto determine_resolution;
+      }
+      if ( d.hint >= MD_DEC_LOGp10_1 ) {
+        for ( ; d.hint >= MD_DEC_LOGp10_1; d.hint-- )
+          this->stamp *= 10;
+        goto determine_resolution;
+      }
+      if ( d.hint >= MD_DEC_LOGn10_3 && d.hint <= MD_DEC_LOGn10_1 ) {
+        for ( ; d.hint > MD_DEC_LOGn10_3; d.hint-- )
+          this->stamp *= 10;
+        this->resolution = MD_RES_MILLISECS;
+        return 0;
+      }
+      if ( d.hint >= MD_DEC_LOGn10_6 && d.hint <= MD_DEC_LOGn10_4 ) {
+        for ( ; d.hint > MD_DEC_LOGn10_6; d.hint-- )
+          this->stamp *= 10;
+        this->resolution = MD_RES_MICROSECS;
+        return 0;
+      }
+      if ( d.hint <= MD_DEC_LOGn10_7 ) {
+        for ( ; d.hint > MD_DEC_LOGn10_9; d.hint-- )
+          this->stamp *= 10;
+        for ( ; d.hint < MD_DEC_LOGn10_9; d.hint++ )
+          this->stamp /= 10;
+        this->resolution = MD_RES_NANOSECS;
+        return 0;
+      }
+    }
+  }
+  else if ( mref.ftype == MD_STRING ) {
+    if ( this->parse( (const char *) mref.fptr, mref.fsize ) == 0 )
+      return 0;
+  }
+  this->zero();
+  return Err::BAD_STAMP;
 }
 
 int
@@ -110,6 +201,10 @@ MDDate::get_date( const MDReference &mref ) noexcept
       this->day  = mref.fptr[ 3 ];
       return 0;
     }
+  }
+  else if ( mref.ftype == MD_STRING ) {
+    if ( this->parse( (const char *) mref.fptr, mref.fsize ) == 0 )
+      return 0;
   }
   this->zero();
   return Err::BAD_DATE;
@@ -563,6 +658,87 @@ break_loop:;
 }
 
 int
+MDMsg::get_hex_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
+{
+  uint8_t * ptr = mref.fptr;
+  char    * str;
+  size_t    i, j;
+
+  if ( mref.fsize == 0 ) {
+    buf = nul_string;
+    len = nul_string_len;
+    return 0;
+  }
+  j = 2 + mref.fsize * 2;
+  this->mem->alloc( j + 1, &str );
+  j = 0;
+  str[ j++ ] = '0';
+  str[ j++ ] = 'x';
+  for ( i = 0; i < mref.fsize; i++ ) {
+    str[ j++ ] = hexchar( ( ptr[ i ] >> 4 ) & 0xfU );
+    str[ j++ ] = hexchar( ptr[ i ] & 0xfU );
+  }
+  str[ j ] = '\0';
+  buf = str;
+  len = j;
+  return 0;
+}
+
+static char
+b64_char( uint32_t b )
+{
+  /* ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/ */
+  static const uint32_t AZ = 'Z' - 'A' + 1;
+  if ( b < AZ )
+    return 'A' + b;
+  if ( b < AZ * 2 )
+    return 'a' + ( b - AZ );
+  if ( b < AZ * 2 + 10 )
+    return '0' + ( b - AZ*2 );
+  if ( b == AZ * 2 + 10 )
+    return '+';
+  return '/';
+}
+
+int
+MDMsg::get_b64_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
+{
+  uint8_t * ptr = mref.fptr;
+  char    * str;
+  size_t    i, j;
+  uint32_t  reg;
+  uint8_t   bits;
+
+  if ( mref.fsize == 0 ) {
+    buf = nul_string;
+    len = nul_string_len;
+    return 0;
+  }
+  j = ( mref.fsize * 8 + 5 ) / 6;
+  this->mem->alloc( j + 1, &str );
+  j    = 0;
+  bits = 0;
+  reg  = 0;
+  for ( i = 0; i < mref.fsize; ) {
+    if ( bits < 6 ) {
+      reg   = ( reg << 8 ) | ptr[ i++ ];
+      bits += 8;
+    }
+    bits -= 6;
+    str[ j++ ] = b64_char( ( reg >> bits ) & 0x3fU );
+  }
+  if ( bits > 0 ) {
+    reg &= ( 1U << bits ) - 1;
+    reg <<= ( 6 - bits );
+    str[ j++ ] = b64_char( reg );
+  }
+  str[ j ] = '\0';
+  buf = str;
+  len = j;
+  return 0;
+}
+
+int
 MDMsg::get_subject_string( MDReference &mref,  char *&buf,
                            size_t &len ) noexcept
 {
@@ -645,6 +821,19 @@ MDOutput::print_hex( const void *buf,  size_t buflen ) noexcept
   return n;
 }
 
+void
+MDHexDump::print_hex( const void *buf,  size_t buflen ) noexcept
+{
+  MDOutput mout;
+  mout.print_hex( buf, buflen );
+}
+
+int
+MDOutput::print_hex( const MDMsg *m ) noexcept
+{
+  return this->print_hex( (const uint8_t *) m->msg_buf + m->msg_off, m->msg_end - m->msg_off );
+}
+
 const char *
 rai::md::md_type_str( MDType type,  size_t size ) noexcept
 {
@@ -699,40 +888,20 @@ rai::md::md_type_str( MDType type,  size_t size ) noexcept
   return "invalid";
 }
 
-int
-MDFieldIter::print( MDOutput *out, int indent_newline,
-                    const char *fname_fmt,  const char *type_fmt ) noexcept
+size_t
+MDFieldIter::fname_string( char *fname_buf,  size_t &fname_len ) noexcept
 {
-  MDMsgMemSwap swap( this->iter_msg.mem );
-  MDName      name;
-  MDReference mref, href;
+  char     fid_buf[ 16 ];
+  size_t   fname_off, maxlen = fname_len;
+  MDFid    fid;
+  uint32_t ufid;
 
-  this->get_name( name );
-  this->get_reference( mref );
+  this->copy_name( fname_buf, fname_len, fid );
+  fname_off = fname_len;
+  if ( fname_off > 0 ) /* includes the nul char */
+    fname_off -= 1;
 
-  const char * fname = name.fname;
-  const char * tstr  = md_type_str( mref.ftype );
-  size_t       fsize = mref.fsize;
-  MDType       ftype = mref.ftype;
-  char         fname_buf[ 256 + 16 ],
-               fid_buf[ 16 ];
-  size_t       fname_off;
-  char       * str;
-  size_t       len;
-  MDFid        fid;
-  uint32_t     ufid;
-
-  if ( indent_newline > 1 )
-    out->indent( indent_newline - 1 );
-
-  fname_off = 0;
-  if ( fname != NULL ) {
-    for ( const char *s = fname;
-          *s != '\0' && fname_off < sizeof( fname_buf ) - 1; s++ )
-      fname_buf[ fname_off++ ] = *s;
-  }
-
-  if ( (fid = name.fid) != 0 ) {
+  if ( fid != 0 ) {
     uint32_t j = 1, k;
     fid_buf[ 0 ] = '[';
     if ( fid < 0 ) {
@@ -755,18 +924,50 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
 
     if ( fname_off == 0 ||
         ( fname_buf[ fname_off - 1 ] != ' ' &&
-          fname_off < sizeof( fname_buf ) - 1 ) )
+          fname_off < maxlen - 1 ) )
       fname_buf[ fname_off++ ] = ' ';
+#if 0
+    if ( fname_fmt != NULL && fname_fmt[ 0 ] == '%' && fname_fmt[ 1 ] != '-' ) {
+      for ( k = j; k < 6; k++ )
+        if ( fname_off < maxlen - 1 )
+          fname_buf[ fname_off++ ] = ' ';
+    }
+#endif
     for ( k = 0; k < j; k++ ) {
-      if ( fname_off < sizeof( fname_buf ) - 1 )
+      if ( fname_off < maxlen - 1 )
         fname_buf[ fname_off++ ] = fid_buf[ k ];
     }
   }
-  else if ( fname == NULL ) {
+  else if ( fname_len == 0 ) {
     for ( const char *s = nul_string; *s != '\0'; s++ )
       fname_buf[ fname_off++ ] = *s;
   }
   fname_buf[ fname_off ] = '\0';
+  return fname_off;
+}
+
+int
+MDFieldIter::print( MDOutput *out, int indent_newline,
+                    const char *fname_fmt,  const char *type_fmt ) noexcept
+{
+  MDMsgMemSwap swap( this->iter_msg.mem );
+  MDReference mref, href;
+
+  this->get_reference( mref );
+
+  const char * tstr  = md_type_str( mref.ftype );
+  size_t       fsize = mref.fsize,
+               fname_len;
+  MDType       ftype = mref.ftype;
+  char         fname_buf[ 256 + 16 ];
+  char       * str;
+  size_t       len;
+
+  if ( indent_newline > 1 )
+    out->indent( indent_newline - 1 );
+
+  fname_len = sizeof( fname_buf );
+  this->fname_string( fname_buf, fname_len );
 
   if ( fname_fmt == NULL )
     fname_fmt = "%s=";
@@ -803,6 +1004,17 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
       /* FALLTHRU */
     case MD_NODATA:
     case MD_OPAQUE:
+       if ( ( out->output_hints & MD_OUTPUT_OPAQUE_TO_HEX ) != 0 ) {
+         if ( this->iter_msg.get_hex_string( mref, str, len ) == 0 )
+           out->puts( str );
+         break;
+       }
+       if ( ( out->output_hints & MD_OUTPUT_OPAQUE_TO_B64 ) != 0 ) {
+         if ( this->iter_msg.get_b64_string( mref, str, len ) == 0 )
+           out->puts( str );
+         break;
+       }
+      /* FALLTHRU */
     case MD_STRING:
       if ( this->iter_msg.get_escaped_string( mref, "\"", str, len ) == 0 )
         out->puts( str );
@@ -829,12 +1041,11 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
       if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
         const char * extra = NULL;
         char tmp_buf[ 32 ];
-        if ( fname != NULL &&
-             fname[ 0 ] >= 'M' && fname[ 1 ] >= 'E' && fname[ 2 ] >= 'C' &&
-             fname[ 3 ] == '_' ) {
-          if ( ::strcmp( fname, "MSG_TYPE" ) == 0 )
+        if ( fname_buf[ 0 ] >= 'M' && fname_buf[ 1 ] >= 'E' && fname_buf[ 2 ] >= 'C' &&
+             fname_buf[ 3 ] == '_' ) {
+          if ( fname_len == 9 && ::memcmp( fname_buf, "MSG_TYPE", 8 ) == 0 )
             extra = sass_msg_type_string( get_int<int16_t>( mref ), tmp_buf );
-          else if ( ::strcmp( fname, "REC_STATUS" ) == 0 )
+          else if ( fname_len == 11 && ::memcmp( fname_buf, "REC_STATUS", 10 ) == 0 )
             extra = sass_rec_status_string( get_int<int16_t>( mref ), tmp_buf );
         }
         out->puts( str );
@@ -1139,6 +1350,286 @@ end_of_float:;
   if ( neg )
     this->ival = -this->ival;
   return 0;
+}
+
+static void
+decimal_shift( MDDecimal &d, int8_t amt )
+{
+  if ( d.hint <= MD_DEC_LOGn10_1 ) {
+    d.hint += amt;
+    while ( d.hint > MD_DEC_LOGn10_1 ) {
+      d.hint--;
+      d.ival *= 10;
+    }
+  }
+  else if ( d.hint >= MD_DEC_LOGp10_1 ) {
+    d.hint -= amt;
+    while ( d.hint < MD_DEC_LOGp10_1 ) {
+      d.hint++;
+      d.ival /= 10;
+    }
+  }
+  else if ( d.hint == MD_DEC_INTEGER ) {
+    d.hint = MD_DEC_LOGn10_1 - ( amt - 1 );
+  }
+}
+
+static void
+decimal_mult( MDDecimal &d, uint64_t amt )
+{
+  d.ival *= amt;
+}
+
+int
+MDStamp::parse( const char *fptr,  size_t flen,  bool is_gm_time ) noexcept
+{
+  static const uint64_t MS     = 1000,
+                        US     = 1000 * 1000,
+                        NS     = 1000 * 1000 * 1000,
+                        MINUTE = 60,
+                        HOUR   = 60  * MINUTE,
+                        DAY    = 24  * HOUR,
+                        WEEK   = 7   * DAY,
+                        MONTH  = 30  * WEEK,
+                        YEAR   = 365 * DAY;
+  MDDate    dt;
+  MDDecimal d;
+  size_t    i;
+  uint64_t  res = 1;
+  while ( flen > 0 && fptr[ flen - 1 ] <= ' ' )
+    flen -= 1;
+  if ( ::memchr( fptr, ':', flen ) != NULL ) {
+    MDTime tm;
+    const char *p = (const char *) ::memchr( fptr, ' ', flen );
+    bool have_date;
+
+    tm.zero();
+    if ( p != NULL ) {
+      const char *x;
+      for ( x = p; x < &fptr[ flen ]; x++ ) {
+        if ( *x != ' ' )
+          break;
+      }
+      if ( x < &fptr[ flen ] && dt.parse( x, &fptr[ flen ] - x ) == 0 )
+        have_date = true;
+    }
+    if ( tm.parse( fptr, ( p != NULL ? p - fptr : flen ) ) == 0 ) {
+      this->stamp = tm.to_utc( have_date ? &dt : NULL, is_gm_time );
+      switch ( this->resolution = tm.resolution ) {
+        case MD_RES_MILLISECS:
+          this->stamp = this->stamp * 1000 + (uint64_t) tm.fraction;
+          break;
+        case MD_RES_MICROSECS:
+          this->stamp = this->stamp * 1000000 + (uint64_t) tm.fraction;
+          break;
+        case MD_RES_NANOSECS:
+          this->stamp = this->stamp * 1000000000 + (uint64_t) tm.fraction;
+          break;
+        default:
+          this->resolution = MD_RES_SECONDS;
+          break;
+      }
+      return 0;
+    }
+  }
+  i = flen;
+  while ( i > 0 &&
+          ( ( fptr[ i - 1 ] >= 'A' && fptr[ i - 1 ] <= 'Z' ) ||
+            ( fptr[ i - 1 ] >= 'a' && fptr[ i - 1 ] <= 'z' ) ) )
+    i -= 1;
+  if ( i != flen ) {
+    size_t       len = flen - i,
+                 off = 0;
+    const char * units = &fptr[ i ];
+
+    if ( len > 2 && ( fptr[ flen - 1 ] == 's' || fptr[ flen - 1 ] == 'S' ) ) {
+      off = 1;
+      len -= 1;
+    }
+    if      ( ( len == 2 && ::strncasecmp( units, "ms", 2 ) == 0 ) ||
+              ( len == 4 && ::strncasecmp( units, "msec", 4 ) == 0 ) ||
+              ( len == 8 && ::strncasecmp( units, "millisec", 8 ) == 0 ) ||
+              ( len == 11&& ::strncasecmp( units, "millisecond", 11 ) == 0 ) ) {
+      res = MS;
+      off += len;
+    }
+    else if ( ( len == 2 && ::strncasecmp( units, "ns", 2 ) == 0 ) ||
+              ( len == 4 && ::strncasecmp( units, "nsec", 4 ) == 0 ) ||
+              ( len == 7 && ::strncasecmp( units, "nanosec", 7 ) == 0 ) ||
+              ( len == 10 && ::strncasecmp( units, "nanosecond", 10 ) == 0 ) ) {
+      res = NS;
+      off += len;
+    }
+    else if ( ( len == 2 && ::strncasecmp( units, "us", 2 ) == 0 ) ||
+              ( len == 4 && ::strncasecmp( units, "usec", 4 ) == 0 ) ||
+              ( len == 8 && ::strncasecmp( units, "microsec", 8 ) == 0 ) ||
+              ( len == 11&& ::strncasecmp( units, "microsecond", 11 ) == 0 ) ) {
+      res = US;
+      off += len;
+    }
+    else if ( ( len == 2 && ::strncasecmp( units, "wk", 2 ) == 0 ) ||
+              ( len == 4 && ::strncasecmp( units, "week", 4 ) == 0 ) ) {
+      res = WEEK;
+      off += len;
+    }
+    else if ( ( len == 1 && ::strncasecmp( units, "d", 1 ) == 0 ) ||
+              ( len == 3 && ::strncasecmp( units, "day", 3 ) == 0 ) ) {
+      res = DAY;
+      off += len;
+    }
+    else if ( ( len == 1 && ::strncasecmp( units, "h", 1 ) == 0 ) ||
+              ( len == 2 && ::strncasecmp( units, "hr", 2 ) == 0 ) ||
+              ( len == 4 && ::strncasecmp( units, "hour", 4 ) == 0 ) ) {
+      res = HOUR;
+      off += len;
+    }
+    else if ( ( len == 1 && ::strncasecmp( units, "m", 1 ) == 0 ) ||
+              ( len == 3 && ::strncasecmp( units, "min", 3 ) == 0 ) ||
+              ( len == 6 && ::strncasecmp( units, "minute", 6 ) == 0 ) ) {
+      res = MINUTE;
+      off += len;
+    }
+    else if ( ( len == 3 && ::strncasecmp( units, "mon", 3 ) == 0 ) ||
+              ( len == 5 && ::strncasecmp( units, "month", 5 ) == 0 ) ) {
+      res = MONTH;
+      off += len;
+    }
+    else if ( ( len == 2 && ::strncasecmp( units, "yr", 2 ) == 0 ) ||
+              ( len == 4 && ::strncasecmp( units, "year", 4 ) == 0 ) ) {
+      res = YEAR;
+      off += len;
+    }
+    else if ( ( len == 1 && ::strncasecmp( units, "s", 1 ) == 0 ) ||
+              ( len == 3 && ::strncasecmp( units, "sec", 3 ) == 0 ) ||
+              ( len == 6 && ::strncasecmp( units, "second", 6 ) == 0 ) ) {
+      res = 1;
+      off += len;
+    }
+    flen -= off;
+  }
+  if ( d.parse( fptr, flen ) == 0 ) {
+    MDReference mref;
+    mref.zero();
+    mref.fptr     = (uint8_t *) (void *) &d;
+    mref.ftype    = MD_DECIMAL;
+    mref.fsize    = sizeof( d );
+    mref.fendian  = md_endian;
+
+    if ( res != 1 ) {
+      if ( res == MS )
+        decimal_shift( d, 3 );
+      else if ( res == US )
+        decimal_shift( d, 6 );
+      else if ( res == NS )
+        decimal_shift( d, 9 );
+      else if ( res == WEEK )
+        decimal_mult( d, WEEK );
+      else if ( res == DAY )
+        decimal_mult( d, DAY );
+      else if ( res == HOUR )
+        decimal_mult( d, HOUR );
+      else if ( res == MINUTE )
+        decimal_mult( d, MINUTE );
+      else if ( res == MONTH )
+        decimal_mult( d, MONTH );
+      else if ( res == YEAR )
+        decimal_mult( d, YEAR );
+    }
+    return this->get_stamp( mref );
+  }
+  if ( dt.parse( fptr, flen ) == 0 ) {
+    this->stamp = dt.to_utc( is_gm_time );
+    this->resolution = MD_RES_SECONDS;
+    return 0;
+  }
+  return Err::BAD_STAMP;
+}
+
+uint64_t
+MDStamp::seconds( void ) const noexcept
+{
+  uint8_t  r = this->resolution;
+  uint64_t s = this->stamp;
+  if ( r > MD_RES_SECONDS ) {
+    if ( r <= MD_RES_NANOSECS ) {
+      while ( r > MD_RES_SECONDS ) {
+        s /= 1000;
+        r--;
+      }
+    }
+    else if ( r == MD_RES_MINUTES )
+      s *= 60;
+    else if ( r == MD_RES_NULL )
+      s = 0;
+  }
+  return s;
+}
+
+uint64_t
+MDStamp::millis( void ) const noexcept
+{
+  uint8_t  r = this->resolution;
+  uint64_t s = this->stamp;
+  if ( r >= MD_RES_MILLISECS ) {
+    if ( r <= MD_RES_NANOSECS ) {
+      while ( r > MD_RES_MILLISECS ) {
+        s /= 1000;
+        r--;
+      }
+    }
+    else if ( r == MD_RES_MINUTES )
+      s *= 60;
+    else if ( r == MD_RES_NULL )
+      s = 0;
+  }
+  else {
+    s *= 1000;
+  }
+  return s;
+}
+
+uint64_t
+MDStamp::micros( void ) const noexcept
+{
+  uint8_t  r = this->resolution;
+  uint64_t s = this->stamp;
+  if ( r >= MD_RES_MICROSECS ) {
+    if ( r <= MD_RES_NANOSECS ) {
+      if ( r > MD_RES_MICROSECS )
+        s /= 1000;
+    }
+    else if ( r == MD_RES_MINUTES )
+      s *= 60 * 1000 * 1000;
+    else if ( r == MD_RES_NULL )
+      s = 0;
+  }
+  else {
+    while ( r < MD_RES_MICROSECS ) {
+      s *= 1000;
+      r++;
+    }
+  }
+  return s;
+}
+
+uint64_t
+MDStamp::nanos( void ) const noexcept
+{
+  uint8_t  r = this->resolution;
+  uint64_t s = this->stamp;
+  if ( r >= MD_RES_NANOSECS ) {
+    if ( r == MD_RES_MINUTES )
+      s *= (uint64_t) 60 * 1000 * 1000 * 1000;
+    else if ( r == MD_RES_NULL )
+      s = 0;
+  }
+  else {
+    while ( r < MD_RES_NANOSECS ) {
+      s *= 1000;
+      r++;
+    }
+  }
+  return s;
 }
 
 int
@@ -1471,6 +1962,23 @@ bad_dec:;
   return 0;
 out_of_space:;
   return 0;
+}
+
+size_t
+MDStamp::get_string( char *str,  size_t len ) const noexcept
+{
+  MDDecimal d;
+
+  d.ival = (int64_t) this->stamp;
+  d.hint = MD_DEC_INTEGER;
+  switch ( this->resolution ) {
+    case MD_RES_MILLISECS: d.hint = MD_DEC_LOGn10_3; break;
+    case MD_RES_MICROSECS: d.hint = MD_DEC_LOGn10_6; break;
+    case MD_RES_NANOSECS:  d.hint = MD_DEC_LOGn10_9; break;
+    case MD_RES_MINUTES:   d.ival *= 60; break;
+    case MD_RES_NULL:      d.hint = MD_DEC_NULL; break;
+  }
+  return d.get_string( str, len, false );
 }
 
 int
@@ -1843,6 +2351,18 @@ try_again:;
         success = ( parse_month( fptr, 2, m ) &&
                     parse_day( &fptr[ 3 ], 2, d ) &&
                     get_current_year( m, d, yr ) );
+      /* Jul 1, 2013 */
+      if ( ! success && fptr[ 3 ] == ' ' &&
+                        fptr[ 5 ] == ',' && fptr[ 6 ] == ' ' )
+        success = ( parse_month( fptr, 3, m ) &&
+                    parse_day( &fptr[ 4 ], 1, d ) &&
+                    parse_year( &fptr[ 7 ], 4, yr ) );
+      break;
+    case 12: /* Jul 11, 2013 */
+      if ( fptr[ 3 ] == ' ' && fptr[ 6 ] == ',' && fptr[ 7 ] == ' ' )
+        success = ( parse_month( fptr, 3, m ) &&
+                    parse_day( &fptr[ 4 ], 2, d ) &&
+                    parse_year( &fptr[ 8 ], 4, yr ) );
       break;
     case 0: /* null */
       return 0;
@@ -1948,7 +2468,7 @@ cpy3( char *ptr,  size_t len,  uint32_t t1, const char *mon1,
 }
 
 size_t
-MDTime::get_string( char *str,  size_t len ) noexcept
+MDTime::get_string( char *str,  size_t len ) const noexcept
 {
   uint32_t places, digit;
   size_t   n = 0;
@@ -2000,7 +2520,7 @@ MDTime::get_string( char *str,  size_t len ) noexcept
 
 
 size_t
-MDDate::get_string( char *str,  size_t len,  MDDateFormat fmt ) noexcept
+MDDate::get_string( char *str,  size_t len,  MDDateFormat fmt ) const noexcept
 {
   static const char *MONTH_STR[] = {
    0, "JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC" };
@@ -2092,5 +2612,84 @@ MDDate::get_string( char *str,  size_t len,  MDDateFormat fmt ) noexcept
     }
   }
   return cpy3( str, len, t1, mon1, sep1, t2, mon2, sep2, t3, mon3 );
+}
+
+uint64_t
+MDDate::to_utc( bool is_gm_time ) noexcept
+{
+  struct tm tmbuf;
+  time_t t;
+
+  ::memset( &tmbuf, 0, sizeof( tmbuf ) );
+  if ( this->year == 0 || this->mon == 0 || this->day == 0 ) {
+    t = ::time( NULL );
+    if ( is_gm_time )
+      ::gmtime_r( &t, &tmbuf );
+    else
+      ::localtime_r( &t, &tmbuf );
+    tmbuf.tm_sec = 0;
+    tmbuf.tm_min = 0;
+    tmbuf.tm_hour = 0;
+    tmbuf.tm_wday = 0;
+    tmbuf.tm_yday = 0;
+  }
+  if ( this->year != 0 )
+    tmbuf.tm_year  = this->year - 1900;
+  if ( this->mon != 0 )
+    tmbuf.tm_mon   = this->mon - 1; /* range 1 -> 12 */
+  if ( this->day != 0 )
+    tmbuf.tm_mday  = this->day;
+  tmbuf.tm_isdst = -1;
+
+  if ( is_gm_time )
+    t = ::timegm( &tmbuf );
+  else
+    t = ::mktime( &tmbuf );
+  if ( t == -1 )
+    return 0;
+  return (uint64_t) t;
+}
+
+uint64_t
+MDTime::to_utc( MDDate *dt,  bool is_gm_time ) noexcept
+{
+  struct tm tmbuf;
+  time_t t;
+  bool   next_day = false;
+
+  ::memset( &tmbuf, 0, sizeof( tmbuf ) );
+
+  if ( dt == NULL || dt->year == 0 || dt->mon == 0 || dt->day == 0 ) {
+    t = ::time( NULL );
+    if ( is_gm_time )
+      ::gmtime_r( &t, &tmbuf );
+    else
+      ::localtime_r( &t, &tmbuf );
+
+    if ( dt == NULL && this->hour < tmbuf.tm_hour )
+      next_day = true;
+  }
+  else {
+    tmbuf.tm_isdst = -1;
+  }
+  if ( dt != NULL && dt->year != 0 )
+    tmbuf.tm_year  = dt->year - 1900;
+  if ( dt != NULL && dt->mon != 0 )
+    tmbuf.tm_mon   = dt->mon - 1; /* range 1 -> 12 */
+  if ( dt != NULL && dt->day != 0 )
+    tmbuf.tm_mday  = dt->day;
+
+  tmbuf.tm_hour = this->hour;
+  tmbuf.tm_min  = this->min;
+  tmbuf.tm_sec  = this->sec;
+  if ( is_gm_time )
+    t = ::timegm( &tmbuf );
+  else
+    t = ::mktime( &tmbuf );
+  if ( t == -1 )
+    return 0;
+  if ( next_day )
+    return t + ( 24 * 60 * 60 );
+  return (uint64_t) t;
 }
 

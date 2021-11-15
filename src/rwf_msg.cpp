@@ -126,9 +126,10 @@ inline void
 RwfFieldIter::lookup_fid( void ) noexcept
 {
   if ( this->ftype == MD_NODATA ) {
+    uint8_t flags;
     if ( this->iter_msg.dict != NULL )
       this->iter_msg.dict->lookup( this->fid, this->ftype, this->fsize,
-                                   this->fnamelen, this->fname );
+                                   flags, this->fnamelen, this->fname );
     if ( this->ftype == MD_NODATA ) { /* undefined fid or no dictionary */
       this->ftype    = MD_OPAQUE;
       this->fname    = NULL;
@@ -411,7 +412,8 @@ RwfFieldIter::find( const char *name,  size_t name_len,
     MDFid    fid;
     MDType   ftype;
     uint32_t fsize;
-    if ( this->iter_msg.dict->get( name, name_len, fid, ftype, fsize ) ) {
+    uint8_t  flags;
+    if ( this->iter_msg.dict->get( name, name_len, fid, ftype, fsize, flags )) {
       if ( (status = this->first()) == 0 ) {
         do {
           if ( this->fid == fid )
@@ -502,8 +504,9 @@ RwfMsgWriter::append_ival( const char *fname,  size_t fname_len,
   uint32_t fsize;
   MDType   ftype;
   MDFid    fid;
+  uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize ) )
+  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
     return Err::UNKNOWN_FID;
   if ( ftype == MD_UINT || ftype == MD_INT ||
        ftype == MD_ENUM || ftype == MD_BOOLEAN )
@@ -524,11 +527,12 @@ RwfMsgWriter::append_ival( MDFid fid,  const void *ival, size_t ilen,
                            MDType t ) noexcept
 {
   const char * fname;
-  uint8_t      fname_len;
+  uint8_t      fname_len,
+               flags;
   uint32_t     fsize;
   MDType       ftype;
 
-  if ( ! this->dict->lookup( fid, ftype, fsize, fname_len, fname ) )
+  if ( ! this->dict->lookup( fid, ftype, fsize, flags, fname_len, fname ) )
     return Err::UNKNOWN_FID;
   if ( ftype == MD_UINT || ftype == MD_ENUM || ftype == MD_BOOLEAN )
     return this->pack_uval( fid, (const uint8_t *) ival, ilen );
@@ -720,11 +724,12 @@ int
 RwfMsgWriter::append_ref( MDFid fid,  MDReference &mref ) noexcept
 {
   const char * fname;
-  uint8_t      fname_len;
+  uint8_t      fname_len,
+               flags;
   uint32_t     fsize;
   MDType       ftype;
 
-  if ( ! this->dict->lookup( fid, ftype, fsize, fname_len, fname ) )
+  if ( ! this->dict->lookup( fid, ftype, fsize, flags, fname_len, fname ) )
     return Err::UNKNOWN_FID;
   return this->append_ref( fid, ftype, fsize, mref );
 }
@@ -736,8 +741,9 @@ RwfMsgWriter::append_ref( const char *fname,  size_t fname_len,
   uint32_t fsize;
   MDType   ftype;
   MDFid    fid;
+  uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize ) )
+  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
     return Err::UNKNOWN_FID;
   return this->append_ref( fid, ftype, fsize, mref );
 }
@@ -968,11 +974,12 @@ int
 RwfMsgWriter::append_decimal( MDFid fid,  MDDecimal &dec ) noexcept
 {
   const char * fname;
-  uint8_t      fname_len;
+  uint8_t      fname_len,
+               flags;
   uint32_t     fsize;
   MDType       ftype;
 
-  if ( ! this->dict->lookup( fid, ftype, fsize, fname_len, fname ) )
+  if ( ! this->dict->lookup( fid, ftype, fsize, flags, fname_len, fname ) )
     return Err::UNKNOWN_FID;
   return this->append_decimal( fid, ftype, fsize, dec );
 }
@@ -981,11 +988,12 @@ int
 RwfMsgWriter::append_time( MDFid fid,  MDTime &time ) noexcept
 {
   const char * fname;
-  uint8_t      fname_len;
+  uint8_t      fname_len,
+               flags;
   uint32_t     fsize;
   MDType       ftype;
 
-  if ( ! this->dict->lookup( fid, ftype, fsize, fname_len, fname ) )
+  if ( ! this->dict->lookup( fid, ftype, fsize, flags, fname_len, fname ) )
     return Err::UNKNOWN_FID;
   return this->append_time( fid, ftype, fsize, time );
 }
@@ -994,11 +1002,12 @@ int
 RwfMsgWriter::append_date( MDFid fid,  MDDate &date ) noexcept
 {
   const char * fname;
-  uint8_t      fname_len;
+  uint8_t      fname_len,
+               flags;
   uint32_t     fsize;
   MDType       ftype;
 
-  if ( ! this->dict->lookup( fid, ftype, fsize, fname_len, fname ) )
+  if ( ! this->dict->lookup( fid, ftype, fsize, flags, fname_len, fname ) )
     return Err::UNKNOWN_FID;
   return this->append_date( fid, ftype, fsize, date );
 }
@@ -1010,8 +1019,9 @@ RwfMsgWriter::append_decimal( const char *fname,  size_t fname_len,
   uint32_t fsize;
   MDType   ftype;
   MDFid    fid;
+  uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize ) )
+  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
     return Err::UNKNOWN_FID;
   return this->append_decimal( fid, ftype, fsize, dec );
 }
@@ -1023,8 +1033,9 @@ RwfMsgWriter::append_time( const char *fname,  size_t fname_len,
   uint32_t fsize;
   MDType   ftype;
   MDFid    fid;
+  uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize ) )
+  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
     return Err::UNKNOWN_FID;
   return this->append_time( fid, ftype, fsize, time );
 }
@@ -1036,8 +1047,9 @@ RwfMsgWriter::append_date( const char *fname,  size_t fname_len,
   uint32_t fsize;
   MDType   ftype;
   MDFid    fid;
+  uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize ) )
+  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
     return Err::UNKNOWN_FID;
   return this->append_date( fid, ftype, fsize, date );
 }

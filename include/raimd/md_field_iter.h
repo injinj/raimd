@@ -16,6 +16,7 @@ struct MDFieldIter { /* generic field iterator */
 
   /* these fuctions implemented in subclass */
   virtual int get_name( MDName &name ) noexcept;
+  virtual int copy_name( char *name,  size_t &name_len,  MDFid &fid ) noexcept;
   virtual int get_reference( MDReference &mref ) noexcept;
   virtual int get_hint_reference( MDReference &mref ) noexcept;
   virtual int get_enum( MDReference &mref, MDEnum &enu ) noexcept;
@@ -25,6 +26,7 @@ struct MDFieldIter { /* generic field iterator */
   virtual int next( void ) noexcept;
 
   /* escaped strings is used for json escaping */
+  size_t fname_string( char *fname_buf,  size_t &fname_len ) noexcept;
   int print( MDOutput *out, int indent_newline, const char *fname_fmt,
              const char *type_fmt ) noexcept;
   int print( MDOutput *out ) {

@@ -80,13 +80,12 @@ RvMsg::unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
 
   if ( magic != 0x9955eeaaU || msg_size < 8 )
     return NULL;
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-
   size_t end2 = off + msg_size;
   void * ptr;
   if ( end2 > end )
     return NULL;
+  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
+    m->ref_cnt++;
   m->alloc( sizeof( RvMsg ), &ptr );
   return new ( ptr ) RvMsg( bb, off, end2, d, m );
 }
@@ -102,14 +101,13 @@ RvMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
 
   if ( magic != 0x9955eeaaU || msg_size < 8 )
     return NULL;
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-
   /* check if another message is the first opaque field of the RvMsg */
   size_t off2 = off + 8,
          end2 = off + msg_size;
   if ( end2 > end )
     return NULL;
+  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
+    m->ref_cnt++;
   MDMsg *msg = RvMsg::opaque_extract( (uint8_t *) bb, off2, end2, d, m );
   if ( msg == NULL ) {
     void * ptr;

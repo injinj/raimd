@@ -40,7 +40,7 @@ struct MDHexDump {
       k >>= 4;
     }
   }
-  uint32_t fill_line( const void *ptr,  uint64_t off,  uint64_t len ) {
+  uint32_t fill_line( const void *ptr,  size_t off,  size_t len ) {
     while ( off < len && this->boff < 16 ) {
       uint8_t b = ((uint8_t *) ptr)[ off++ ];
       this->line[ this->hex ]   = hex_char( b >> 4 );
@@ -54,6 +54,7 @@ struct MDHexDump {
     }
     return off;
   }
+  static void print_hex( const void *buf,  size_t buflen ) noexcept;
 };
 
 }

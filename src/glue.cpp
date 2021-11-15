@@ -175,9 +175,8 @@ extern "C"
 void
 md_init_auto_unpack( void )
 {
-  static int auto_unpack;
-  if ( ! auto_unpack ) {
-    auto_unpack = 1;
+  static int auto_unpack, auto_ready;
+  if ( ! __sync_fetch_and_add( &auto_unpack, 1 ) ) {
     JsonMsg::init_auto_unpack();
     GeoMsg::init_auto_unpack();
     HashMsg::init_auto_unpack();
@@ -193,5 +192,13 @@ md_init_auto_unpack( void )
     size_t i;
     for ( i = 0; i < sizeof( basic_match ) / sizeof( basic_match[ 0 ] ); i++ )
       MDMsg::add_match( basic_match[ i ] );
+
+    __sync_synchronize();
+    __sync_fetch_and_add( &auto_ready, 1 );
+  }
+  else {
+    while ( ! __sync_fetch_and_add( &auto_ready, 0 ) )
+      ;
+    __sync_synchronize();
   }
 }

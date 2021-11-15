@@ -17,11 +17,19 @@ static const bool is_little_endian = true;
 
 struct MDMsg;
 struct MDReference;
+struct MDDate;
+
+enum MDOutputHint {
+  MD_OUTPUT_OPAQUE_TO_HEX = 1,/* instead of excaping opaque, print hex */
+  MD_OUTPUT_OPAQUE_TO_B64 = 2
+};
 struct MDOutput {
-  MDOutput() {}
+  int output_hints;
+  MDOutput( int hints = 0 ) : output_hints( hints ) {}
   virtual int puts( const char *s ) noexcept; /* funcs send output to stdout */
   virtual int printf( const char *fmt, ... ) noexcept;
-  int print_hex( const void *buf,  size_t buflen ) noexcept; /* print hex buf */
+  int print_hex( const void *buf,  size_t buflen ) noexcept;
+  int print_hex( const MDMsg *m ) noexcept; /* print hex buf */
   int indent( int i ) { /* message data indented */
     if ( i > 0 )
       return this->printf( "%*s", i, "" );
@@ -63,6 +71,11 @@ enum MDEndian {
   MD_BIG    = 1  /* sparc, big first */
 };
 
+enum MDFlags {
+  MD_PRIMITIVE = 1,
+  MD_FIXED     = 2
+};
+
 /* what is endian of the cpu */
 static const MDEndian md_endian = ( is_little_endian ? MD_LITTLE : MD_BIG );
 
@@ -80,6 +93,13 @@ struct MDName {
   size_t       fnamelen; /* length of fname: 0 is null, 1 is empty string */
   MDFid        fid;      /* fid of the field, if 0 than not defined */
 
+  MDName() {}
+  MDName( const char *f,  size_t l = 0,  MDFid i = 0 ) {
+    this->fname = f;
+    if ( (this->fnamelen = l) == 0 )
+      this->fnamelen = ::strlen( f ) + 1;
+    this->fid = i;
+  }
   void zero( void ) {
     this->fname    = NULL;
     this->fnamelen = 0;
@@ -171,7 +191,7 @@ struct MDTime {
     : hour( h ), min( m ), sec( s ), resolution( r ), fraction( f ) {}
   int parse( const char *fptr, const size_t fsize ) noexcept;
   void zero( void ) { hour = 0; min = 0; sec = 0; resolution = 0; fraction = 0;}
-  size_t get_string( char *str,  size_t len ) noexcept;
+  size_t get_string( char *str,  size_t len ) const noexcept;
   bool is_null( void ) const { return ( this->resolution & MD_RES_NULL ) != 0; }
   uint8_t res( void ) const { return this->resolution & ~MD_RES_NULL; }
   const char *res_string( void ) {
@@ -179,6 +199,7 @@ struct MDTime {
     return res_str[ this->res() & 7 ];
   }
   int get_time( const MDReference &mref ) noexcept;
+  uint64_t to_utc( MDDate *dt = NULL, bool is_gm_time = false ) noexcept;
 };
 
 enum MDDateFormat { /* formats for converting MDDate to string */
@@ -236,24 +257,30 @@ struct MDDate {
   MDDate( uint16_t y,  uint8_t m,  uint8_t d ) : year( y ), mon( m ), day( d ) {}
   void zero( void ) { year = 0; mon = 0; day = 0; }
   size_t get_string( char *str,  size_t len,
-                     MDDateFormat fmt = MD_DATE_FMT_default ) noexcept;
+                     MDDateFormat fmt = MD_DATE_FMT_default ) const noexcept;
   bool is_null( void ) const { return this->year == 0 && this->mon == 0 &&
                                       this->day == 0; }
   static int parse_format( const char *s,  MDDateFormat &fmt ) noexcept;
   int parse( const char *fptr,  const size_t flen ) noexcept;
   int get_date( const MDReference &mref ) noexcept;
+  uint64_t to_utc( bool is_gm_time = false ) noexcept;
 };
 
-/* XXX not used at the moment */
 struct MDStamp {
   uint64_t stamp;      /* UTC stamp */
   uint8_t  resolution; /* resolution of stamp (nsecs, usecs, msecs, secs) */
   MDStamp() {}
   MDStamp( uint64_t s,  uint8_t r ) : stamp( s ), resolution( r ) {}
   void zero( void ) { this->stamp = 0; this->resolution = 0; }
-  size_t get_string( char *str,  size_t len ) noexcept;
+  size_t get_string( char *str,  size_t len ) const noexcept;
+  int parse( const char *fptr,  size_t flen, bool is_gm_time = false ) noexcept;
+  int get_stamp( const MDReference &mref ) noexcept;
   bool is_null( void ) const { return ( this->resolution & MD_RES_NULL ) != 0; }
   uint8_t res( void ) const { return this->resolution & ~MD_RES_NULL; }
+  uint64_t seconds( void ) const noexcept;
+  uint64_t millis( void ) const noexcept;
+  uint64_t micros( void ) const noexcept;
+  uint64_t nanos( void ) const noexcept;
 };
 
 struct MDEnum {
@@ -275,11 +302,16 @@ struct MDReference {
   MDType    fentrytp; /* if array, the element type */
   uint8_t   fentrysz; /* the size of each element, fsize is the entire array */
 
-  void zero( void ) {
-    this->fptr     = NULL;
-    this->fsize    = 0;
-    this->ftype    = MD_NODATA;
-    this->fendian  = MD_LITTLE;
+  void zero() {
+    this->set();
+  }
+
+  void set( void *fp = NULL,  size_t sz = 0,  MDType ft = MD_NODATA,
+            MDEndian end = MD_LITTLE ) {
+    this->fptr     = (uint8_t *) fp;
+    this->fsize    = sz;
+    this->ftype    = ft;
+    this->fendian  = end;
     this->fentrytp = MD_NODATA;
     this->fentrysz = 0;
   }
@@ -356,7 +388,8 @@ namespace Err {
     FILE_NOT_FOUND        = 40, /* File not found */
     DICT_PARSE_ERROR      = 41, /* Dictionary parse error */
     ALLOC_FAIL            = 42, /* Allocation failed */
-    BAD_SUBJECT           = 43  /* Bad subject */
+    BAD_SUBJECT           = 43, /* Bad subject */
+    BAD_FORMAT            = 44  /* Bad msg structure */
   };
   MDError err( int status ) noexcept;
 }

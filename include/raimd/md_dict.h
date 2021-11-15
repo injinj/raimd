@@ -82,7 +82,7 @@ struct MDDict {
                              uint32_t seed ) noexcept;
   /* lookup fid, return {type, size, name/len} if found */
   bool lookup( MDFid fid,  MDType &ftype,  uint32_t &fsize,
-               uint8_t &fnamelen,  const char *&fname ) const {
+               uint8_t &flags,  uint8_t &fnamelen,  const char *&fname ) const {
     if ( fid < this->min_fid || fid > this->max_fid )
       return false;
 
@@ -111,7 +111,8 @@ struct MDDict {
     /* get the type/size using the type_idx from the type table */
     const uint32_t * ttab = (const uint32_t *) (void *) &this[ 1 ];
     ftype     = (MDType) ( ttab[ type_idx ] & 0x1f );
-    fsize     = ttab[ type_idx ] >> 5;
+    flags     = ( ttab[ type_idx ] >> 5 ) & 0x3;
+    fsize     = ttab[ type_idx ] >> 7;
     /* get the field name */
     const uint8_t * fntab =
       &((const uint8_t *) (void *) this)[ this->fname_off ];
@@ -122,7 +123,7 @@ struct MDDict {
 
   /* get a field by name, return {fid, type, size} if found */
   bool get( const char *fname,  uint8_t fnamelen,  MDFid &fid,  MDType &ftype,
-            uint32_t &fsize ) const {
+            uint32_t &fsize,  uint8_t &flags ) const {
     uint32_t h = dict_hash( fname, fnamelen, 0 ) & ( this->ht_size - 1 );
 
     uint32_t bits = this->fid_bits, /* size in bits of each hash entry */
@@ -145,7 +146,7 @@ struct MDDict {
         return false;
       val = val + this->min_fid - 1;
       /* val is the fid contained at this position */
-      if ( this->lookup( val, ftype, fsize, len, fn ) ) {
+      if ( this->lookup( val, ftype, fsize, flags, len, fn ) ) {
         if ( len == fnamelen && ::memcmp( fn, fname, len ) == 0 ) {
           fid = val;
           return true;
@@ -178,9 +179,10 @@ struct MDDictBuild {
   ~MDDictBuild() noexcept;
 
   MDDictIdx *get_dict_idx( void ) noexcept;
-  int add_entry( MDFid fid,  uint32_t fsize,  MDType ftype,  const char *fname,
-                 const char *name,  const char *ripple,  const char *filename,
-                 uint32_t lineno,  MDDictEntry **eret = NULL ) noexcept;
+  int add_entry( MDFid fid,  uint32_t fsize,  MDType ftype,  uint8_t flags,
+                 const char *fname,  const char *name,  const char *ripple,
+                 const char *filename,  uint32_t lineno,
+                 MDDictEntry **eret = NULL ) noexcept;
   int add_enum_map( uint32_t map_num,  uint16_t max_value,  uint32_t value_cnt,
                     uint16_t *value,  uint16_t val_len, uint8_t *map ) noexcept;
   int index_dict( const char *dtype,  MDDict *&dict ) noexcept;
@@ -251,17 +253,18 @@ struct MDDictEntry {
   uint8_t       fnamelen,  /* len of fname (including nul char) */
                 namelen,   /* len of name */
                 ripplelen, /* len of ripple */
-                enum_len,
-                mf_type,
-                rwf_type;
-  uint16_t      mf_len,
-                rwf_len;
+                enum_len,  /* len of enum string */
+                mf_type,   /* MF_TIME, MF_ALPHANUMERIC, .. */
+                rwf_type,  /* RWF_REAL, RWF_ENUM, ... */
+                fld_flags; /* is_primitive, is_fixed */
+  uint16_t      mf_len;    /* size of field mf data (string length) */
+  uint32_t      rwf_len;   /* size of field rwf data (binary coded) */
   char          buf[ DICT_BUF_PAD ]; /* fname, name, ripple */
   void * operator new( size_t, void *ptr ) { return ptr; }
   MDDictEntry() : next( 0 ), fid( 0 ), fsize( 0 ), fno( 0 ), hash( 0 ),
                   ftype( MD_NODATA ), fnamelen( 0 ), namelen( 0 ),
                   ripplelen( 0 ), enum_len( 0 ), mf_type( 0 ), rwf_type( 0 ),
-                  mf_len( 0 ), rwf_len( 0 ) {}
+                  fld_flags( 0 ), mf_len( 0 ), rwf_len( 0 ) {}
   const char *fname( void ) const {
     return this->buf;
   }
@@ -306,11 +309,13 @@ struct MDTypeHash {
 
   uint32_t find( uint32_t x ) noexcept; /* find element, return index of type */
 
-  bool insert( MDType ftype,  uint32_t fsize ) {
-    return this->insert( ( fsize << 5 ) | (uint32_t) ftype );
+  bool insert( MDType ftype,  uint32_t fsize,  uint8_t flags ) {
+    return this->insert( ( fsize << 7 ) | ( (uint32_t) ( flags & 3 ) << 5 ) |
+                                            (uint32_t) ftype );
   }
-  uint32_t find( MDType ftype,  uint32_t fsize ) {
-    return this->find( ( fsize << 5 ) | (uint32_t) ftype );
+  uint32_t find( MDType ftype,  uint32_t fsize,  uint8_t flags ) {
+    return this->find( ( fsize << 7 ) | ( (uint32_t) ( flags & 3 ) << 5 ) |
+                                          (uint32_t) ftype );
   }
 };
 
@@ -391,31 +396,36 @@ struct MDDictIdx {
 };
 
 struct DictParser {
-  DictParser * next;
-  FILE       * fp;
-  size_t       off,
-               len,
-               tok_sz;
-  int          tok,
-               lineno,
-               col,
-               br_level;
-  bool         is_eof;
-  char         buf[ 1024 ],
-               tok_buf[ 1024 ],
-               fname[ 1024 ];
-  static const int EOF_CHAR = 256;
-  const int    int_tok,
-               ident_tok,
-               error_tok;
+  DictParser * next;       /* list of files pushed after included */
+  FILE       * fp;         /* fopen of file */
+  const char * str_input;  /* when input from a string */
+  size_t       str_size,   /* size left of input string */
+               off,        /* index into buf[] where reading */
+               len,        /* length of buf[] filled */
+               tok_sz;     /* length of tok_buf[] token */
+  int          tok,        /* token kind enumerated */
+               lineno,     /* current line of input */
+               col,        /* current column of input */
+               br_level;   /* brace level == 0, none > 1 ( deep ) */
+  bool         is_eof;     /* consumed all of file */
+  char         buf[ 1024 ],        /* current input block */
+               tok_buf[ 1024 ],    /* current token */
+               fname[ 1024 ];      /* current file name */
+  static const int EOF_CHAR = 256; /* int value signals end of file */
+  const int    int_tok,    /* int value of token */
+               ident_tok,  /* token enum for identifier */
+               error_tok;  /* token enum for error */
 
   DictParser( const char *p,  int intk,  int identk,  int errk ) :
-      next( 0 ), fp( 0 ), off( 0 ), len( 0 ), tok_sz( 0 ), col( 0 ),
-      br_level( 0 ), is_eof( false ),
+      next( 0 ), fp( 0 ), str_input( 0 ), str_size( 0 ), off( 0 ), len( 0 ),
+      tok_sz( 0 ), col( 0 ), br_level( 0 ), is_eof( false ),
       int_tok( intk ), ident_tok( identk ), error_tok( errk ) {
-    size_t len = ::strlen( p );
-    if ( len > sizeof( this->fname ) - 1 )
-      len = sizeof( this->fname ) - 1;
+    size_t len = 0;
+    if ( p != NULL ) {
+      len = ::strlen( p );
+      if ( len > sizeof( this->fname ) - 1 )
+        len = sizeof( this->fname ) - 1;
+    }
     ::memcpy( this->fname, p, len );
     this->fname[ len ] = '\0';
     this->tok    = -1;

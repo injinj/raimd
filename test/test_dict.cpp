@@ -47,7 +47,41 @@ main( int argc, char **argv )
       dict_build.index_dict( "cfile", dict );
       test_lookup( dict_build, dict );
     }
+    MDDict * str_dict = NULL;
+    dict_build.clear_build();
+const char *str =
+"test        { CLASS_ID    0; DATA_SIZE 4; DATA_TYPE 20; }\n"
+"session     { CLASS_ID    1; DATA_SIZE 128; IS_FIXED false; DATA_TYPE 2; }\n"
+"digest      { CLASS_ID    2; DATA_SIZE 16; DATA_TYPE 11; }\n"
+"auth_digest { CLASS_ID    3; DATA_SIZE 16; DATA_TYPE 11; }\n"
+"cnonce      { CLASS_ID    4; DATA_SIZE 16; DATA_TYPE 11; }\n"
+
+"seqno       { CLASS_ID    5; DATA_SIZE 4; DATA_TYPE 20; }\n"
+"seqno_8     { CLASS_ID  261; DATA_SIZE 8; DATA_TYPE 21; }\n"
+
+"sub_seqno   { CLASS_ID    6; DATA_SIZE 4; DATA_TYPE 20; }\n"
+"sub_seqno_8 { CLASS_ID  262; DATA_SIZE 8; DATA_TYPE 21; }\n"
+
+"time        { CLASS_ID    7; DATA_SIZE 4; DATA_TYPE 20; }\n"
+"time_8      { CLASS_ID  263; DATA_SIZE 8; DATA_TYPE 21; }\n"
+
+"interval    { CLASS_ID    8; DATA_SIZE 2; DATA_TYPE 19; }\n"
+"interval_4  { CLASS_ID  264; DATA_SIZE 4; DATA_TYPE 20; }\n"
+
+"type        { CLASS_ID    9; DATA_SIZE 2; DATA_TYPE 19; }\n"
+"type_4      { CLASS_ID  265; DATA_SIZE 4; DATA_TYPE 20; }\n"
+
+"status      { CLASS_ID   10; DATA_SIZE 2; DATA_TYPE 19; }\n"
+"status_4    { CLASS_ID  266; DATA_SIZE 4; DATA_TYPE 20; }\n"
+
+"ret         { CLASS_ID   11; DATA_SIZE 2; DATA_TYPE 19; }\n"
+"ret_4       { CLASS_ID  267; DATA_SIZE 4; DATA_TYPE 20; }\n";
+
+    CFile::parse_string( dict_build, str, ::strlen( str ) );
+    dict_build.index_dict( "cfile", str_dict );
+    test_lookup( dict_build, str_dict );
   }
+
   return 0;
 }
 
@@ -59,7 +93,7 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict )
   uint8_t fnamelen;
   MDFid fid, fid2;
   const char *fname;
-  uint8_t shft, algn;
+  uint8_t shft, algn, flags, flags2;
 #if 0
   for ( uint16_t fid = 0; fid < 0x4000; fid++ ) {
     if ( dict->lookup( fid, ftype, fsize, fnamelen, fname ) ) {
@@ -85,12 +119,12 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict )
 
   for ( MDDictEntry *fp = dict_build.idx->entry_q.hd; fp != NULL;
         fp = fp->next ) {
-    if ( ! dict->lookup( fp->fid, ftype, fsize, fnamelen, fname ) ) {
+    if ( ! dict->lookup( fp->fid, ftype, fsize, flags, fnamelen, fname ) ) {
       printf( "fid %u not found\n", fp->fid );
       break;
     }
     if ( fp->ftype != (MDType) ftype || fp->fsize != fsize ||
-         fp->fnamelen != fnamelen ||
+         fp->fld_flags != flags || fp->fnamelen != fnamelen ||
          ::memcmp( fp->fname(), fname, fnamelen ) != 0 ) {
       printf( "fid %u not equal\n", fp->fid );
       printf( "ftype %u fsize %u fnamelen %u\n",
@@ -113,9 +147,9 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict )
   fidcnt = 0;
   for ( fid = dict_build.idx->min_fid;
         fid <= dict_build.idx->max_fid; fid++ ) {
-    if ( dict->lookup( fid, ftype, fsize, fnamelen, fname ) ) {
-      if ( dict->get( fname, fnamelen, fid2, ftype2, fsize2 ) ) {
-        if ( fid == fid2 && ftype == ftype2 && fsize == fsize2 )
+    if ( dict->lookup( fid, ftype, fsize, flags, fnamelen, fname ) ) {
+      if ( dict->get( fname, fnamelen, fid2, ftype2, fsize2, flags2 ) ) {
+        if ( fid == fid2 && ftype == ftype2 && fsize == fsize2 && flags == flags2 )
           fidcnt++;
         else
           printf( "fid mismatch: fname: \"%.*s\" "
@@ -132,10 +166,11 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict )
 
   for ( MDDictEntry *fp = dict_build.idx->entry_q.hd; fp != NULL;
         fp = fp->next ) {
-    if ( ! dict->get( fp->fname(), fp->fnamelen, fid, ftype, fsize ) ) {
+    if ( ! dict->get( fp->fname(), fp->fnamelen, fid, ftype, fsize, flags ) ) {
       printf( "not found: %s\n", fp->fname() );
     }
-    else if ( fp->fid != fid || fp->ftype != ftype || fp->fsize != fsize ) {
+    else if ( fp->fid != fid || fp->ftype != ftype || fp->fsize != fsize ||
+              fp->fld_flags != flags ) {
       if ( fp->fno != 0 ) { /* redecleared */
         printf( "%s: fid %u/%u ftype %u/%u fsize %u/%u\n", fp->fname(),
                 fid, fp->fid, ftype, fp->ftype, fsize, fp->fsize );

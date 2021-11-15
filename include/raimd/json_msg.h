@@ -40,6 +40,18 @@ struct JsonMsg : public MDMsg {
   static void init_auto_unpack( void ) noexcept;
 };
 
+struct JsonMsgCtx {
+  JsonMsg      * msg;
+  JsonParser   * parser;
+  JsonBufInput * input;
+  MDMsgMem     * mem;
+  JsonMsgCtx() : msg( 0 ), parser( 0 ), input( 0 ), mem( 0 ) {}
+  ~JsonMsgCtx() noexcept;
+  int parse( void *bb,  size_t off,  size_t end,  MDDict *d,
+             MDMsgMem *m,  bool is_yaml ) noexcept;
+  void release( void ) noexcept;
+};
+
 struct JsonFieldIter : public MDFieldIter {
   JsonMsg    & me;
   JsonObject & obj;
@@ -50,6 +62,7 @@ struct JsonFieldIter : public MDFieldIter {
     me( m ), obj( o ) {}
 
   virtual int get_name( MDName &name ) noexcept final;
+  virtual int copy_name( char *name,  size_t &name_len,  MDFid &fid ) noexcept;
   virtual int get_reference( MDReference &mref ) noexcept final;
   virtual int find( const char *name, size_t name_len,
                     MDReference &mref ) noexcept final;

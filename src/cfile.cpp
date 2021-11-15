@@ -170,10 +170,99 @@ tss_to_md_type( CFile *p )
   }
 }
 
+static int
+tss_type_default_size( int data_type ) {
+  switch ( data_type ) {
+    default:                    return 0;
+    case TSS_INTEGER     /*1*/: return 4;
+    case TSS_STRING      /*2*/: return 0;
+    case TSS_BOOLEAN     /*3*/: return 1;
+    case TSS_DATE        /*4*/: return 6;   /* binary date */
+    case TSS_TIME        /*5*/: return 4;   /* binary time (not used) */
+    case TSS_PRICE       /*6*/: return 8;
+    case TSS_BYTE        /*7*/: return 1;
+    case TSS_FLOAT       /*8*/: return 4;
+    case TSS_SHORT_INT   /*9*/: return 2;
+    case TSS_DOUBLE     /*10*/: return 8;
+    case TSS_OPAQUE     /*11*/: return 0;
+    case TSS_NULL       /*12*/: return 0;
+    case TSS_RESERVED   /*13*/: return 0;
+    case TSS_DOUBLE_INT /*14*/: return 8;   /* 8 byte float always int */
+    case TSS_GROCERY    /*15*/: return 9;   /* float with hint */
+    case TSS_SDATE      /*16*/: return 12;  /* string date */
+    case TSS_STIME      /*17*/: return 6;   /* string time */
+    case TSS_LONG       /*18*/: return 8;
+    case TSS_U_SHORT    /*19*/: return 2;
+    case TSS_U_INT      /*20*/: return 4;
+    case TSS_U_LONG     /*21*/: return 8;
+  }
+}
+
 static bool si( int &ival,  int v ) {
   bool x = ( ival != 0 );
   ival = v;
   return x;
+}
+
+static bool eq( const char *str,  const char *tss,  size_t sz ) {
+  return sz == ::strlen( tss ) && ::strncasecmp( str, tss, sz ) == 0;
+}
+
+static bool st( int &ival,  const char *tss_type,  size_t tok_sz ) {
+  switch ( tss_type[ 0 ] ) {
+    case '0': case '1': case '2': case '3': case '4':
+    case '5': case '6': case '7': case '8': case '9':
+      return si( ival, atoi( tss_type ) );
+    case 'i': case 'I':
+      if ( eq( tss_type, "integer", tok_sz ) ) return si( ival, TSS_INTEGER );
+      break;
+    case 's': case 'S':
+      if ( eq( tss_type, "string", tok_sz ) ) return si( ival, TSS_STRING );
+      if ( eq( tss_type, "short_int", tok_sz ) ) return si( ival, TSS_SHORT_INT );
+      if ( eq( tss_type, "sdate", tok_sz ) ) return si( ival, TSS_SDATE );
+      if ( eq( tss_type, "stime", tok_sz ) ) return si( ival, TSS_STIME );
+      break;
+    case 'b': case 'B':
+      if ( eq( tss_type, "boolean", tok_sz ) ) return si( ival, TSS_BOOLEAN );
+      if ( eq( tss_type, "byte", tok_sz ) ) return si( ival, TSS_BYTE );
+      break;
+    case 'd': case 'D':
+      if ( eq( tss_type, "date", tok_sz ) ) return si( ival, TSS_DATE );
+      if ( eq( tss_type, "double", tok_sz ) ) return si( ival, TSS_DOUBLE );
+      if ( eq( tss_type, "double_int", tok_sz ) ) return si( ival, TSS_DOUBLE_INT );
+      break;
+    case 't': case 'T':
+      if ( eq( tss_type, "time", tok_sz ) ) return si( ival, TSS_TIME );
+      break;
+    case 'p': case 'P':
+      if ( eq( tss_type, "price", tok_sz ) ) return si( ival, TSS_PRICE );
+      break;
+    case 'f': case 'F':
+      if ( eq( tss_type, "float", tok_sz ) ) return si( ival, TSS_FLOAT );
+      break;
+    case 'o': case 'O':
+      if ( eq( tss_type, "opaque", tok_sz ) ) return si( ival, TSS_OPAQUE );
+      break;
+    case 'n': case 'N':
+      if ( eq( tss_type, "null", tok_sz ) ) return si( ival, TSS_NULL );
+      break;
+    case 'r': case 'R':
+      if ( eq( tss_type, "real", tok_sz ) ) return si( ival, TSS_DOUBLE );
+      if ( eq( tss_type, "reserved", tok_sz ) ) return si( ival, TSS_RESERVED );
+      break;
+    case 'g': case 'G':
+      if ( eq( tss_type, "grocery", tok_sz ) ) return si( ival, TSS_GROCERY );
+      break;
+    case 'l': case 'L':
+      if ( eq( tss_type, "long", tok_sz ) ) return si( ival, TSS_LONG );
+      break;
+    case 'u': case 'U':
+      if ( eq( tss_type, "u_int", tok_sz ) ) return si( ival, TSS_U_INT );
+      if ( eq( tss_type, "u_short", tok_sz ) ) return si( ival, TSS_U_SHORT );
+      if ( eq( tss_type, "u_long", tok_sz ) ) return si( ival, TSS_U_LONG );
+      break;
+  }
+  return si( ival, 0 );
 }
 
 static bool sb( uint8_t &bval,  bool v ) {
@@ -186,14 +275,32 @@ int
 CFile::parse_path( MDDictBuild &dict_build,  const char *path,
                    const char *fn ) noexcept
 {
-  CFile * p = NULL, * x;
-  int ret = 0;
-
-  p = CFile::push_path( NULL, path, fn, ::strlen( fn ) );
+  CFile *p = CFile::push_path( NULL, path, fn, ::strlen( fn ) );
   if ( p == NULL ) {
     fprintf( stderr, "\"%s\": file not found\n", fn );
     return Err::FILE_NOT_FOUND;
   }
+  return CFile::parse_loop( dict_build, p, path );
+}
+
+int
+CFile::parse_string( MDDictBuild &dict_build,  const char *str_input,
+                     size_t str_size ) noexcept
+{
+  void  * m = ::malloc( sizeof( CFile ) );
+  CFile * p = new ( m ) CFile( NULL, NULL );
+  p->str_input = str_input;
+  p->str_size  = str_size;
+  return CFile::parse_loop( dict_build, p, NULL );
+}
+
+int
+CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
+                   const char *path ) noexcept
+{
+  CFile * p2;
+  int     ret = 0;
+
   while ( p != NULL ) {
     CFileTok tok = p->get_token();
     switch ( tok ) {
@@ -210,8 +317,30 @@ CFile::parse_path( MDDictBuild &dict_build,  const char *path,
         else if ( p->stmt == CFT_FIELDS )
           p->stmt = CFT_IDENT;
         else if ( p->stmt != CFT_ERROR ) {
-          dict_build.add_entry( p->class_id, p->data_size, tss_to_md_type( p ),
-                              p->ident, NULL, NULL, p->fname, p->ident_lineno );
+          uint8_t flags = ( ( p->is_fixed < 2 ? MD_FIXED : 0 ) |
+                            ( p->is_primitive < 2 ? MD_PRIMITIVE : 0 ) );
+          MDType  type  = tss_to_md_type( p );
+          if ( flags != ( MD_FIXED | MD_PRIMITIVE ) ) {
+            if ( type != MD_STRING && type != MD_OPAQUE && type != MD_MESSAGE ){
+              const char * s = ( flags == MD_FIXED ? "IS_PRIMITIVE=false" :
+                                 flags == MD_PRIMITIVE ? "IS_FIXED=false" :
+                                 "IS_PRIMITIVE,IS_FIXED=false" );
+              fprintf( stderr, "ignoring %s at \"%s\" line %u: \"%.*s\"\n", s,
+                       p->fname, p->lineno, (int) p->tok_sz, p->tok_buf );
+              flags = MD_FIXED | MD_PRIMITIVE;
+            }
+          }
+          if ( p->data_size == 0 ) {
+            if ( type != MD_STRING && type != MD_OPAQUE && type != MD_MESSAGE ){
+              p->data_size = tss_type_default_size( p->data_type );
+              if ( p->data_size == 0 )
+                fprintf( stderr, "no data size for type %d at \"%s\" line %u\n",
+                         p->data_type, p->fname, p->lineno );
+            }
+          }
+          dict_build.add_entry( p->class_id, p->data_size, type,
+                                flags, p->ident, NULL, NULL, p->fname,
+                                p->ident_lineno );
           /*printf( "(%s:%u) %s { class-id %u, size %u, type %u }\n",
                   p->fname, p->ident_lineno,
                   p->ident, p->class_id, p->data_size, p->data_type );
@@ -240,7 +369,7 @@ CFile::parse_path( MDDictBuild &dict_build,  const char *path,
         p->tok_buf[ p->tok_sz ] = '\0';
         switch ( p->stmt ) {
           case CFT_DATA_SIZE: x = si( p->data_size, atoi( p->tok_buf ) ); break;
-          case CFT_DATA_TYPE: x = si( p->data_type, atoi( p->tok_buf ) ); break;
+          case CFT_DATA_TYPE: x = st( p->data_type, p->tok_buf, p->tok_sz ); break;
           case CFT_CLASS_ID:  x = si( p->class_id, atoi( p->tok_buf ) ); break;
           default:            goto is_error;
         }
@@ -280,25 +409,35 @@ CFile::parse_path( MDDictBuild &dict_build,  const char *path,
 
       case CFT_IDENT:
         if ( p->cf_includes ) {
-          x = CFile::push_path( p, path, p->tok_buf, p->tok_sz );
-          if ( x == p ) {
+          p2 = CFile::push_path( p, path, p->tok_buf, p->tok_sz );
+          if ( p2 == p ) {
             fprintf( stderr, "\"%.*s\": file not found\n", (int) p->tok_sz,
                      p->tok_buf );
             if ( ret == 0 )
               ret = Err::FILE_NOT_FOUND;
             goto is_error;
           }
-          p = x;
+          p = p2;
         }
         else if ( p->stmt == CFT_FIELD_CLASS_NAME )
           p->set_field_class_name();
         else if ( p->stmt == CFT_FIELDS )
           p->add_field();
+        else if ( p->stmt == CFT_DATA_TYPE ) {
+          if ( st( p->data_type, p->tok_buf, p->tok_sz ) ) {
+            fprintf( stderr, "dup " );
+            goto is_error;
+          }
+          if ( p->data_type == 0 ) {
+            fprintf( stderr, "no data type for %s at \"%s\" line %u\n",
+                     p->ident, p->fname, p->ident_lineno );
+          }
+        }
         else if ( p->ident[ 0 ] == '\0' )
           p->set_ident();
         else {
-          fprintf( stderr, "ident \"%s\" at line %u\n",
-                   p->ident, p->ident_lineno );
+          fprintf( stderr, "ident \"%s\" at \"%s\" line %u\n",
+                   p->ident, p->fname, p->ident_lineno );
           if ( ret == 0 )
             ret = Err::DICT_PARSE_ERROR;
           goto is_error;
@@ -312,15 +451,16 @@ CFile::parse_path( MDDictBuild &dict_build,  const char *path,
         if ( ret == 0 )
           ret = Err::DICT_PARSE_ERROR;
         /* FALLTHRU */
-      case CFT_EOF:
+      case CFT_EOF: {
         if ( ret == 0 && p->br_level != 0 ) {
           fprintf( stderr, "mismatched brackets: '}' in file \"%s\"\n",
                    p->fname );
         }
-        x = (CFile *) p->next;
+        p2 = (CFile *) p->next;
         delete p;
-        p = x;
+        p = p2;
         break;
+      }
     }
   }
   return ret;

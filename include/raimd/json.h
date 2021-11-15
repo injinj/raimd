@@ -32,6 +32,10 @@ struct JsonParser {
   int parse( JsonStreamInput &input ) noexcept;
 
   int parse( JsonBufInput &input ) noexcept;
+
+  int parse_yaml( JsonStreamInput &input ) noexcept;
+
+  int parse_yaml( JsonBufInput &input ) noexcept;
 };
 
 struct JsonBoolean;
@@ -50,32 +54,60 @@ struct JsonValue {
   JsonArray *to_arr( void ) const;
   int to_double( double &v ) const noexcept; /* return double */
   int to_int( int64_t &v ) const noexcept;  /* return int */
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  JsonValue( JsonType t = JSON_NULL ) : type( t ) {}
 };
 
 struct JsonBoolean : public JsonValue {
   bool val;
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  JsonBoolean(  bool v = false ) : JsonValue( JSON_BOOLEAN ), val( v ) {}
+  int print( MDOutput *out ) noexcept;
 };
 
 struct JsonNumber : public JsonValue {
   MDDecimal val;
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  JsonNumber( void ) : JsonValue( JSON_NUMBER ) { this->val.zero(); }
+  int print( MDOutput *out ) noexcept;
 };
 
 struct JsonString : public JsonValue {
   char * val;
+  size_t length;
+  void set( const JsonString &s ) {
+    this->type   = JSON_STRING;
+    this->val    = s.val;
+    this->length = s.length;
+  }
+  void zero( void ) {
+    this->type   = JSON_STRING;
+    this->val    = NULL;
+    this->length = 0;
+  }
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  JsonString() : JsonValue( JSON_STRING ), val( 0 ), length( 0 ) {}
+  int print( MDOutput *out ) noexcept;
 };
 
 struct JsonObject : public JsonValue {
   struct Pair {
-    char      * name;
+    JsonString  name;
     JsonValue * val;
   } * val;
   size_t length;
   JsonValue *find( const char *name ) const noexcept;
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  JsonObject() : JsonValue( JSON_OBJECT ), val( 0 ), length( 0 ) {}
+  int print( MDOutput *out ) noexcept;
 };
 
 struct JsonArray : public JsonValue {
   JsonValue ** val;
   size_t       length;
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  JsonArray() : JsonValue( JSON_ARRAY ), val( 0 ), length( 0 ) {}
+  int print( MDOutput *out ) noexcept;
 };
 
 inline JsonBoolean * JsonValue::to_bool( void ) const { return (JsonBoolean *) this; }
@@ -87,15 +119,13 @@ inline JsonArray   * JsonValue::to_arr( void )  const { return (JsonArray *) thi
 static const int JSON_EOF = 256;
 
 struct JsonStreamInput {
-  char * json,
-         buf1[ 4 * 1024 ],
-         buf2[ 4 * 1024 ];
+  char   buf[ 4 * 1024 ];
+  char * json;
   size_t offset,
          length,
          line_start,
          line_count,
-         buf1_off,
-         buf2_off;
+         buf_len;
   bool   is_eof;
 
   virtual size_t read( uint8_t *buf,  size_t len ) noexcept;
@@ -109,8 +139,9 @@ struct JsonStreamInput {
   }
   int  next( void ) {
     int n = this->cur();
-    if ( n != JSON_EOF )
+    if ( n != JSON_EOF ) {
       this->offset++;
+    }
     return n;
   }
   int  forward( void ) {
@@ -119,22 +150,38 @@ struct JsonStreamInput {
     return this->cur();
   }
   bool match( char c1,  char c2,  char c3,  char c4,  char c5 ) noexcept;
+  bool lookahead_case( char c1,  char c2,  char c3 ) noexcept;
   int  eat_white( void ) noexcept;
   void skip_BOM( void ) noexcept;
 
-  JsonStreamInput() {
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  JsonStreamInput() : json( this->buf ) {
     this->init();
+  }
+  virtual ~JsonStreamInput() {
+    if ( this->json != this->buf )
+      ::free( this->json );
   }
 
   void init( void ) {
+    if ( this->json != this->buf )
+      ::free( this->json );
+    this->json       = this->buf;
+    this->buf_len    = sizeof( this->buf );
     this->offset     = 0;
     this->length     = 0;
     this->line_start = 0;
     this->line_count = 0;
-    this->buf1_off   = 0;
-    this->buf2_off   = 0;
     this->is_eof     = false;
-    this->json       = this->buf2;
+  }
+  int col( void ) {
+    return this->offset - this->line_start + 1;
+  }
+  const char *line_ptr( void ) const {
+    return &this->json[ this->line_start ];
+  }
+  const char *end_ptr( void ) const {
+    return &this->json[ this->length ];
   }
 };
 
@@ -145,6 +192,7 @@ struct JsonBufInput {
                line_start,
                line_count;
 
+  bool fill_buf( void ) { return false; }
   int  cur( void ) {
     if ( this->offset < this->length )
       return (int) (uint8_t) this->json[ this->offset ];
@@ -160,9 +208,11 @@ struct JsonBufInput {
     return this->cur();
   }
   bool match( char c1,  char c2,  char c3,  char c4,  char c5 ) noexcept;
+  bool lookahead_case( char c1,  char c2,  char c3 ) noexcept;
   int  eat_white( void ) noexcept;
   void skip_BOM( void ) noexcept;
 
+  void * operator new( size_t, void *ptr ) { return ptr; }
   JsonBufInput( const char *js = NULL,  unsigned int off = 0,
                 unsigned int len = 0 ) {
     this->init( js, off, len );
@@ -174,6 +224,15 @@ struct JsonBufInput {
     this->length     = len;
     this->line_start = 0;
     this->line_count = 0;
+  }
+  int col( void ) {
+    return this->offset - this->line_start + 1;
+  }
+  const char *line_ptr( void ) const {
+    return &this->json[ this->line_start ];
+  }
+  const char *end_ptr( void ) const {
+    return &this->json[ this->length ];
   }
 };
 
