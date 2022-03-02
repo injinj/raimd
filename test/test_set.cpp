@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <raimd/md_set.h>
 
 using namespace rai;
@@ -37,10 +38,10 @@ main( int argc, char **argv )
          data_len = 128,
          asz      = SetData::alloc_size( count, data_len );
 
-  printf( "alloc size: %lu\n", asz );
+  printf( "alloc size: %" PRIu64 "\n", asz );
   ::memset( buf, 0, asz );
   SetData set( buf, asz );
-  printf( "init: count=%lu data_len=%lu\n", count, data_len );
+  printf( "init: count=%" PRIu64 " data_len=%" PRIu64 "\n", count, data_len );
   set.init( count, data_len );
 
   #define S( str ) str, sizeof( str ) - 1
@@ -71,9 +72,10 @@ main( int argc, char **argv )
   set2.init( count, data_len );
   set.copy( set2 );
 
-  printf( "used size %lu curr size %lu\n", bsz, set.size );
-  printf( "  count %lu data_len %lu\n", set.count(), set.data_len() );
-  printf( "  used count %lu data_len %lu\n", count, data_len );
+  printf( "used size %" PRIu64 " curr size %" PRIu64 "\n", bsz, set.size );
+  printf( "  count %" PRIu64 " data_len %" PRIu64 "\n", set.count(),
+          set.data_len() );
+  printf( "  used count %" PRIu64 " data_len %" PRIu64 "\n", count, data_len );
 
   MDOutput mout;
   mout.print_hex( buf, asz );

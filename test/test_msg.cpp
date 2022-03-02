@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <raimd/json_msg.h>
 
 using namespace rai;
@@ -31,7 +32,7 @@ main( int argc, char **argv )
     JsonMsg * m = JsonMsg::unpack_any( (void *) sinput[ i ], 0,
                                        ::strlen( sinput[ i ] ), 0,
                                        NULL, &mem );
-    printf( "sinput[%ld] = \n", i );
+    printf( "sinput[%" PRIu64 "] = \n", i );
     if ( m != NULL ) {
       m->print( &mout );
       MDFieldIter *f;

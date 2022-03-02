@@ -7,6 +7,10 @@
 /* malloc(), free() */
 #include <stdlib.h>
 
+#ifdef _MSC_VER
+#define strncasecmp _strnicmp
+#endif
+
 namespace rai {
 namespace md {
 

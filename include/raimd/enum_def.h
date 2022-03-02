@@ -47,9 +47,10 @@ struct EnumDef : public DictParser {
   void * operator new( size_t, void *ptr ) { return ptr; } 
   void operator delete( void *ptr ) { ::free( ptr ); } 
 
-  EnumDef( const char *p ) : DictParser( p, ETK_INT, ETK_IDENT, ETK_ERROR ),
-    map_num( 10 ), max_value( 0 ), value_lineno( 0 ), max_len( 0 ),
-    value_cnt( 0 ) {}
+  EnumDef( const char *p,  int debug_flags )
+    : DictParser( p, ETK_INT, ETK_IDENT, ETK_ERROR, debug_flags, "RDM Enum Types" ),
+      map_num( 10 ), max_value( 0 ), value_lineno( 0 ), max_len( 0 ),
+      value_cnt( 0 ) {}
   ~EnumDef() {
     this->clear_enum();
     this->close();
@@ -74,8 +75,8 @@ struct EnumDef : public DictParser {
   EnumDefTok consume_hex( void ) noexcept;
   EnumDefTok get_token( void ) noexcept;
 
-  static EnumDef * open_path( const char *path,
-                              const char *filename ) noexcept;
+  static EnumDef * open_path( const char *path,  const char *filename,
+                              int debug_flags ) noexcept;
   static int parse_path( MDDictBuild &dict_build,  const char *path,
                          const char *fn ) noexcept;
 };

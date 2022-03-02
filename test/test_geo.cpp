@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <math.h>
 #include <raimd/md_geo.h>
 
@@ -40,10 +41,10 @@ main( int argc, char **argv )
          data_len = 128,
          asz      = GeoData::alloc_size( count, data_len );
 
-  printf( "alloc size: %lu\n", asz );
+  printf( "alloc size: %" PRIu64 "\n", asz );
   ::memset( buf, 0, asz );
   GeoData geo( buf, asz );
-  printf( "init: count=%lu data_len=%lu\n", count, data_len );
+  printf( "init: count=%" PRIu64 " data_len=%" PRIu64 "\n", count, data_len );
   geo.init( count, data_len );
 
   #define S( str ) str, sizeof( str ) - 1

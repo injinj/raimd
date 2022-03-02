@@ -108,6 +108,7 @@ libraimd_files := md_msg md_field_iter json json_msg rv_msg tib_msg \
                   tib_sass_msg mf_msg rwf_msg md_dict cfile app_a enum_def \
                   decimal md_list md_hash md_set md_zset md_geo md_hll \
 		  md_stream glue
+libraimd_cfile := $(addprefix src/, $(addsuffix .cpp, $(libraimd_files)))
 libraimd_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(libraimd_files)))
 libraimd_dbjs  := $(addprefix $(objd)/, $(addsuffix .fpic.o, $(libraimd_files)))
 libraimd_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(libraimd_files))) \
@@ -127,6 +128,7 @@ all_dlls    += $(libd)/libraimd.so
 all_depends += $(libraimd_deps)
 
 test_mddec_files := test_mddec
+test_mddec_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_mddec_files)))
 test_mddec_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_mddec_files)))
 test_mddec_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_mddec_files)))
 test_mddec_libs  := $(raimd_dlib)
@@ -135,6 +137,7 @@ test_mddec_lnk   := $(raimd_dlnk)
 $(bind)/test_mddec: $(test_mddec_objs) $(test_mddec_libs)
 
 test_json_files := test_json
+test_json_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_json_files)))
 test_json_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_json_files)))
 test_json_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_json_files)))
 test_json_libs  := $(raimd_dlib)
@@ -143,6 +146,7 @@ test_json_lnk   := $(raimd_dlnk)
 $(bind)/test_json: $(test_json_objs) $(test_json_libs)
 
 test_msg_files := test_msg
+test_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_msg_files)))
 test_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_msg_files)))
 test_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_msg_files)))
 test_msg_libs  := $(raimd_dlib)
@@ -151,6 +155,7 @@ test_msg_lnk   := $(raimd_dlnk)
 $(bind)/test_msg: $(test_msg_objs) $(test_msg_libs)
 
 test_list_files := test_list
+test_list_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_list_files)))
 test_list_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_list_files)))
 test_list_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_list_files)))
 test_list_libs  := $(raimd_dlib)
@@ -159,6 +164,7 @@ test_list_lnk   := $(raimd_dlnk)
 $(bind)/test_list: $(test_list_objs) $(test_list_libs)
 
 test_hash_files := test_hash
+test_hash_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_hash_files)))
 test_hash_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_hash_files)))
 test_hash_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_hash_files)))
 test_hash_libs  := $(raimd_dlib)
@@ -167,6 +173,7 @@ test_hash_lnk   := $(raimd_dlnk)
 $(bind)/test_hash: $(test_hash_objs) $(test_hash_libs)
 
 test_set_files := test_set
+test_set_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_set_files)))
 test_set_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_set_files)))
 test_set_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_set_files)))
 test_set_libs  := $(raimd_dlib)
@@ -175,6 +182,7 @@ test_set_lnk   := $(raimd_dlnk)
 $(bind)/test_set: $(test_set_objs) $(test_set_libs)
 
 test_zset_files := test_zset
+test_zset_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_zset_files)))
 test_zset_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_zset_files)))
 test_zset_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_zset_files)))
 test_zset_libs  := $(raimd_dlib)
@@ -183,6 +191,7 @@ test_zset_lnk   := $(raimd_dlnk)
 $(bind)/test_zset: $(test_zset_objs) $(test_zset_libs)
 
 test_geo_files := test_geo
+test_geo_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_geo_files)))
 test_geo_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_geo_files)))
 test_geo_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_geo_files)))
 test_geo_libs  := $(raimd_dlib)
@@ -191,6 +200,7 @@ test_geo_lnk   := $(raimd_dlnk)
 $(bind)/test_geo: $(test_geo_objs) $(test_geo_libs)
 
 test_hll_files := test_hll
+test_hll_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_hll_files)))
 test_hll_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_hll_files)))
 test_hll_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_hll_files)))
 test_hll_libs  := $(raimd_dlib)
@@ -199,6 +209,7 @@ test_hll_lnk   := $(raimd_dlnk)
 $(bind)/test_hll: $(test_hll_objs) $(test_hll_libs)
 
 test_stream_files := test_stream
+test_stream_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_stream_files)))
 test_stream_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_stream_files)))
 test_stream_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_stream_files)))
 test_stream_libs  := $(raimd_dlib)
@@ -207,6 +218,7 @@ test_stream_lnk   := $(raimd_dlnk)
 $(bind)/test_stream: $(test_stream_objs) $(test_stream_libs)
 
 test_mddict_files := test_dict
+test_mddict_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_mddict_files)))
 test_mddict_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_mddict_files)))
 test_mddict_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_mddict_files)))
 test_mddict_libs  := $(raimd_dlib)
@@ -215,6 +227,7 @@ test_mddict_lnk   := $(raimd_dlnk)
 $(bind)/test_mddict: $(test_mddict_objs) $(test_mddict_libs)
 
 read_msg_files := read_msg
+read_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(read_msg_files)))
 read_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(read_msg_files)))
 read_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(read_msg_files)))
 read_msg_libs  := $(raimd_dlib)
@@ -223,6 +236,7 @@ read_msg_lnk   := $(raimd_dlnk)
 $(bind)/read_msg: $(read_msg_objs) $(read_msg_libs)
 
 write_msg_files := write_msg
+write_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(write_msg_files)))
 write_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(write_msg_files)))
 write_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(write_msg_files)))
 write_msg_libs  := $(raimd_dlib)
@@ -231,6 +245,7 @@ write_msg_lnk   := $(raimd_dlnk)
 $(bind)/write_msg: $(write_msg_objs) $(write_msg_libs)
 
 basic_msg_files := basic_msg
+basic_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(basic_msg_files)))
 basic_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(basic_msg_files)))
 basic_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(basic_msg_files)))
 basic_msg_libs  := $(raimd_dlib)
@@ -259,6 +274,52 @@ all_dirs := $(bind) $(libd) $(objd) $(dependd)
 #	$(bind)/print_keys hash > src/hashaction.c
 
 all: $(all_libs) $(all_dlls) $(all_exes)
+
+.PHONY: cmake
+cmake: CMakeLists.txt
+
+.ONESHELL: CMakeLists.txt
+CMakeLists.txt:
+	@cat <<'EOF' > $@
+	cmake_minimum_required (VERSION 3.9.0)
+	project (raimd)
+	include_directories (include libdecnumber/include)
+	set (CMAKE_VERBOSE_MAKEFILE ON)
+	if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+	  if ($$<CONFIG:Release>)
+	    add_compile_options (/arch:AVX2 /GL /std:c++latest)
+	  else ()
+	    add_compile_options (/arch:AVX2 /std:c++latest)
+	  endif ()
+	else ()
+	  add_compile_options ($(cflags))
+	endif ()
+	add_library (raimd STATIC $(libraimd_cfile))
+	add_library(decnumber STATIC IMPORTED)
+	if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+	  set_property(TARGET decnumber PROPERTY IMPORTED_LOCATION_DEBUG ../libdecnumber/build/Debug/decnumber.lib)
+	  set_property(TARGET decnumber PROPERTY IMPORTED_LOCATION_RELEASE ../libdecnumber/build/Release/decnumber.lib)
+	  set_property(TARGET decnumber PROPERTY IMPORTED_LOCATION ../libdecnumber/build/decnumber.lib)
+	else ()
+	  set_property(TARGET decnumber PROPERTY IMPORTED_LOCATION ../libdecnumber/build/libdecnumber.a)
+	endif ()
+	link_libraries (raimd decnumber)
+	add_executable (test_mddec test/test_mddec.cpp)
+	add_executable (test_json test/test_json.cpp)
+	add_executable (test_msg test/test_msg.cpp)
+	add_executable (test_list test/test_list.cpp)
+	add_executable (test_hash test/test_hash.cpp)
+	add_executable (test_set test/test_set.cpp)
+	add_executable (test_zset test/test_zset.cpp)
+	add_executable (test_geo test/test_geo.cpp)
+	add_executable (test_hll test/test_hll.cpp)
+	add_executable (test_stream test/test_stream.cpp)
+	add_executable (test_mddict test/test_dict.cpp)
+	add_executable (read_msg test/read_msg.cpp)
+	add_executable (write_msg test/write_msg.cpp)
+	add_executable (basic_msg test/basic_msg.cpp)
+	EOF
+
 
 # create directories
 $(dependd):

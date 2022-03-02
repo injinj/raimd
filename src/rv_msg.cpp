@@ -558,7 +558,7 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
   }
 
   if ( szbytes == 1 ) {
-    ptr[ 1 ] = mref.fsize;
+    ptr[ 1 ] = (uint8_t) mref.fsize;
     ptr = &ptr[ 2 ];
   }
   else if ( szbytes == 3 ) {

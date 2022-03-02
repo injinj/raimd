@@ -171,12 +171,22 @@ static MDMatch basic_match[] = {
   { 0,0,0, MD_DECIMAL, { 0 }, { 0 }, is_decimal, unpack_decimal }
 };
 
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+
 extern "C"
 void
 md_init_auto_unpack( void )
 {
+#ifdef _MSC_VER
+  static volatile long auto_unpack, auto_ready;
+  long once = _InterlockedIncrement( &auto_unpack ) - 1;
+#else
   static int auto_unpack, auto_ready;
-  if ( ! __sync_fetch_and_add( &auto_unpack, 1 ) ) {
+  int once = __sync_fetch_and_add( &auto_unpack, 1 );
+#endif
+  if ( ! once ) {
     JsonMsg::init_auto_unpack();
     GeoMsg::init_auto_unpack();
     HashMsg::init_auto_unpack();
@@ -192,13 +202,23 @@ md_init_auto_unpack( void )
     size_t i;
     for ( i = 0; i < sizeof( basic_match ) / sizeof( basic_match[ 0 ] ); i++ )
       MDMsg::add_match( basic_match[ i ] );
-
+#ifdef _MSC_VER
+    /*MemoryBarrier();*/
+    _InterlockedIncrement( &auto_ready );
+#else
     __sync_synchronize();
     __sync_fetch_and_add( &auto_ready, 1 );
+#endif
   }
   else {
+#ifdef _MSC_VER
+    while ( ! _InterlockedExchangeAdd( &auto_ready, 0 ) )
+      ;
+    /*MemoryBarrier();*/
+#else
     while ( ! __sync_fetch_and_add( &auto_ready, 0 ) )
       ;
     __sync_synchronize();
+#endif
   }
 }

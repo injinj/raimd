@@ -59,8 +59,8 @@ EnumDef::define_enum( MDDictBuild &dict_build ) noexcept
       v = v->next;
     }
   }
-  dict_build.add_enum_map( this->map_num, this->max_value, value_cnt, value,
-                           this->max_len, map );
+  dict_build.add_enum_map( this->map_num, this->max_value, (uint32_t) value_cnt,
+                           value, (uint16_t) this->max_len, map );
   ::free( map );
   if ( value != NULL )
     ::free( value );
@@ -155,13 +155,14 @@ EnumDef::get_token( void ) noexcept
 }
 
 EnumDef *
-EnumDef::open_path( const char *path,  const char *filename ) noexcept
+EnumDef::open_path( const char *path,  const char *filename,
+                    int debug_flags ) noexcept
 {
   char path2[ 1024 ];
   if ( DictParser::find_file( path, filename, ::strlen( filename ),
                               path2 ) ) {
     void * p = ::malloc( sizeof( EnumDef ) );
-    return new ( p ) EnumDef( path2 );
+    return new ( p ) EnumDef( path2, debug_flags );
   }
   return NULL;
 }
@@ -176,7 +177,7 @@ EnumDef::parse_path( MDDictBuild &dict_build,  const char *path,
   size_t     len = 0;
   EnumDefTok tok;
 
-  p = EnumDef::open_path( path, fn );
+  p = EnumDef::open_path( path, fn, dict_build.debug_flags );
   if ( p == NULL ) {
     fprintf( stderr, "\"%s\": file not found\n", fn );
     return Err::FILE_NOT_FOUND;

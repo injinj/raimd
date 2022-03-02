@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <ctype.h>
+#ifdef _MSC_VER
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <raimd/md_dict.h>
 #include <raimd/hash32.h>
 
@@ -19,10 +23,11 @@ MDDictIdx::file_lineno( const char *filename,  uint32_t lineno ) noexcept
 {
   if ( this->file_q.is_empty() ||
        ::strcmp( filename, this->file_q.hd->filename ) != 0 ) {
-    size_t len = sizeof( MDFilename ) - DICT_BUF_PAD + ::strlen( filename ) + 1;
+    size_t fn_len = ::strlen( filename ),
+           len    = sizeof( MDFilename ) - DICT_BUF_PAD + fn_len + 1;
     MDFilename * fn = this->alloc<MDFilename>( len );
     fn->id = ( this->file_q.hd == NULL ? 0 : this->file_q.hd->id + 1 );
-    ::strcpy( fn->filename, filename );
+    ::memcpy( fn->filename, filename, fn_len + 1 );
     this->file_q.push_hd( fn );
   }
   return ( this->file_q.hd->id << 24 ) | lineno;
@@ -49,18 +54,18 @@ MDDictIdx::fname_size( uint8_t &shft,  uint8_t &align ) noexcept
     sz4 += ( n + 3 ) & ~3;
     sz8 += ( n + 7 ) & ~7;
   }
-  for ( n = 1; ( 1U << n ) < sz; n++ )
+  for ( n = 1; ( (size_t) 1U << n ) < sz; n++ )
     ;
   shft = n;
-  if ( sz8 < ( 1U << n ) ) {
+  if ( sz8 < ( (size_t) 1U << n ) ) {
     align = 3;
     return sz8;
   }
-  if ( sz4 < ( 1U << n ) ) {
+  if ( sz4 < ( (size_t) 1U << n ) ) {
     align = 2;
     return sz4;
   }
-  if ( sz2 < ( 1U << n ) ) {
+  if ( sz2 < ( (size_t) 1U << n ) ) {
     align = 1;
     return sz2;
   }
@@ -222,7 +227,7 @@ MDDictBuild::add_entry( MDFid fid,  uint32_t fsize,  MDType ftype,
   MDDictIdx * dict = this->get_dict_idx();
   if ( dict == NULL )
     return Err::ALLOC_FAIL;
-  h = dict->check_dup( fname, fnamelen, xdup ); /* bloom filter of existing */
+  h = dict->check_dup( fname, (uint8_t) fnamelen, xdup ); /* bloom filter of existing */
   if ( xdup ) {
     xdup = false;
     entry = NULL;
@@ -296,15 +301,15 @@ MDDictBuild::add_entry( MDFid fid,  uint32_t fsize,  MDType ftype,
     entry->fno = 0;
 
   ptr = entry->buf;
-  if ( (entry->fnamelen = fnamelen) > 0 ) {
+  if ( (entry->fnamelen = (uint8_t) fnamelen) > 0 ) {
     ::memcpy( ptr, fname, fnamelen );
     ptr = &ptr[ fnamelen ];
   }
-  if ( (entry->namelen = namelen) > 0 ) {
+  if ( (entry->namelen = (uint8_t) namelen) > 0 ) {
     ::memcpy( ptr, name, namelen );
     ptr = &ptr[ namelen ];
   }
-  if ( (entry->ripplelen = ripplelen) > 0 ) {
+  if ( (entry->ripplelen = (uint8_t) ripplelen) > 0 ) {
     ::memcpy( ptr, ripple, ripplelen );
     ptr = &ptr[ ripplelen ];
   }
@@ -373,12 +378,12 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
           typetabsz,
           map_off;
 
-  for ( fidbits = 2; ( 1U << fidbits ) < ( nfids + 1 ); fidbits++ )
+  for ( fidbits = 2; ( (size_t) 1U << fidbits ) < ( nfids + 1 ); fidbits++ )
     ;
   ttshft    = dict_idx->type_hash->htshft;
   bits      = ttshft + ( shft - algn );
   tabsz     = ( (size_t) bits * nfids + 7 ) / 8; /* fid index */
-  typetabsz = dict_idx->type_hash->htsize * sizeof( uint32_t ); /* type hash */
+  typetabsz = (size_t) dict_idx->type_hash->htsize * sizeof( uint32_t ); /* type hash */
   sz       += typetabsz;  /* type table size */
   sz       += tabsz;   /* fid table size */
   sz       += fnamesz; /* fname buffers size */
@@ -394,7 +399,11 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
   ::memset( ptr, 0, sz );
   dict   = (MDDict *) ptr;
   /* label the dict kind: cfile or app_a */
-  ::strncpy( dict->dict_type, dtype, sizeof( dict->dict_type ) - 1 );
+  size_t dlen = ::strlen( dtype );
+  if ( dlen > sizeof( dict->dict_type ) - 1 )
+    dlen = sizeof( dict->dict_type ) - 1;
+  ::memcpy( dict->dict_type, dtype, dlen );
+  dict->dict_type[ dlen ] = '\0';
   dict->next        = next;
   dict->min_fid     = dict_idx->min_fid;
   dict->max_fid     = dict_idx->max_fid;
@@ -402,16 +411,16 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
   dict->fname_shft  = shft;
   dict->fname_algn  = algn;
   dict->tab_bits    = dict->type_shft + shft - algn;
-  dict->tab_off     = typetabsz + sizeof( dict[ 0 ] ); /* from this */
-  dict->entry_count = dict_idx->entry_count;
-  dict->fname_off   = dict->tab_off + tabsz;
-  dict->tab_size    = tabsz;
-  dict->ht_off      = dict->tab_off + tabsz + fnamesz;
-  dict->ht_size     = httabsz;
-  dict->map_off     = map_off;
-  dict->map_count   = dict_idx->map_cnt;
-  dict->fid_bits    = fidbits;
-  dict->dict_size   = sz; /* write( fd, dict, sz ) does save/replicate dict */
+  dict->tab_off     = (uint32_t) ( typetabsz + sizeof( dict[ 0 ] ) );
+  dict->entry_count = (uint32_t) dict_idx->entry_count;
+  dict->fname_off   = (uint32_t) ( dict->tab_off + tabsz );
+  dict->tab_size    = (uint32_t) tabsz;
+  dict->ht_off      = (uint32_t) ( dict->tab_off + tabsz + fnamesz );
+  dict->ht_size     = (uint32_t) httabsz;
+  dict->map_off     = (uint32_t) map_off;
+  dict->map_count   = (uint32_t) dict_idx->map_cnt;
+  dict->fid_bits    = (uint8_t) fidbits;
+  dict->dict_size   = (uint32_t) sz; /* write( fd, dict, sz ) does save/replicate dict */
 
   uint32_t * typetab   = (uint32_t *) &((uint8_t *) ptr)[ sizeof( dict[ 0 ] ) ],
            * maptab    = (uint32_t *) &((uint8_t *) ptr)[ map_off ];
@@ -445,7 +454,7 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
 
     h = fp->hash & ( httabsz - 1 );
     for ( ; ; h = ( h + 1 ) & ( httabsz - 1 ) ) {
-      fid_off = h * fidbits;
+      fid_off = (uint32_t) ( h * fidbits );
       j       = fid_off / 8;
       val     = httab[ j ] | ( httab[ j + 1 ] << 8 ) |
                 ( httab[ j + 2 ] << 16 ) | ( httab[ j + 3 ] << 24 );
@@ -466,7 +475,7 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
   size_t testsz = 0;
   for ( MDEnumList *ep = dict_idx->enum_q.hd; ep != NULL; ep = ep->next ) {
     maptab[ ep->map.map_num ] = /* maptab[ maptab[ j ] ] */
-      (uint32_t *) mapdata - maptab;
+      (uint32_t) ( (uint32_t *) mapdata - maptab );
     size_t mapsz = ep->map.map_sz() + sizeof( MDEnumMap );
     ::memcpy( mapdata, &ep->map, mapsz );
     mapdata = &mapdata[ mapsz ];
@@ -612,7 +621,11 @@ DictParser::find_file( const char *path,  const char *filename,
   if ( path == NULL )
     path = ".";
   while ( path != NULL ) {
+#ifdef _MSC_VER
+    e = (const char *) ::strchr( path, ';' );
+#else
     e = (const char *) ::strchr( path, ':' );
+#endif
     if ( e == NULL ) {
       e = &path[ ::strlen( path ) ];
       next = NULL;
@@ -623,13 +636,25 @@ DictParser::find_file( const char *path,  const char *filename,
     path_sz = (size_t) ( e - path );
     if ( path_sz > 0 && path_sz + file_sz + 2 < sizeof( path2 ) ) {
       ::memcpy( path2, path, path_sz );
-
+#ifdef _MSC_VER
+      if ( path_sz > 0 && path2[ path_sz - 1 ] != '/' &&
+           path2[ path_sz - 1 ] != '\\' )
+        path2[ path_sz++ ] = '/';
+#else
       if ( path_sz > 0 && path2[ path_sz - 1 ] != '/' )
         path2[ path_sz++ ] = '/';
+#endif
       ::memcpy( &path2[ path_sz ], filename, file_sz );
       path2[ path_sz + file_sz ] = '\0';
-      if ( ::access( path2, R_OK ) == 0 ) {
-        ::strcpy( path_found, path2 );
+      int status;
+#ifdef _MSC_VER
+      status = _access( path2, 04 );
+#else
+      status = ::access( path2, R_OK );
+#endif
+      if ( status == 0 ) {
+        size_t end = path_sz + file_sz + 1;
+        ::memcpy( path_found, path2, end );
         return true;
       }
     }
@@ -649,9 +674,13 @@ DictParser::fillbuf( void ) noexcept
   if ( ! this->is_eof ) {
     if ( this->fname[ 0 ] != '\0' ) {
       if ( this->fp == NULL ) {
-        if ( (this->fp = ::fopen( this->fname, "r" )) == NULL ) {
+        if ( (this->fp = ::fopen( this->fname, "rb" )) == NULL ) {
+          perror( this->fname );
           this->is_eof = true;
           return false;
+        }
+        if ( ( this->debug_flags & MD_DICT_PRINT_FILES ) != 0 ) {
+          printf( "Loading %s: \"%s\"\n", this->dict_kind, this->fname );
         }
       }
       y = ::fread( &this->buf[ x ], 1, sizeof( buf ) - x, this->fp );

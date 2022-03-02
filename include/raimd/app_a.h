@@ -55,22 +55,25 @@ enum AppATok {
   ATK_PRICE        = 7,
   ATK_OPEN_PAREN   = 8,
   ATK_CLOSE_PAREN  = 9,
-  ATK_REAL64       = 10,
-  ATK_RMTES_STRING = 11,
-  ATK_UINT64       = 12,
-  ATK_ASCII_STRING = 13,
-  ATK_BINARY       = 14,
-  ATK_BUFFER       = 15,
-  ATK_NULL         = 16,
-  ATK_ENUM         = 17,
-  ATK_TIME_SECONDS = 18,
-  ATK_INT64        = 19,
-  ATK_NONE         = 20,
-  ATK_ARRAY        = 21,
-  ATK_SERIES       = 22,
-  ATK_ELEMENT_LIST = 23,
-  ATK_VECTOR       = 24,
-  ATK_MAP          = 25
+  ATK_REAL32       = 10,
+  ATK_REAL64       = 11,
+  ATK_RMTES_STRING = 12,
+  ATK_UINT32       = 13,
+  ATK_UINT64       = 14,
+  ATK_ASCII_STRING = 15,
+  ATK_BINARY       = 16,
+  ATK_BUFFER       = 17,
+  ATK_NULL         = 18,
+  ATK_ENUM         = 19,
+  ATK_TIME_SECONDS = 20,
+  ATK_INT32        = 21,
+  ATK_INT64        = 22,
+  ATK_NONE         = 23,
+  ATK_ARRAY        = 24,
+  ATK_SERIES       = 25,
+  ATK_ELEMENT_LIST = 26,
+  ATK_VECTOR       = 27,
+  ATK_MAP          = 28
 };
 
 struct AppAKeyword {
@@ -94,7 +97,9 @@ struct AppA : public DictParser {
   void * operator new( size_t, void *ptr ) { return ptr; } 
   void operator delete( void *ptr ) { ::free( ptr ); } 
 
-  AppA( const char *p ) : DictParser( p, ATK_INT, ATK_IDENT, ATK_ERROR ) {
+  AppA( const char *p,  int debug_flags )
+      : DictParser( p, ATK_INT, ATK_IDENT, ATK_ERROR, debug_flags,
+                    "RDM Field Dictionary" ) {
     this->clear_line();
   }
   ~AppA() {
@@ -124,8 +129,8 @@ struct AppA : public DictParser {
   }
   void get_type_size( MDType &type,  uint32_t &size ) noexcept;
 
-  static AppA * open_path( const char *path,  const char *filename ) noexcept;
-
+  static AppA * open_path( const char *path,  const char *filename,
+                           int debug_flags ) noexcept;
   static int parse_path( MDDictBuild &dict_build,  const char *path,
                          const char *fn ) noexcept;
 };

@@ -15,27 +15,27 @@ hash32( const void *p,  size_t sz,  uint32_t seed )
 #define u64 ((uint64_t *) (void *) u8)
   const uint8_t * u8  = (uint8_t *) p;
   const uint8_t * end = &u8[ sz ];
-  uint64_t    hash64  = seed;
+  uint32_t        h   = seed;
 
   size_t adj = 8 - (size_t) ( (intptr_t) u8 & 7 );
   for ( adj = ( adj > sz ? sz : adj ) & 7; adj > 0; adj-- )
-    hash64 = _mm_crc32_u8( hash64, *u8++ );
+    h = _mm_crc32_u8( h, *u8++ );
 
   for (;;) {
     switch ( end - u8 ) {
-      default: hash64 = _mm_crc32_u64( hash64, u64[ 0 ] ); u8 = &u8[ 8 ];
+      default: h  = (uint32_t) _mm_crc32_u64( h, u64[ 0 ] ); u8 = &u8[ 8 ];
                break;
       case 7: return _mm_crc32_u8(
                        _mm_crc32_u16(
-                       _mm_crc32_u32( hash64, u32[ 0 ] ), u16[ 2 ] ), u8[ 6 ] );
+                       _mm_crc32_u32( h, u32[ 0 ] ), u16[ 2 ] ), u8[ 6 ] );
       case 6: return _mm_crc32_u16(
-                       _mm_crc32_u32( hash64, u32[ 0 ] ), u16[ 2 ] );
-      case 5: return _mm_crc32_u8( _mm_crc32_u32( hash64, u32[ 0 ] ), u8[ 4 ] );
-      case 4: return _mm_crc32_u32( hash64, u32[ 0 ] );
-      case 3: return _mm_crc32_u8( _mm_crc32_u16( hash64, u16[ 0 ] ), u8[ 2 ] );
-      case 2: return _mm_crc32_u16( hash64, u16[ 0 ] );
-      case 1: return _mm_crc32_u8( hash64, u8[ 0 ] );
-      case 0: return hash64;
+                       _mm_crc32_u32( h, u32[ 0 ] ), u16[ 2 ] );
+      case 5: return _mm_crc32_u8( _mm_crc32_u32( h, u32[ 0 ] ), u8[ 4 ] );
+      case 4: return _mm_crc32_u32( h, u32[ 0 ] );
+      case 3: return _mm_crc32_u8( _mm_crc32_u16( h, u16[ 0 ] ), u8[ 2 ] );
+      case 2: return _mm_crc32_u16( h, u16[ 0 ] );
+      case 1: return _mm_crc32_u8( h, u8[ 0 ] );
+      case 0: return h;
     }
   }
 #undef u16

@@ -1,13 +1,19 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <time.h>
+#ifdef _MSC_VER
+#define NOMINMAX
+#include <windows.h>
+#else
 #include <sys/time.h>
+#endif
 #include <raimd/md_stream.h>
 
 using namespace rai;
 using namespace md;
 
 void
-xprint( void *buf,  size_t asz )
+xprint( void *buf,  size_t asz ) noexcept
 {
   MDMsgMem mem;
   MDMsg  * m;
@@ -22,25 +28,60 @@ xprint( void *buf,  size_t asz )
   }
 }
 
-void
-new_id( StreamId &id,  MDMsgMem &tmp )
+#ifdef _MSC_VER
+static const uint64_t DELTA_EPOCH = 116444736ULL *
+                                    1000000000ULL;
+static void
+get_current_time( time_t &sec,  uint64_t &usec ) noexcept
+{
+  FILETIME ft;
+  GetSystemTimeAsFileTime( &ft );
+  usec = ( (uint64_t) ft.dwHighDateTime << 32 ) | (uint64_t) ft.dwLowDateTime;
+  usec = ( usec - DELTA_EPOCH ) / 10;
+  sec  = usec / 1000000;
+  usec = usec % 1000000;
+}
+uint64_t
+ns_time( void ) noexcept
+{
+  FILETIME ft;
+  uint64_t nsec;
+  GetSystemTimeAsFileTime( &ft );
+  nsec = ( (uint64_t) ft.dwHighDateTime << 32 ) | (uint64_t) ft.dwLowDateTime;
+  nsec = ( nsec - DELTA_EPOCH ) * 100;
+  return nsec;
+}
+#else
+static void
+get_current_time( time_t &sec,  uint64_t &usec ) noexcept
 {
   struct timeval tv;
   gettimeofday( &tv, NULL );
-  uint64_t x  = id.x,
-           y  = id.y,
-           x2 = tv.tv_sec * 1000 + tv.tv_usec / 1000,
-           y2 = ( x == x2 ? y + 1 : 0 );
-
-  id.xy_to_id( x2, y2, tmp );
+  sec  = tv.tv_sec;
+  usec = tv.tv_usec;
 }
-
 uint64_t
-ns_time( void )
+ns_time( void ) noexcept
 {
   struct timespec ts;
   clock_gettime( CLOCK_REALTIME, &ts );
   return (uint64_t) ts.tv_sec * 1000000000 + (uint64_t) ts.tv_nsec;
+}
+#endif
+
+void
+new_id( StreamId &id,  MDMsgMem &tmp ) noexcept
+{
+  time_t   sec;
+  uint64_t usec;
+  get_current_time( sec, usec );
+
+  uint64_t x  = id.x,
+           y  = id.y,
+           x2 = sec * 1000 + usec / 1000,
+           y2 = ( x == x2 ? y + 1 : 0 );
+
+  id.xy_to_id( x2, y2, tmp );
 }
 
 int
@@ -67,7 +108,7 @@ main( int argc, char **argv )
   geom.add( NULL, 200, 4, 100, 1, 200, 4 );
   size_t asz = geom.asize();
 
-  printf( "alloc size: %lu\n", asz );
+  printf( "alloc size: %" PRIu64 "\n", asz );
   ::memset( buf, 0, asz );
   geom.print();
   StreamData strm(
@@ -113,7 +154,7 @@ main( int argc, char **argv )
   for ( size_t i = 0; i < 4; i++ ) {
     ListData ld;
     if ( strm.sindex( strm.stream, i, ld, tmp ) == STRM_OK ) {
-      printf( "%ld. ", i );
+      printf( "%" PRId64 ". ", i );
       for ( size_t j = 0; ld.lindex( j, lv ) == LIST_OK; j++ ) {
         printf( " %.*s%.*s", (int) lv.sz, (char *) lv.data,
                              (int) lv.sz2, (char *) lv.data2 );
@@ -122,7 +163,7 @@ main( int argc, char **argv )
     }
     tmp.reuse();
   }
-  printf( "stream cnt %ld, data_len %ld\n", strm.stream.count(),
+  printf( "stream cnt %" PRId64 ", data_len %" PRId64 "\n", strm.stream.count(),
           strm.stream.data_len() );
 
   sa.zero();
@@ -133,7 +174,7 @@ main( int argc, char **argv )
   strm.update_group( sa, tmp );
   tmp.reuse();
 
-  printf( "group cnt %ld, data_len %ld\n", strm.group.count(),
+  printf( "group cnt %" PRId64 ", data_len %" PRId64 "\n", strm.group.count(),
           strm.group.data_len() );
 
   consumer[ 0 ] = 'c';

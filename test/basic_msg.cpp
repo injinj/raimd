@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <raimd/md_msg.h>
 
 using namespace rai;
@@ -72,10 +73,10 @@ scale_stamp( MDMsg *m ) noexcept
     if ( m->get_reference( mref ) == 0 ) {
       MDStamp t;
       if ( t.get_stamp( mref ) == 0 ) {
-        printf( "seconds: %lu\n", t.seconds() );
-        printf( "millis : %lu\n", t.millis() );
-        printf( "micros : %lu\n", t.micros() );
-        printf( "nanos  : %lu\n", t.nanos() );
+        printf( "seconds: %" PRIu64 "\n", t.seconds() );
+        printf( "millis : %" PRIu64 "\n", t.millis() );
+        printf( "micros : %" PRIu64 "\n", t.micros() );
+        printf( "nanos  : %" PRIu64 "\n", t.nanos() );
         return;
       }
     }
@@ -163,13 +164,13 @@ main( int argc, char **argv )
 
   uint64_t x = 1618867065123456789ULL;
   m = MDMsg::unpack( &x, 0, sizeof( x ), MD_UINT, NULL, &mem );
-  printf( "Int64 stamp (%lu):\n", x );
+  printf( "Int64 stamp (%" PRIu64 "):\n", x );
   print_stamp( m );
   mem.reuse();
 
   uint64_t o = 100;
   m = MDMsg::unpack( &o, 0, sizeof( o ), MD_UINT, NULL, &mem );
-  printf( "Int64 stamp (%lu):\n", x );
+  printf( "Int64 stamp (%" PRIu64 "):\n", o );
   print_stamp( m );
   scale_stamp( m );
   mem.reuse();

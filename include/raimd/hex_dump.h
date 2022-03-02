@@ -52,7 +52,7 @@ struct MDHexDump {
       if ( ( ++this->boff & 0x3 ) == 0 )
         this->hex++;
     }
-    return off;
+    return (uint32_t) off;
   }
   static void print_hex( const void *buf,  size_t buflen ) noexcept;
 };

@@ -125,12 +125,12 @@ CFile::get_token( void ) noexcept
 
 CFile *
 CFile::push_path( CFile *tos,  const char *path,  const char *filename,
-                  size_t file_sz ) noexcept
+                  size_t file_sz,  int debug_flags ) noexcept
 {
   char path2[ 1024 ];
   if ( DictParser::find_file( path, filename, file_sz, path2 ) ) {
     void * p = ::malloc( sizeof( CFile ) );
-    return new ( p ) CFile( tos, path2 );
+    return new ( p ) CFile( tos, path2, debug_flags );
   }
   return NULL;
 }
@@ -275,7 +275,8 @@ int
 CFile::parse_path( MDDictBuild &dict_build,  const char *path,
                    const char *fn ) noexcept
 {
-  CFile *p = CFile::push_path( NULL, path, fn, ::strlen( fn ) );
+  CFile *p = CFile::push_path( NULL, path, fn, ::strlen( fn ),
+                               dict_build.debug_flags );
   if ( p == NULL ) {
     fprintf( stderr, "\"%s\": file not found\n", fn );
     return Err::FILE_NOT_FOUND;
@@ -288,7 +289,7 @@ CFile::parse_string( MDDictBuild &dict_build,  const char *str_input,
                      size_t str_size ) noexcept
 {
   void  * m = ::malloc( sizeof( CFile ) );
-  CFile * p = new ( m ) CFile( NULL, NULL );
+  CFile * p = new ( m ) CFile( NULL, NULL, 0 );
   p->str_input = str_input;
   p->str_size  = str_size;
   return CFile::parse_loop( dict_build, p, NULL );
@@ -409,7 +410,8 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
 
       case CFT_IDENT:
         if ( p->cf_includes ) {
-          p2 = CFile::push_path( p, path, p->tok_buf, p->tok_sz );
+          p2 = CFile::push_path( p, path, p->tok_buf, p->tok_sz,
+                                 p->debug_flags );
           if ( p2 == p ) {
             fprintf( stderr, "\"%.*s\": file not found\n", (int) p->tok_sz,
                      p->tok_buf );

@@ -359,7 +359,7 @@ struct ListStorage {
     start = this->get_offset( hdr, this->count );
     end   = hdr.data_offset( start, size );
     this->index_ref( hdr, ++this->count ) = (UIntType) end;
-    this->data_len += size;
+    this->data_len += (UIntType) size;
     return LIST_OK;
   }
   /* push data/size at tail */
@@ -390,12 +390,12 @@ struct ListStorage {
     if ( this->full( hdr, size ) )
       return LIST_FULL;
     end   = this->get_offset( hdr, 0 ),
-    start = hdr.data_offset( end, -size );
+    start = hdr.data_offset( end, -(ssize_t) size );
     this->first = ( this->first - 1 ) & hdr.index_mask;
     this->count++;
-    this->data_start = start;
+    this->data_start = (UIntType) start;
     this->index_ref( hdr, 0 ) = (UIntType) start;
-    this->data_len += size;
+    this->data_len += (UIntType) size;
     return LIST_OK;
   }
   /* push data/size at tail */
@@ -499,31 +499,32 @@ struct ListStorage {
     for ( size_t end = ++this->count; end > n+1; end-- )
       this->index_ref( hdr, end ) = this->index_ref( hdr, end-1 );
     UIntType &j = this->index_ref( hdr, n+1 );
-    j = hdr.data_offset( this->index_ref( hdr, n+2 ), -size );
+    j = (UIntType) hdr.data_offset( this->index_ref( hdr, n+2 ),
+                                    -(ssize_t) size );
     start = j;
-    this->data_len += size;
+    this->data_len += (UIntType) size;
     return LIST_OK;
   }
   /* calculate new length after trimming */
   void trim_size( const ListHeader &hdr ) {
     size_t start = this->get_offset( hdr, 0 ),
            end   = this->get_offset( hdr, this->count, true );
-    this->data_len = ( end >= start ) ? end - start :
-                     hdr.data_size() - start + end;
+    this->data_len = (UIntType) ( ( end >= start ) ? end - start :
+                                  hdr.data_size() - start + end );
   }
   /* trim left */
   void ltrim( const ListHeader &hdr,  size_t n ) {
     if ( n > this->count )
       n = this->count;
-    this->count -= n;
-    this->first  = ( this->first + n ) & hdr.index_mask;
+    this->count -= (UIntType) n;
+    this->first  = (UIntType) ( ( this->first + n ) & hdr.index_mask );
     this->trim_size( hdr );
   }
   /* trim right */
   void rtrim( const ListHeader &hdr,  size_t n ) {
     if ( n > this->count )
       n = this->count;
-    this->count -= n;
+    this->count -= (UIntType) n;
     this->trim_size( hdr );
   }
   /* pop data item at head */
@@ -533,7 +534,7 @@ struct ListStorage {
     if ( n != LIST_NOT_FOUND ) {
       this->first = ( this->first + 1 ) & hdr.index_mask;
       this->count -= 1;
-      this->data_len -= ( lv.length() );
+      this->data_len -= (UIntType) ( lv.length() );
     }
     return n;
   }
@@ -543,7 +544,7 @@ struct ListStorage {
     n = this->lindex( hdr, this->count - 1, lv );
     if ( n != LIST_NOT_FOUND ) {
       this->count -= 1;
-      this->data_len -= ( lv.length() );
+      this->data_len -= (UIntType) ( lv.length() );
     }
     return n;
   }
@@ -566,17 +567,18 @@ struct ListStorage {
         if ( n + 1 != this->count ) /* if not at tail, then at head */
           this->first = ( this->first + 1 ) & hdr.index_mask;
         this->count -= 1;
-        this->data_len -= size;
+        this->data_len -= (UIntType) size;
         return LIST_OK;
       }
       if ( size > 0 )
-        this->move_tail( hdr, n, -size );
+        this->move_tail( hdr, n, -(ssize_t) size );
       for ( n = n + 1; n < this->count; n++ ) {
         UIntType &j = this->index_ref( hdr, n );
-        j = (UIntType) hdr.data_offset( this->index_ref( hdr, n + 1 ), -size );
+        j = (UIntType) hdr.data_offset( this->index_ref( hdr, n + 1 ),
+                                        -(ssize_t) size );
       }
       this->count -= 1;
-      this->data_len -= size;
+      this->data_len -= (UIntType) size;
       return LIST_OK;
     }
     return LIST_NOT_FOUND;
@@ -601,7 +603,7 @@ struct ListStorage {
         this->move_tail( hdr, n, amt );
         this->adjust_tail( hdr, n, amt );
       }
-      this->data_len += amt;
+      this->data_len += (UIntType) amt;
     }
     /* replace nth item */
     this->copy_into( hdr, data, size, this->get_offset( hdr, n ) );
@@ -724,11 +726,12 @@ struct ListStorage {
     return 0;
   }
   void lprint( const ListHeader &hdr ) const {
-    printf( "idx_mask = %lx ", (size_t) this->_list_index_mask );
-    printf( "data_mask = %lx\n", (size_t) this->_list_data_mask );
+    printf( "idx_mask = %x ", (uint32_t) this->_list_index_mask );
+    printf( "data_mask = %x\n", (uint32_t) this->_list_data_mask );
     for ( size_t i = 0; i < this->count; i++ ) {
       size_t start, end, size = this->get_size( hdr, i, start, end );
-      printf( " %ld -> %ld : %ld\n", start, end, size );
+      printf( " %u -> %u : %u\n", (uint32_t) start, (uint32_t) end,
+              (uint32_t) size );
     }
   }
   /* copy buffer, when start == end && count > 0, data part is full */
@@ -754,8 +757,10 @@ struct ListStorage {
   template<class T, class U>
   void copy( const ListHeader &myhdr,  const ListHeader &chdr,
              ListStorage<T, U> &cp ) const {
-    cp.count = this->count;
-    cp.data_len = this->data_len;
+    size_t tmp_cnt = (size_t) this->count,
+           tmp_len = (size_t) this->data_len;
+    cp.count    = (U) tmp_cnt;
+    cp.data_len = (U) tmp_len;
     if ( this->count > 0 ) {
       size_t start, end, size;
       this->copy_data( myhdr, chdr.blob( 0 ) );
@@ -793,7 +798,7 @@ struct ListData : public ListHeader {
   /* power of 2 larger or equal to sz */
   static size_t pow2size( size_t sz ) {
     if ( ( sz & ( sz - 1 ) ) != 0 )
-      sz = (size_t) 1 << ( 64 - __builtin_clzl( sz ) );
+      sz = (size_t) 1 << ( 64 - md_clzl( sz ) );
     return sz;
   }
   /* calc word size appropriate for count idx of data size items */
