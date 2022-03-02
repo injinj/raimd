@@ -32,13 +32,13 @@ struct MDMsgMem {
     this->mem_off = 1;
   }
   static uint32_t mem_size( size_t sz ) {
-    return ( sz + sizeof( void * ) - 1 ) / sizeof( void * );
+    return (uint32_t) ( ( sz + sizeof( void * ) - 1 ) / sizeof( void * ) );
   }
   void alloc( size_t size,  void *ptr ) {
     void * next = this->mem_ptr();
     size = this->mem_size( size );
     if ( size + this->mem_off <= MEM_CNT )
-      this->mem_off += size;
+      this->mem_off += (uint32_t) size;
     else
       next = this->alloc_slow( size );
     *(void **) ptr = next;
@@ -51,7 +51,7 @@ struct MDMsgMem {
     void * next = this->mem_ptr();
     size = this->mem_size( size );
     if ( size + this->mem_off <= MEM_CNT ) {
-      this->mem_off += size;
+      this->mem_off += (uint32_t) size;
       return next;
     }
     return this->alloc_slow( size );

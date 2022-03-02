@@ -82,10 +82,10 @@ static inline size_t
 md_uint_to_str( uint64_t v,  char *buf,  size_t len ) {
   for ( size_t pos = len; v >= 10; ) {
     const uint64_t q = v / 10, r = v % 10;
-    buf[ --pos ] = '0' + r;
+    buf[ --pos ] = '0' + (char) r;
     v = q;
   }
-  buf[ 0 ] = '0' + v;
+  buf[ 0 ] = '0' + (char) v;
   return len;
 }
 
@@ -346,7 +346,7 @@ struct StreamData {
   }
   /* bsearch find id in an ordered list, gt=true is the end of the list */
   ssize_t bsearch_str( ListData &lst,  const char *id,  size_t idlen,
-                       bool gt,  MDMsgMem &tmp ) {
+                         bool gt,  MDMsgMem &tmp ) {
     size_t cnt = lst.count();
     if ( cnt == 0 )
       return 0;
@@ -559,7 +559,7 @@ struct StreamData {
     else
       sa.ns = cur;
     if ( cl.retrycount != 0 ) /* set delivery count */
-      sa.cnt = cl.retrycount;
+      sa.cnt = (uint32_t) cl.retrycount;
     else /* no incrment on justid */
       sa.cnt = lv.u32() + ( cl.justid ? 0 : 1 );
     xl = sa.construct_pending( tmp );
@@ -663,8 +663,9 @@ struct StreamGeom {
       }
     }
     void print( const char *nm ) {
-      printf( "%s_asize %ld, count %ld, data_len %ld\n", nm,
-               this->asize, this->count, this->data_len );
+      printf( "%s_asize %u, count %u, data_len %u\n", nm,
+               (uint32_t) this->asize, (uint32_t) this->count,
+               (uint32_t) this->data_len );
     }
   };
   ListGeom stream, group, pending;

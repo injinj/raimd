@@ -2,7 +2,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
-#include <unistd.h>
+/*#include <unistd.h>*/
 
 #include <raimd/json.h>
 #include <raimd/md_msg.h>
@@ -126,7 +126,7 @@ struct JsonOne : public JsonContext {
 size_t
 JsonStreamInput::read( uint8_t *buf,  size_t len ) noexcept
 {
-  return ::read( 0, buf, len );
+  return ::fread( buf, 1, len, stdin );
 }
 
 bool

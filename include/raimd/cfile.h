@@ -109,8 +109,8 @@ struct CFile : public DictParser {
   void * operator new( size_t, void *ptr ) { return ptr; } 
   void operator delete( void *ptr ) { ::free( ptr ); } 
 
-  CFile( CFile *n,  const char *p )
-    : DictParser( p, CFT_INT, CFT_IDENT, CFT_ERROR ),
+  CFile( CFile *n,  const char *p,  int debug_flags )
+    : DictParser( p, CFT_INT, CFT_IDENT, CFT_ERROR, debug_flags, "TIB Cfile" ),
       stmt( CFT_ERROR ), cf_includes( false ),
       is_primitive( 0 ), is_fixed( 0 ), is_partial( 0 ),
       data_size( 0 ), data_type( 0 ), class_id( 0 ),
@@ -146,7 +146,8 @@ struct CFile : public DictParser {
     return this->DictParser::match( kw.str, kw.len );
   }
   static CFile * push_path( CFile *tos,  const char *path,
-                            const char *filename,  size_t file_sz ) noexcept;
+                            const char *filename,  size_t file_sz,
+                            int debug_flags ) noexcept;
   static int parse_path( MDDictBuild &dict_build,  const char *path,
                          const char *fn ) noexcept;
   static int parse_string( MDDictBuild &dict_build,  const char *str_input,

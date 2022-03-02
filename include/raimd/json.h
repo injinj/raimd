@@ -175,7 +175,7 @@ struct JsonStreamInput {
     this->is_eof     = false;
   }
   int col( void ) {
-    return this->offset - this->line_start + 1;
+    return (int) ( this->offset - this->line_start + 1 );
   }
   const char *line_ptr( void ) const {
     return &this->json[ this->line_start ];
@@ -213,12 +213,12 @@ struct JsonBufInput {
   void skip_BOM( void ) noexcept;
 
   void * operator new( size_t, void *ptr ) { return ptr; }
-  JsonBufInput( const char *js = NULL,  unsigned int off = 0,
-                unsigned int len = 0 ) {
+  JsonBufInput( const char *js = NULL,  size_t off = 0,
+                size_t len = 0 ) {
     this->init( js, off, len );
   }
 
-  void init( const char *js,  unsigned int off,  unsigned int len ) {
+  void init( const char *js,  size_t off,  size_t len ) {
     this->json       = js;
     this->offset     = off;
     this->length     = len;
@@ -226,7 +226,7 @@ struct JsonBufInput {
     this->line_count = 0;
   }
   int col( void ) {
-    return this->offset - this->line_start + 1;
+    return (int) ( this->offset - this->line_start + 1 );
   }
   const char *line_ptr( void ) const {
     return &this->json[ this->line_start ];

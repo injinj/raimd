@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <inttypes.h>
 #include <raimd/md_hll.h>
 /*#include "../meow_intrinsics.h"
 #include "../meow_hash.h"*/
@@ -9,6 +10,32 @@
 
 using namespace rai;
 using namespace md;
+
+struct XoroRand {
+  uint64_t state[ 2 ];
+
+  static inline uint64_t rotl( const uint64_t x,  int k ) {
+    return (x << k) | (x >> (64 - k));
+  }
+  XoroRand( uint64_t s1,  uint64_t s2 ) {
+    this->state[ 0 ] = s1;
+    this->state[ 1 ] = s2;
+  }
+  uint64_t current( void ) const {
+    return this->state[ 0 ] + this->state[ 1 ];
+  }
+  void incr( void ) {
+    const uint64_t s0 = this->state[ 0 ];
+    const uint64_t s1 = this->state[ 1 ] ^ s0;
+    this->state[ 0 ] = rotl(s0, 55) ^ s1 ^ (s1 << 14); /* a, b */
+    this->state[ 1 ] = rotl(s1, 36); /* c */
+  }
+  uint64_t next( void ) {
+    const uint64_t result = this->current();
+    this->incr();
+    return result;
+  }
+};
 
 int
 main( int argc, char **argv )
@@ -18,18 +45,18 @@ main( int argc, char **argv )
     return 1;
   }
   HyperLogLog test1;
+  XoroRand xrand( 0x9e3779b9ULL * 13, 0x7f4a7c13ULL * 37 );
   const double est = 1.04 / sqrt( test1.HTSZ ); /* 1 std dev (66%) */
   uint32_t i, j, n = 0, total = 0;
   static const char red[]   = "\033[91m";
   static const char green[] = "\033[92m";
   static const char norm[]  = "\033[0m";
   test1.init();
-  printf( "size %ld\n", sizeof( test1 ) );
+  printf( "size %" PRId64 "\n", sizeof( test1 ) );
   for ( j = 0; j < 100; j++ ) {
     n += 1000;
     for ( i = 0; i < n; i++ )
-      test1.add( ( ( (uint64_t) rand() * ( (uint64_t) RAND_MAX + 1 ) ) |
-                     (uint64_t) rand() ) );
+      test1.add( xrand.next() );
     total += n;
     double e1 = test1.estimate(),
            ct = (double) total,

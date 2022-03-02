@@ -405,7 +405,7 @@ MktfdFieldIter::get_reference( MDReference &mref ) noexcept
               mref.fptr     = &buf[ off ];
               mref.fsize   -= off;
               mref.ftype    = MD_PARTIAL;
-              mref.fentrysz = this->position;
+              mref.fentrysz = (uint8_t) this->position;
 
               if ( this->repeat > 0 ) {
                 for ( off = mref.fsize; off > 0; )
@@ -535,7 +535,8 @@ MktfdFieldIter::find( const char *name,  size_t name_len,
     MDType   ftype;
     uint32_t fsize;
     uint8_t  flags;
-    if ( this->iter_msg.dict->get( name, name_len, fid, ftype, fsize, flags )) {
+    if ( this->iter_msg.dict->get( name, (uint8_t) name_len, fid, ftype, fsize,
+                                   flags ) ) {
       if ( (status = this->first()) == 0 ) {
         do {
           if ( this->fid == fid )

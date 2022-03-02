@@ -16,13 +16,16 @@ static AppAKeyword
   time_seconds_tok = { "time_seconds", 12, ATK_TIME_SECONDS },
   date_tok         = { "date",          4, ATK_DATE },
   price_tok        = { "price",         5, ATK_PRICE },
+  real32_tok       = { "real32",        6, ATK_REAL32 },
   real64_tok       = { "real64",        6, ATK_REAL64 },
   rmtes_string_tok = { "rmtes_string", 12, ATK_RMTES_STRING },
+  uint32_tok       = { "uint32",        6, ATK_UINT32 },
   uint64_tok       = { "uint64",        6, ATK_UINT64 },
   ascii_string_tok = { "ascii_string", 12, ATK_ASCII_STRING },
   binary_tok       = { "binary",        6, ATK_BINARY },
   buffer_tok       = { "buffer",        6, ATK_BUFFER },
   null_tok         = { "null",          4, ATK_NULL },
+  int32_tok        = { "int32",         5, ATK_INT32 },
   int64_tok        = { "int64",         5, ATK_INT64 },
   none_tok         = { "none",          4, ATK_NONE },
   array_tok        = { "array",         5, ATK_ARRAY },
@@ -41,14 +44,17 @@ tok_to_type( AppATok t )
     case ATK_TIME:         return MF_TIME;
     case ATK_DATE:         return MF_DATE;
     case ATK_PRICE:        return MF_PRICE;
+    case ATK_REAL32:       return RWF_REAL;
     case ATK_REAL64:       return RWF_REAL;
     case ATK_RMTES_STRING: return RWF_RMTES_STRING;
+    case ATK_UINT32:       return RWF_UINT;
     case ATK_UINT64:       return RWF_UINT;
     case ATK_ASCII_STRING: return RWF_ASCII_STRING;
     case ATK_BINARY:       return MF_BINARY;
     case ATK_BUFFER:       return RWF_BUFFER;
     case ATK_ENUM:         return RWF_ENUM;
     case ATK_TIME_SECONDS: return MF_TIME_SECONDS;
+    case ATK_INT32:        return RWF_INT;
     case ATK_INT64:        return RWF_INT;
     default:
     case ATK_NONE:         return RWF_NONE;
@@ -136,6 +142,8 @@ AppA::get_token( void ) noexcept
         case 'i': case 'I':
           if ( this->match( int64_tok ) )
             return this->consume( int64_tok );
+          if ( this->match( int32_tok ) )
+            return this->consume( int32_tok );
           if ( this->match( integer_tok ) )
             return this->consume( integer_tok );
           break;
@@ -158,6 +166,8 @@ AppA::get_token( void ) noexcept
             return this->consume( rmtes_string_tok );
           if ( this->match( real64_tok ) )
             return this->consume( real64_tok );
+          if ( this->match( real32_tok ) )
+            return this->consume( real32_tok );
           break;
         case 's': case 'S':
           if ( this->match( series_tok ) )
@@ -172,6 +182,8 @@ AppA::get_token( void ) noexcept
         case 'u': case 'U':
           if ( this->match( uint64_tok ) )
             return this->consume( uint64_tok );
+          if ( this->match( uint32_tok ) )
+            return this->consume( uint32_tok );
           break;
         case 'v': case 'V':
           if ( this->match( vector_tok ) )
@@ -192,13 +204,14 @@ AppA::get_token( void ) noexcept
 }
 
 AppA *
-AppA::open_path( const char *path,  const char *filename ) noexcept
+AppA::open_path( const char *path,  const char *filename,
+                 int debug_flags ) noexcept
 {
   char path2[ 1024 ];
   if ( DictParser::find_file( path, filename, ::strlen( filename ),
                               path2 ) ) {
     void * p = ::malloc( sizeof( AppA ) );
-    return new ( p ) AppA( path2 );
+    return new ( p ) AppA( path2, debug_flags );
   }
   return NULL;
 }
@@ -276,9 +289,11 @@ AppA::get_type_size( MDType &type,  uint32_t &size ) noexcept
       break;
 
     case ATK_INTEGER:
-      if ( this->rwf_type != ATK_REAL64 ) {
+      if ( this->rwf_type != ATK_REAL64 &&
+           this->rwf_type != ATK_REAL32 ) {
         if ( this->length <= 5 ) {
-          if ( this->rwf_type == ATK_UINT64 )
+          if ( this->rwf_type == ATK_UINT64 ||
+               this->rwf_type == ATK_UINT32 )
             type = MD_UINT;
           else
             type = MD_INT;
@@ -286,7 +301,8 @@ AppA::get_type_size( MDType &type,  uint32_t &size ) noexcept
           break;
         }
         if ( this->length <= 10 ) {
-          if ( this->rwf_type == ATK_UINT64 )
+          if ( this->rwf_type == ATK_UINT64 ||
+               this->rwf_type == ATK_UINT32 )
             type = MD_UINT;
           else
             type = MD_INT;
@@ -294,7 +310,8 @@ AppA::get_type_size( MDType &type,  uint32_t &size ) noexcept
           break;
         }
         if ( this->length <= 15 ) {
-          if ( this->rwf_type == ATK_UINT64 )
+          if ( this->rwf_type == ATK_UINT64 ||
+               this->rwf_type == ATK_UINT32 )
             type = MD_UINT;
           else
             type = MD_INT;
@@ -314,14 +331,16 @@ AppA::get_type_size( MDType &type,  uint32_t &size ) noexcept
       break;
 
     case ATK_BINARY:
-      if ( this->rwf_type == ATK_UINT64 ) {
+      if ( this->rwf_type == ATK_UINT64 ||
+           this->rwf_type == ATK_UINT32 ) {
         type = MD_UINT;
         size = 8;
         break;
       }
       /* FALLTHRU */
     default:
-      if ( this->rwf_type == ATK_REAL64 ) {
+      if ( this->rwf_type == ATK_REAL64 ||
+           this->rwf_type == ATK_REAL32 ) {
         type = MD_DECIMAL;
         size = 9;
         break;
@@ -339,7 +358,7 @@ AppA::parse_path( MDDictBuild &dict_build,  const char *path,
   AppA * p = NULL;
   int ret = 0, curlineno = 0, n;
 
-  p = AppA::open_path( path, fn );
+  p = AppA::open_path( path, fn, dict_build.debug_flags );
   if ( p == NULL ) {
     fprintf( stderr, "\"%s\": file not found\n", fn );
     return Err::FILE_NOT_FOUND;
@@ -442,9 +461,12 @@ AppA::parse_path( MDDictBuild &dict_build,  const char *path,
       case ATK_RMTES_STRING:
       case ATK_ASCII_STRING:
       case ATK_REAL64:
+      case ATK_REAL32:
       case ATK_UINT64:
+      case ATK_UINT32:
       case ATK_BUFFER:
       case ATK_INT64:
+      case ATK_INT32:
       case ATK_NONE:
       case ATK_ARRAY:
       case ATK_SERIES:

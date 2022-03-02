@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <raimd/md_list.h>
 
 using namespace rai;
@@ -37,10 +38,10 @@ main( int argc, char **argv )
          data_len = 128,
          asz      = ListData::alloc_size( count, data_len );
 
-  printf( "alloc size: %lu\n", asz );
+  printf( "alloc size: %" PRIu64 "\n", asz );
   ::memset( buf, 0, asz );
   ListData list( buf, asz );
-  printf( "init: count=%lu data_len=%lu\n", count, data_len );
+  printf( "init: count=%" PRIu64 " data_len=%" PRIu64 "\n", count, data_len );
   list.init( count, data_len );
 
   #define S( str ) str, sizeof( str ) - 1
@@ -91,9 +92,10 @@ main( int argc, char **argv )
   list2.init( count, data_len );
   list.copy( list2 );
 
-  printf( "used size %lu curr size %lu\n", bsz, list.size );
-  printf( "  count %lu data_len %lu\n", list.count(), list.data_len() );
-  printf( "  used count %lu data_len %lu\n", count, data_len );
+  printf( "used size %" PRIu64 " curr size %" PRIu64 "\n", bsz, list.size );
+  printf( "  count %" PRIu64 " data_len %" PRIu64 "\n", list.count(),
+          list.data_len() );
+  printf( "  used count %" PRIu64 " data_len %" PRIu64 "\n", count, data_len );
 
   MDOutput mout;
   lprint( buf, asz );

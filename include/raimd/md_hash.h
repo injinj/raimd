@@ -27,7 +27,7 @@ struct HashVal : public ListVal {
 struct HashPos {
   size_t   i;
   uint32_t h;
-  HashPos( const void *key,  uint32_t keylen ) {
+  HashPos( const void *key,  size_t keylen ) {
     this->init( key, keylen );
   }
   HashPos( uint32_t hash = 0 ) : i( 0 ), h( hash ) {}
@@ -99,12 +99,12 @@ struct HashStorage : public ListStorage<UIntSig, UIntType> {
     new_size  = sz_max( cur_size, this->count + pad );
     new_size  = ( new_size + 7 ) & ~(size_t) 7;
     need      = new_size - cur_size;
-    new_start = hdr.data_offset( start, -need );
+    new_start = hdr.data_offset( start, -(ssize_t) need );
     if ( this->data_full( hdr, need ) )
       return false;
-    this->data_start = new_start;
+    this->data_start = (UIntType) new_start;
     this->index_ref( hdr, 0 ) = (UIntType) new_start;
-    this->data_len += need;
+    this->data_len += (UIntType) need;
     if ( cur_size == 0 )
       ((uint8_t *) hdr.blob( new_start ))[ 0 ] = 0;
     else if ( start + cur_size <= hdr.data_size() )
@@ -245,7 +245,7 @@ struct HashStorage : public ListStorage<UIntSig, UIntType> {
     len = sz_min( this->count, sz );
     off = hdr.data_offset( start, len );
     map = (const uint8_t *) hdr.blob( 0 );
-    printf( "sz:%ld,len:%ld -- ", sz, len );
+    printf( "sz:%u,len:%u -- ", (uint32_t) sz, (uint32_t) len );
     if ( len > 0 ) {
       size_t i;
       printf( "%d <", map[ start ] );
@@ -438,7 +438,7 @@ struct HashStorage : public ListStorage<UIntSig, UIntType> {
         this->move_tail( hdr, pos.i, amt );
         this->adjust_tail( hdr, pos.i, amt );
       }
-      this->data_len += amt;
+      this->data_len += (UIntType) amt;
       /* replace nth item */
       this->copy_item( hdr, key, keylen, val, vallen,
                        this->get_offset( hdr, pos.i ) );
@@ -487,7 +487,7 @@ struct HashStorage : public ListStorage<UIntSig, UIntType> {
         /* adjust the hash entry */
         this->move_tail( hdr, pos.i, amt );
         this->adjust_tail( hdr, pos.i, amt );
-        this->data_len += amt;
+        this->data_len += (UIntType) amt;
       }
       start = hdr.data_offset( this->get_offset( hdr, pos.i ), keylen + 1 );
     }
@@ -527,7 +527,7 @@ struct HashStorage : public ListStorage<UIntSig, UIntType> {
       return HASH_FULL;
     this->move_tail( hdr, pos.i, amt );
     this->adjust_tail( hdr, pos.i, amt );
-    this->data_len += amt;
+    this->data_len += (UIntType) amt;
     /* append the data */
     size_t start = this->get_offset( hdr, pos.i );
     start = hdr.data_offset( start, old_size );

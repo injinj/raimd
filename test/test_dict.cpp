@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <raimd/md_dict.h>
 #include <raimd/cfile.h>
 #include <raimd/app_a.h>
@@ -10,22 +11,37 @@ using namespace md;
 static void test_lookup( MDDictBuild &dict_build,  MDDict *dict );
 static void gen_sass_fields( MDDictBuild &dict_build,  MDDict *dict );
 
+static int
+get_arg( const char *arg,  int argc,  char **argv ) noexcept
+{
+  for ( int i = 1; i < argc; i++ )
+    if ( ::strcmp( argv[ i ], arg ) == 0 )
+      return i;
+  return -1;
+}
+
 int
 main( int argc, char **argv )
 {
   MDDictBuild dict_build;
   MDDict * dict = NULL;
   const char * path = ::getenv( "cfile_path" );
-  bool gen_fields = ( argc > 1 && ::strcmp( argv[ 1 ], "-g" ) == 0 );
+  bool gen_fields = ( get_arg( "-g", argc, argv ) > 0 );
+  int path_arg = get_arg( "-p", argc, argv );
 
-  if ( argc > 1 && ::strcmp( argv[ 1 ], "-h" ) == 0 ) {
+  if ( get_arg( "-h", argc, argv ) > 0 ) {
     fprintf( stderr,
+      "Usage: %s [-g] [-p cfile_path]\n"
       "Test loading dictionaries or generate SASS Qform fields\n"
       "Use -g to generate tss_fields.cf from RDMFieldDictionary\n"
-      "Set $cfile_path to the path that has dictionary files\n" );
+      "Set $cfile_path to the path that has dictionary files\n"
+      "or pass path to the -p arg\n", argv[ 0 ] );
     return 1;
   }
+  if ( path_arg > 0 && path_arg + 1 < argc )
+    path = argv[ path_arg + 1 ];
   /* load RDM dictionary */
+  dict_build.debug_flags = MD_DICT_PRINT_FILES;
   if ( AppA::parse_path( dict_build, path, "RDMFieldDictionary" ) == 0 ) {
     EnumDef::parse_path( dict_build, path, "enumtype.def" );
     dict_build.index_dict( "app_a", dict );
@@ -107,10 +123,10 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict )
   }
   printf( "\n" );
   printf( "dict %s\n", dict->dict_type ); 
-  printf( "build size %lu\n", dict_build.idx->total_size() );
-  printf( "fname %lu\n", dict_build.idx->fname_size( shft, algn ) );
+  printf( "build size %" PRIu64 "\n", dict_build.idx->total_size() );
+  printf( "fname %" PRIu64 "\n", dict_build.idx->fname_size( shft, algn ) );
   printf( "shift %u align %u = %u bits\n", shft, algn, shft - algn );
-  printf( "entry count %lu\n", dict_build.idx->entry_count );
+  printf( "entry count %" PRIu64 "\n", dict_build.idx->entry_count );
   printf( "fid min %u max %u\n", dict_build.idx->min_fid,
                                  dict_build.idx->max_fid );
   printf( "type count %u/%u\n", dict_build.idx->type_hash->htcnt,

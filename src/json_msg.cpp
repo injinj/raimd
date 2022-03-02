@@ -67,7 +67,7 @@ JsonMsg::unpack_any( void *bb,  size_t off,  size_t end,  uint32_t,
   JsonParser parser( *m );
 
   const uint8_t * buf = (const uint8_t *) bb;
-  JsonBufInput bin( &((const char *) buf)[ off ], 0, end - off );
+  JsonBufInput bin( &((const char *) buf)[ off ], 0, (uint32_t) ( end - off ) );
   if ( parser.parse( bin ) == 0 && parser.value != NULL ) {
     msg->js = parser.value;
     msg->msg_end = msg->msg_off + bin.offset;

@@ -379,7 +379,7 @@ RwfFieldIter::get_reference( MDReference &mref ) noexcept
           if ( off > 0 && &buf[ off ] < eos && buf[ off ] == HPA ) {
             mref.fptr     = &buf[ off + 1 ];
             mref.fsize   -= off + 1;
-            mref.fentrysz = this->position;
+            mref.fentrysz = (uint8_t) this->position;
             return 0;
           }
         }
@@ -413,7 +413,8 @@ RwfFieldIter::find( const char *name,  size_t name_len,
     MDType   ftype;
     uint32_t fsize;
     uint8_t  flags;
-    if ( this->iter_msg.dict->get( name, name_len, fid, ftype, fsize, flags )) {
+    if ( this->iter_msg.dict->get( name, (uint8_t) name_len, fid, ftype, fsize,
+                                   flags )) {
       if ( (status = this->first()) == 0 ) {
         do {
           if ( this->fid == fid )
@@ -506,7 +507,8 @@ RwfMsgWriter::append_ival( const char *fname,  size_t fname_len,
   MDFid    fid;
   uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
+  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
+                          flags ) )
     return Err::UNKNOWN_FID;
   if ( ftype == MD_UINT || ftype == MD_INT ||
        ftype == MD_ENUM || ftype == MD_BOOLEAN )
@@ -696,7 +698,7 @@ RwfMsgWriter::pack_partial( MDFid fid,  const uint8_t *fptr,  size_t fsize,
 {
   uint8_t * ptr = &this->buf[ this->off ];
   size_t partial_len = ( foffset > 100 ? 3 : foffset > 10 ? 2 : 1 );
-  size_t len = rwf_pack_size( fsize + partial_len + 3 );
+  size_t len = rwf_pack_size( (uint32_t) ( fsize + partial_len + 3 ) );
   if ( ! this->has_space( len ) )
     return Err::NO_SPACE;
   this->off += len;
@@ -743,7 +745,8 @@ RwfMsgWriter::append_ref( const char *fname,  size_t fname_len,
   MDFid    fid;
   uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
+  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
+                          flags ) )
     return Err::UNKNOWN_FID;
   return this->append_ref( fid, ftype, fsize, mref );
 }
@@ -776,7 +779,7 @@ RwfMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       if ( cvt_number<double>( mref, val.f64 ) != 0 )
         return Err::BAD_CVT_NUMBER;
       if ( fsize == 4 )
-        val.f32 = val.f64;
+        val.f32 = (float) val.f64;
       fptr = (uint8_t *) (void *) &val;
       fendian = md_endian;
       break;
@@ -816,7 +819,7 @@ RwfMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
         fptr = (uint8_t *) (void *) str_buf;
       }
       if ( slen < fsize )
-        fsize = slen;
+        fsize = (uint32_t) slen;
       break;
     }
     default:
@@ -861,7 +864,7 @@ RwfMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
 
     ptr[ 0 ] = ( fid >> 8 ) & 0xffU;
     ptr[ 1 ] = fid & 0xffU;
-    ptr[ 2 ] = ilen + 1;
+    ptr[ 2 ] = (uint8_t) ( ilen + 1 );
     ptr[ 3 ] = md_to_rwf_decimal_hint( dec.hint );
     copy_rwf_int_val( ival, &ptr[ 4 ], ilen );
 
@@ -1021,7 +1024,8 @@ RwfMsgWriter::append_decimal( const char *fname,  size_t fname_len,
   MDFid    fid;
   uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
+  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
+                          flags ) )
     return Err::UNKNOWN_FID;
   return this->append_decimal( fid, ftype, fsize, dec );
 }
@@ -1035,7 +1039,8 @@ RwfMsgWriter::append_time( const char *fname,  size_t fname_len,
   MDFid    fid;
   uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
+  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
+                          flags ) )
     return Err::UNKNOWN_FID;
   return this->append_time( fid, ftype, fsize, time );
 }
@@ -1049,7 +1054,8 @@ RwfMsgWriter::append_date( const char *fname,  size_t fname_len,
   MDFid    fid;
   uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
+  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
+                          flags ) )
     return Err::UNKNOWN_FID;
   return this->append_date( fid, ftype, fsize, date );
 }

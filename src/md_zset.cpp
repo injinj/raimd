@@ -80,7 +80,7 @@ ZSetFieldIter::get_name( MDName &name ) noexcept
     if ( this->zset.zindex( this->field_start+1, this->val ) != ZSET_OK )
       return Err::NOT_FOUND;
     this->keylen = dec64_to_string( (Dec64Store *) &this->val.score,
-                                    this->key );
+                                    this->key ) + 1;
   }
   name.fname    = this->key;
   name.fnamelen = this->keylen;

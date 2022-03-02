@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <math.h>
 #include <raimd/md_zset.h>
 
@@ -39,10 +40,10 @@ main( int argc, char **argv )
          data_len = 128,
          asz      = ZSetData::alloc_size( count, data_len );
 
-  printf( "alloc size: %lu\n", asz );
+  printf( "alloc size: %" PRIu64 "\n", asz );
   ::memset( buf, 0, asz );
   ZSetData zset( buf, asz );
-  printf( "init: count=%lu data_len=%lu\n", count, data_len );
+  printf( "init: count=%" PRIu64 " data_len=%" PRIu64 "\n", count, data_len );
   zset.init( count, data_len );
 
   #define S( str ) str, sizeof( str ) - 1
@@ -82,9 +83,10 @@ main( int argc, char **argv )
   zset.copy( zset2 );
   zprint( buf2, bsz );
 
-  printf( "used size %lu curr size %lu\n", bsz, zset.size );
-  printf( "  count %lu data_len %lu\n", zset.count(), zset.data_len() );
-  printf( "  used count %lu data_len %lu\n", count, data_len );
+  printf( "used size %" PRIu64 " curr size %" PRIu64 "\n", bsz, zset.size );
+  printf( "  count %" PRIu64 " data_len %" PRIu64 "\n", zset.count(),
+          zset.data_len() );
+  printf( "  used count %" PRIu64 " data_len %" PRIu64 "\n", count, data_len );
 
   MDOutput mout;
   mout.print_hex( buf, asz );

@@ -82,7 +82,7 @@ HashFieldIter::get_name( MDName &name ) noexcept
     this->val.key[ this->val.keylen ] = '\0';
   }
   name.fname    = this->val.key;
-  name.fnamelen = this->val.keylen;
+  name.fnamelen = this->val.keylen + 1;
   name.fid = 0;
   return 0;
 }

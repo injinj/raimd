@@ -263,7 +263,7 @@ TibFieldIter::unpack( void ) noexcept
     this->size = get_u32<MD_BIG>( &buf[ i ] );
     i += 4;
   }
-  this->data_off = i;
+  this->data_off = (uint32_t) i;
   i += this->size;
 
   switch ( this->type ) {

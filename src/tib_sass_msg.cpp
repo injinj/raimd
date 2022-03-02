@@ -249,7 +249,8 @@ TibSassFieldIter::get_reference( MDReference &mref ) noexcept
     }
   }
   else if ( this->ftype == MD_PARTIAL ) {
-    mref.fentrysz = get_u16<MD_BIG>( &buf[ this->field_start + 2 ] ); /* off */
+    mref.fentrysz = (uint8_t)
+                    get_u16<MD_BIG>( &buf[ this->field_start + 2 ] ); /* off */
     mref.fsize    = get_u16<MD_BIG>( &buf[ this->field_start + 4 ] ); /* len */
     mref.fptr     = &buf[ this->field_start + 6 ];                   /* data */
   }
@@ -327,7 +328,8 @@ TibSassFieldIter::find( const char *name,  size_t name_len,
     MDType   ftype;
     uint32_t fsize;
     uint8_t  flags;
-    if ( this->iter_msg.dict->get( name, name_len, fid, ftype, fsize, flags )) {
+    if ( this->iter_msg.dict->get( name, (uint8_t) name_len, fid, ftype, fsize,
+                                   flags )) {
       if ( (status = this->first()) == 0 ) {
         do {
           if ( this->fid == fid )
@@ -444,7 +446,8 @@ TibSassMsgWriter::append_ref( const char *fname,  size_t fname_len,
   MDFid    fid;
   uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
+  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
+                          flags ) )
     return Err::UNKNOWN_FID;
   return this->append_ref( fid, ftype, fsize, flags, mref );
 }
@@ -456,9 +459,9 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
   char      str_buf[ 64 ];
   uint8_t * ptr  = &this->buf[ this->off + 8 ],
           * fptr = mref.fptr;
-  uint32_t  slen,
-            zpad = 0;
-  size_t    len;
+  size_t    slen,
+            zpad = 0,
+            len;
   MDValue   val;
   MDEndian  fendian = mref.fendian;
   int       status;
@@ -473,8 +476,8 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       case MD_UINT:
         switch ( mref.ftype ) {
           case MD_UINT:   val.u64 = get_uint<uint64_t>( mref ); break;
-          case MD_INT:    val.u64 = get_int<int64_t>( mref ); break;
-          case MD_REAL:   val.u64 = get_float<double>( mref ); break;
+          case MD_INT:    val.u64 = (uint64_t) get_int<int64_t>( mref ); break;
+          case MD_REAL:   val.u64 = (uint64_t) get_float<double>( mref ); break;
           case MD_STRING: val.u64 = parse_u64( (char *) fptr, NULL ); break;
           default:        return Err::BAD_CVT_NUMBER;
         }
@@ -483,9 +486,9 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
         break;
       case MD_INT:
         switch ( mref.ftype ) {
-          case MD_UINT:   val.i64 = get_uint<uint64_t>( mref ); break;
+          case MD_UINT:   val.i64 = (int64_t) get_uint<uint64_t>( mref ); break;
           case MD_INT:    val.i64 = get_int<int64_t>( mref ); break;
-          case MD_REAL:   val.i64 = get_float<double>( mref ); break;
+          case MD_REAL:   val.i64 = (int64_t) get_float<double>( mref ); break;
           case MD_STRING: val.i64 = parse_i64( (char *) fptr, NULL ); break;
           default:        return Err::BAD_CVT_NUMBER;
         }
@@ -495,14 +498,14 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       case MD_DECIMAL:
       case MD_REAL:
         switch ( mref.ftype ) {
-          case MD_UINT:   val.f64 = get_uint<uint64_t>( mref ); break;
-          case MD_INT:    val.f64 = get_int<int64_t>( mref ); break;
+          case MD_UINT:   val.f64 = (double) get_uint<uint64_t>( mref ); break;
+          case MD_INT:    val.f64 = (double) get_int<int64_t>( mref ); break;
           case MD_REAL:   val.f64 = get_float<double>( mref ); break;
           case MD_STRING: val.f64 = parse_f64( (char *) fptr, NULL ); break;
           default:        return Err::BAD_CVT_NUMBER;
         }
         if ( fsize == 4 )
-          val.f32 = val.f64;
+          val.f32 = (float) val.f64;
         fptr = (uint8_t *) (void *) &val;
         fendian = md_endian;
         if ( fsize > 8 ) { /* for grocery */
@@ -527,7 +530,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
           case MD_STRING:
           case MD_OPAQUE:  sbuf = (char *) fptr; slen = mref.fsize;
                            break;
-          case MD_PARTIAL: sbuf = (char *) fptr; fsize = mref.fsize;
+          case MD_PARTIAL: sbuf = (char *) fptr; fsize = (uint32_t) mref.fsize;
                            goto skip_zpad;
           default:         sz = 0;
                            status = to_string( mref, sbuf, sz );
@@ -538,7 +541,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
         fptr = (uint8_t *) (void *) sbuf;
         if ( slen < fsize ) {
           zpad  = fsize - slen;
-          fsize = slen;
+          fsize = (uint32_t) slen;
         }
       skip_zpad:;
         break;
@@ -546,9 +549,9 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       case MD_BOOLEAN:
         switch ( mref.ftype ) {
           case MD_UINT:   val.u64 = get_uint<uint64_t>( mref ); break;
-          case MD_INT:    val.u64 = get_int<int64_t>( mref ); break;
-          case MD_REAL:   val.u64 = get_float<double>( mref ); break;
-          case MD_STRING: val.u64 = parse_bool( (char *) fptr, mref.fsize ); break;
+          case MD_INT:    val.u64 = (uint64_t) get_int<int64_t>( mref ); break;
+          case MD_REAL:   val.u64 = (uint64_t) get_float<double>( mref ); break;
+          case MD_STRING: val.u64 = (uint64_t) parse_bool( (char *) fptr, mref.fsize ); break;
           default:        return Err::BAD_CVT_NUMBER;
         }
         fptr = (uint8_t *) (void *) &val;
@@ -567,15 +570,15 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
     if ( ! this->has_space( len ) )
       return Err::NO_SPACE;
     fid |= ( (uint16_t) flags << 14 ); /* FIXED = 2, PRIMITIVE = 1 */
-    ptr[ 0 ] = ( fid >> 8 ) & 0xffU;
-    ptr[ 1 ] = fid & 0xffU;
+    ptr[ 0 ] = (uint8_t) ( ( fid >> 8 ) & 0xffU );
+    ptr[ 1 ] = (uint8_t) ( fid & 0xffU );
     if ( ftype == MD_PARTIAL ) {
       if ( fsize > 0xffffU )
         return Err::BAD_FIELD_SIZE;
-      ptr[ 2 ] = ( mref.fentrysz >> 8 ) & 0xffU;
-      ptr[ 3 ] = mref.fentrysz & 0xffU;
-      ptr[ 4 ] = ( fsize >> 8 ) & 0xffU;
-      ptr[ 5 ] = fsize & 0xffU;
+      ptr[ 2 ] = 0; /* ( uint8_t )( ( mref.fentrysz >> 8 ) & 0xffU );*/
+      ptr[ 3 ] = (uint8_t) ( mref.fentrysz & 0xffU );
+      ptr[ 4 ] = (uint8_t) ( ( fsize >> 8 ) & 0xffU );
+      ptr[ 5 ] = (uint8_t) ( fsize & 0xffU );
       ::memcpy( &ptr[ 6 ], fptr, fsize );
       if ( fsize + 6 < len )
         ptr[ fsize + 7 ] = 0;
@@ -687,7 +690,7 @@ TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
       ptr[ 1 ] = fid & 0xffU;
 
       if ( fsize < 8 ) {
-        f32val = fval;
+        f32val = (float) fval;
         fptr = (uint8_t *) (void *) &f32val;
       }
       else {
@@ -809,7 +812,8 @@ TibSassMsgWriter::append_decimal( const char *fname,  size_t fname_len,
   MDFid    fid;
   uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
+  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
+                          flags ) )
     return Err::UNKNOWN_FID;
   return this->append_decimal( fid, ftype, fsize, dec );
 }
@@ -823,7 +827,8 @@ TibSassMsgWriter::append_time( const char *fname,  size_t fname_len,
   MDFid    fid;
   uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
+  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
+                          flags ) )
     return Err::UNKNOWN_FID;
   return this->append_time( fid, ftype, fsize, time );
 }
@@ -837,7 +842,8 @@ TibSassMsgWriter::append_date( const char *fname,  size_t fname_len,
   MDFid    fid;
   uint8_t  flags;
 
-  if ( ! this->dict->get( fname, fname_len, fid, ftype, fsize, flags ) )
+  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
+                          flags ) )
     return Err::UNKNOWN_FID;
   return this->append_date( fid, ftype, fsize, date );
 }

@@ -251,7 +251,7 @@ MDMsgMem::alloc_slow( size_t size ) noexcept
   next[ 0 ] = (void *) area;
   this->mem[ 0 ] = (void *) next;
   area = next;
-  this->mem_off = 1 + size;
+  this->mem_off = 1 + (uint32_t) size;
   return &area[ 1 ];
 }
 

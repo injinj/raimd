@@ -2,6 +2,31 @@
 #define __rai_raimd__md_int_h__
 
 #include <math.h>
+#ifdef _MSC_VER
+#include <intrin.h>
+/* disable delete() constructor (4291), fopen deprecated (4996) */
+#pragma warning( disable : 4291 4996 )
+inline uint8_t
+md_ctzl( uint64_t val )
+{
+  unsigned long z;
+  if ( _BitScanForward64( &z, val ) )
+    return (uint8_t) z;
+  return 64;
+}
+inline uint8_t
+md_clzl( uint64_t val )
+{
+  unsigned long z;
+  if ( _BitScanReverse64( &z, val ) )
+    return (uint8_t) ( 63 - z );
+  return 64;
+}
+typedef ptrdiff_t ssize_t;
+#else
+inline uint8_t md_ctzl( uint64_t val ) { return __builtin_ctzl( val ); }
+inline uint8_t md_clzl( uint64_t val ) { return __builtin_clzl( val ); }
+#endif
 
 namespace rai {
 namespace md {
@@ -77,70 +102,70 @@ static inline double get_f64( const void *val ) {
 template<class T>
 static inline T get_uint( const void *val, MDEndian end ) {
   if ( sizeof( T ) == sizeof( uint16_t ) )
-    return end == MD_LITTLE ? get_u16<MD_LITTLE>( val ): get_u16<MD_BIG>( val );
+    return (T) ( end == MD_LITTLE ? get_u16<MD_LITTLE>( val ): get_u16<MD_BIG>( val ) );
   if ( sizeof( T ) == sizeof( uint32_t ) )
-    return end == MD_LITTLE ? get_u32<MD_LITTLE>( val ): get_u32<MD_BIG>( val );
+    return (T) ( end == MD_LITTLE ? get_u32<MD_LITTLE>( val ): get_u32<MD_BIG>( val ) );
   if ( sizeof( T ) == sizeof( uint64_t ) )
-    return end == MD_LITTLE ? get_u64<MD_LITTLE>( val ): get_u64<MD_BIG>( val );
-  return ((const uint8_t *) val)[ 0 ];
+    return (T) ( end == MD_LITTLE ? get_u64<MD_LITTLE>( val ): get_u64<MD_BIG>( val ) );
+  return (T) ((const uint8_t *) val)[ 0 ];
 }
 
 template<class T>
 static inline T get_uint( const MDReference &mref ) {
   if ( mref.fsize == sizeof( uint16_t ) )
-    return get_uint<uint16_t>( mref.fptr, mref.fendian );
+    return (T) get_uint<uint16_t>( mref.fptr, mref.fendian );
   if ( mref.fsize == sizeof( uint32_t ) )
-    return get_uint<uint32_t>( mref.fptr, mref.fendian );
+    return (T) get_uint<uint32_t>( mref.fptr, mref.fendian );
   if ( mref.fsize == sizeof( uint64_t ) )
-    return get_uint<uint64_t>( mref.fptr, mref.fendian );
-  return get_uint<uint8_t>( mref.fptr, mref.fendian );
+    return (T) get_uint<uint64_t>( mref.fptr, mref.fendian );
+  return (T) get_uint<uint8_t>( mref.fptr, mref.fendian );
 }
 
 template<class T>
 static inline T get_int( const void *val, MDEndian end ) {
   if ( sizeof( T ) == sizeof( int16_t ) )
-    return end == MD_LITTLE ? get_i16<MD_LITTLE>( val ): get_i16<MD_BIG>( val );
+    return (T) ( end == MD_LITTLE ? get_i16<MD_LITTLE>( val ): get_i16<MD_BIG>( val ) );
   if ( sizeof( T ) == sizeof( int32_t ) )
-    return end == MD_LITTLE ? get_i32<MD_LITTLE>( val ): get_i32<MD_BIG>( val );
+    return (T) ( end == MD_LITTLE ? get_i32<MD_LITTLE>( val ): get_i32<MD_BIG>( val ) );
   if ( sizeof( T ) == sizeof( int64_t ) )
-    return end == MD_LITTLE ? get_i64<MD_LITTLE>( val ): get_i64<MD_BIG>( val );
+    return (T) ( end == MD_LITTLE ? get_i64<MD_LITTLE>( val ): get_i64<MD_BIG>( val ) );
   return ((const int8_t *) val)[ 0 ];
 }
 
 template<class T>
 static inline T get_int( const MDReference &mref ) {
   if ( mref.fsize == sizeof( int16_t ) )
-    return get_int<int16_t>( mref.fptr, mref.fendian );
+    return (T) get_int<int16_t>( mref.fptr, mref.fendian );
   if ( mref.fsize == sizeof( int32_t ) )
-    return get_int<int32_t>( mref.fptr, mref.fendian );
+    return (T) get_int<int32_t>( mref.fptr, mref.fendian );
   if ( mref.fsize == sizeof( int64_t ) )
-    return get_int<int64_t>( mref.fptr, mref.fendian );
-  return get_int<int8_t>( mref.fptr, mref.fendian );
+    return (T) get_int<int64_t>( mref.fptr, mref.fendian );
+  return (T) get_int<int8_t>( mref.fptr, mref.fendian );
 }
 
 template<class T>
 static inline T get_float( const void *val, MDEndian end ) {
   if ( sizeof( T ) == sizeof( float ) )
-    return end == MD_LITTLE ? get_f32<MD_LITTLE>( val ): get_f32<MD_BIG>( val );
+    return (T)( end == MD_LITTLE ? get_f32<MD_LITTLE>( val ): get_f32<MD_BIG>( val ) );
   if ( sizeof( T ) == sizeof( double ) )
-    return end == MD_LITTLE ? get_f64<MD_LITTLE>( val ): get_f64<MD_BIG>( val );
+    return (T)( end == MD_LITTLE ? get_f64<MD_LITTLE>( val ): get_f64<MD_BIG>( val ) );
   return 0;
 }
 
 template<class T>
 static inline T get_float( const MDReference &mref ) {
   if ( mref.fsize == sizeof( float ) )
-    return get_float<float>( mref.fptr, mref.fendian );
+    return (T) get_float<float>( mref.fptr, mref.fendian );
   if ( mref.fsize == sizeof( double ) )
-    return get_float<double>( mref.fptr, mref.fendian );
+    return (T) get_float<double>( mref.fptr, mref.fendian );
   return 0;
 }
 
 static inline uint16_t parse_u16( const char *val,  char **end ) {
-  return ::strtoul( val, end, 0 );
+  return (uint16_t) ::strtoul( val, end, 0 );
 }
 static inline int16_t parse_i16( const char *val,  char **end ) {
-  return ::strtol( val, end, 0 );
+  return (int16_t) ::strtol( val, end, 0 );
 }
 static inline uint32_t parse_u32( const char *val,  char **end ) {
   return ::strtoul( val, end, 0 );
@@ -206,19 +231,19 @@ static inline int cvt_number( const MDReference &mref, T &val ) {
   switch ( mref.ftype ) {
     case MD_BOOLEAN:
     case MD_ENUM:
-    case MD_UINT:   val = get_uint<uint64_t>( mref ); return 0;
-    case MD_INT:    val = get_int<int64_t>( mref ); return 0;
-    case MD_REAL:   val = get_float<double>( mref ); return 0;
-    case MD_STRING: val = parse_u64( (char *) mref.fptr, NULL ); return 0;
+    case MD_UINT:   val = (T) get_uint<uint64_t>( mref ); return 0;
+    case MD_INT:    val = (T) get_int<int64_t>( mref ); return 0;
+    case MD_REAL:   val = (T) get_float<double>( mref ); return 0;
+    case MD_STRING: val = (T) parse_u64( (char *) mref.fptr, NULL ); return 0;
     case MD_DECIMAL: {
       MDDecimal dec;
       double f;
       dec.get_decimal( mref );
       if ( dec.hint == MD_DEC_INTEGER )
-        val = dec.ival;
+        val = (T) dec.ival;
       else {
         dec.get_real( f );
-        val = f;
+        val = (T) f;
       }
       return 0;
     }
@@ -254,10 +279,10 @@ static inline size_t int_digs( int64_t v ) {
 static inline size_t uint_str( uint64_t v,  char *buf,  size_t len ) {
   for ( size_t pos = len; v >= 10; ) {
     const uint64_t q = v / 10, r = v % 10;
-    buf[ --pos ] = '0' + r;
+    buf[ --pos ] = '0' + (char) r;
     v = q;
   }
-  buf[ 0 ] = '0' + v;
+  buf[ 0 ] = '0' + (char) v;
   return len;
 }
 
@@ -283,13 +308,13 @@ static inline size_t float_str( double f,  char *buf ) {
   if ( isnan( f ) ) {
     if ( f < 0 )
       buf[ off++ ] = '-';
-    ::strcpy( &buf[ off ], "NaN" );
+    ::memcpy( &buf[ off ], "NaN", 4 );
     return off + 3;
   }
   if ( isinf( f ) ) {
     if ( f < 0 )
       buf[ off++ ] = '-';
-    ::strcpy( &buf[ off ], "Inf" );
+    ::memcpy( &buf[ off ], "Inf", 4 );
     return off + 3;
   }
 
@@ -410,11 +435,11 @@ static inline int to_string( const MDReference &mref, char *sbuf,
     case MD_BOOLEAN: {
       if ( get_uint<uint8_t>( mref ) ) {
         slen = 4;
-        ::strcpy( sbuf, "true" );
+        ::memcpy( sbuf, "true", 5 );
       }
       else {
         slen = 5;
-        ::strcpy( sbuf, "false" );
+        ::memcpy( sbuf, "false", 6 );
       }
       return 0;
     }

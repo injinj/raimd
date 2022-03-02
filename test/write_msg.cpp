@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <raimd/md_dict.h>
 #include <raimd/cfile.h>
 #include <raimd/app_a.h>
@@ -121,7 +122,7 @@ test_json( void )
   m = MDMsg::unpack( buf, 0, len, 0, NULL, &mem );
   if ( m != NULL ) {
     MDOutput mout;
-    printf( "json mem %lu\n", mem.mem_off * sizeof( void * ) );
+    printf( "json mem %" PRIu64 "\n", mem.mem_off * sizeof( void * ) );
     m->print( &mout );
   }
 }
@@ -172,7 +173,7 @@ test_variable( void )
     MDOutput mout;
     printf( "var msg test\n" );
     mout.print_hex( buf, sz );
-    printf( "var msg sz %lu\n", sz );
+    printf( "var msg sz %" PRIu64 "\n", sz );
     m->print( &mout );
   }
 }
@@ -202,7 +203,7 @@ main( int argc, char **argv )
   sz = test_write<TibMsgWriter>( tibmsg );
   printf( "TibMsg test:\n" );
   mout.print_hex( buf, sz );
-  printf( "tibmsg sz %lu\n", sz );
+  printf( "tibmsg sz %" PRIu64 "\n", sz );
 
   m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
   if ( m != NULL )
@@ -213,7 +214,7 @@ main( int argc, char **argv )
   sz = test_write<RvMsgWriter>( rvmsg );
   printf( "RvMsg test:\n" );
   mout.print_hex( buf, sz );
-  printf( "rvmsg sz %lu\n", sz );
+  printf( "rvmsg sz %" PRIu64 "\n", sz );
 
   m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
   if ( m != NULL )
@@ -236,7 +237,7 @@ main( int argc, char **argv )
   sz = rvmsg2.update_hdr( submsg );
   printf( "RvMsg test2:\n" );
   mout.print_hex( buf, sz );
-  printf( "rvmsg2 sz %lu\n", sz );
+  printf( "rvmsg2 sz %" PRIu64 "\n", sz );
 
   m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
   if ( m != NULL )
@@ -248,7 +249,7 @@ main( int argc, char **argv )
     sz = test_write<TibSassMsgWriter>( tibsassmsg );
     printf( "TibSassMsg test:\n" );
     mout.print_hex( buf, sz );
-    printf( "tibsassmsg sz %lu\n", sz );
+    printf( "tibsassmsg sz %" PRIu64 "\n", sz );
 
     m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
     if ( m != NULL )
@@ -259,7 +260,7 @@ main( int argc, char **argv )
     sz = test_write<RwfMsgWriter>( rwfmsg );
     printf( "RwfMsg test:\n" );
     mout.print_hex( buf, sz );
-    printf( "rwfmsg sz %lu\n", sz );
+    printf( "rwfmsg sz %" PRIu64 "\n", sz );
 
     m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
     if ( m != NULL )

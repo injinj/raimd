@@ -168,14 +168,20 @@ struct MDDict {
                          uint16_t &val ) noexcept;
 };
 
+enum MDDictDebugFlags {
+  MD_DICT_NONE = 0,
+  MD_DICT_PRINT_FILES = 1
+};
+
 /* The following structures are used to build the MDDict, only used when
  * building the index */
 struct MDDictIdx;
 struct MDDictEntry;
 struct MDDictBuild {
   MDDictIdx * idx;
+  int         debug_flags;
 
-  MDDictBuild() : idx( 0 ) {}
+  MDDictBuild() : idx( 0 ), debug_flags( 0 ) {}
   ~MDDictBuild() noexcept;
 
   MDDictIdx *get_dict_idx( void ) noexcept;
@@ -414,12 +420,16 @@ struct DictParser {
   static const int EOF_CHAR = 256; /* int value signals end of file */
   const int    int_tok,    /* int value of token */
                ident_tok,  /* token enum for identifier */
-               error_tok;  /* token enum for error */
+               error_tok,  /* token enum for error */
+               debug_flags;/* verbosity of parser debugging */
+  const char * dict_kind;  /* what kind of dict this is */
 
-  DictParser( const char *p,  int intk,  int identk,  int errk ) :
+  DictParser( const char *p,  int intk,  int identk,  int errk,  int fl,
+              const char *k ) :
       next( 0 ), fp( 0 ), str_input( 0 ), str_size( 0 ), off( 0 ), len( 0 ),
       tok_sz( 0 ), col( 0 ), br_level( 0 ), is_eof( false ),
-      int_tok( intk ), ident_tok( identk ), error_tok( errk ) {
+      int_tok( intk ), ident_tok( identk ), error_tok( errk ),
+      debug_flags( fl ), dict_kind( k ) {
     size_t len = 0;
     if ( p != NULL ) {
       len = ::strlen( p );

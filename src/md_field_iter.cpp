@@ -1316,11 +1316,11 @@ end_of_float:;
     if ( stk[ e+1 ].digit != 0 && stk[ e+1 ].ival != 0 ) {
       if ( stk[ e ].exp ) {
         if ( this->hint == MD_DEC_INTEGER )
-          this->hint = 10 + stk[ e+1 ].ival;
+          this->hint = 10 + (int8_t) stk[ e+1 ].ival;
         else if ( this->hint > 10 )
-          this->hint += stk[ e+1 ].ival;
+          this->hint += (int8_t) stk[ e+1 ].ival;
         else {
-          this->hint += stk[ e+1 ].ival;
+          this->hint += (int8_t) stk[ e+1 ].ival;
           if ( this->hint >= -10 ) {
             this->hint += 20;
             if ( this->hint == 10 )
@@ -1330,11 +1330,11 @@ end_of_float:;
       }
       else if ( stk[ e ].nexp ) {
         if ( this->hint == MD_DEC_INTEGER )
-          this->hint = -10 - (int) stk[ e+1 ].ival;
+          this->hint = -10 - (int8_t) stk[ e+1 ].ival;
         else if ( this->hint < -10 )
-          this->hint -= (int) stk[ e+1 ].ival;
+          this->hint -= (int8_t) stk[ e+1 ].ival;
         else {
-          this->hint -= stk[ e+1 ].ival;
+          this->hint -= (int8_t) stk[ e+1 ].ival;
           if ( this->hint <= 10 ) {
             this->hint -= 20;
             if ( this->hint == -10 )
@@ -1725,6 +1725,13 @@ MDDecimal::set_real( double fval ) noexcept
     is_neg = true;
     fval = -fval;
   }
+  static const double max_integral =
+    (double) ( ( 0x7fffffffULL << 32 ) | 0xffffffffULL );
+  uint32_t max_places = 0;
+  while ( fval > max_integral ) {
+    fval /= 10.0;
+    max_places++;
+  }
   /* guess the precision by using 14 places around the decimal */
   double       integral,
                decimal,
@@ -1776,7 +1783,10 @@ MDDecimal::set_real( double fval ) noexcept
     /* set the integer and power (hint) */
     this->ival = (int64_t) integral_ival;
     if ( places == 0 || decimal_ival == 1 || decimal_ival == 2 ) {
-      this->hint = MD_DEC_INTEGER;
+      if ( max_places > 0 )
+        this->hint = MD_DEC_LOGp10_1 + ( max_places - 1 );
+      else
+        this->hint = MD_DEC_INTEGER;
     }
     else {
       uint32_t n = sizeof( md_dec_powers_i ) /
@@ -1876,7 +1886,7 @@ MDDecimal::get_string( char *str,  size_t len,
           int_str( val, &str[ i ], d );
           i += d;
           str[ i++ ] = '.';
-          div = md_dec_powers_i[ j ];
+          div = (uint32_t) md_dec_powers_i[ j ];
           do {
             if ( i == len )
               goto out_of_space;
@@ -1981,6 +1991,34 @@ MDStamp::get_string( char *str,  size_t len ) const noexcept
   return d.get_string( str, len, false );
 }
 
+#ifdef _MSC_VER
+static inline void md_localtime( time_t t, struct tm &tmbuf ) {
+  ::localtime_s( &tmbuf, &t );
+}
+static inline void md_gmtime( time_t t, struct tm &tmbuf ) {
+  ::gmtime_s( &tmbuf, &t );
+}
+static inline time_t md_mktime( struct tm &tmbuf ) {
+  return ::mktime( &tmbuf );
+}
+static inline time_t md_timegm( struct tm &tmbuf ) {
+  return ::_mkgmtime( &tmbuf );
+}
+#else
+static inline void md_localtime( time_t t, struct tm &tmbuf ) {
+  ::localtime_r( &t, &tmbuf );
+}
+static inline void md_gmtime( time_t t, struct tm &tmbuf ) {
+  ::gmtime_r( &t, &tmbuf );
+}
+static inline time_t md_mktime( struct tm &tmbuf ) {
+  return ::mktime( &tmbuf );
+}
+static inline time_t md_timegm( struct tm &tmbuf ) {
+  return ::timegm( &tmbuf );
+}
+#endif
+
 int
 MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
 {
@@ -1998,9 +2036,9 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
       if ( val > 60 )
         goto bad_time;
       switch ( colon++ ) {
-        case 0: this->hour = val; break; /* [05]:01:58.384 */
-        case 1: this->min  = val; break; /* 05:[01]:58.384 */
-        case 2: this->sec  = val; break; /* 05:01:[58]:384 */
+        case 0: this->hour = (uint8_t) val; break; /* [05]:01:58.384 */
+        case 1: this->min  = (uint8_t) val; break; /* 05:[01]:58.384 */
+        case 2: this->sec  = (uint8_t) val; break; /* 05:01:[58]:384 */
         default: break;
       }
       val = 0;
@@ -2008,9 +2046,9 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
     }
     else if ( fptr[ i ] == '.' ) { /* 05:01:[58].384 */
       if ( dot == 0 && colon == 2 ) /* 01:02:03.456 */
-        this->sec = val;
+        this->sec = (uint8_t) val;
       else if ( dot == 0 && colon == 1 ) /* 01:02.456 */
-        this->min = val;
+        this->min = (uint8_t) val;
       else if ( colon == 0 ) /* 1300000000.000 timestamp */
         ms = val;
       dot++;
@@ -2024,7 +2062,7 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
       digits++;
     }
     if ( digits <= 9 ) {
-      this->fraction = val;
+      this->fraction = (uint32_t) val;
       this->resolution = digits / 3;
     }
     if ( ms != 0 ) {
@@ -2033,11 +2071,11 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
     }
   }
   else if ( colon == 2 ) {
-    this->sec = val;
+    this->sec = (uint8_t) val;
     /* resolution already set */
   }
   else if ( colon == 1 ) {
-    this->min = val;
+    this->min = (uint8_t) val;
     this->resolution = MD_RES_MINUTES;
   }
   /* a single number */
@@ -2048,7 +2086,7 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
     if ( val > 1300000000U && val <= 0xffffffffU ) {
       time_t t = (time_t) val;
       struct tm tmbuf;
-      ::localtime_r( &t, &tmbuf );
+      md_localtime( t, tmbuf );
 
       this->hour = tmbuf.tm_hour;
       this->min  = tmbuf.tm_min;
@@ -2084,7 +2122,7 @@ static bool get_current_year( uint32_t m,  uint32_t d,  uint32_t &y ) {
   time_t now = time( 0 );
   if ( now < when || now - when > 60000 ) {
     struct tm tmbuf;
-    ::localtime_r( &now, &tmbuf );
+    md_localtime( now, tmbuf );
 
     yr   = tmbuf.tm_year + 1900;
     mon  = tmbuf.tm_mon + 1;
@@ -2205,7 +2243,7 @@ static bool parse_excel_date( const char *p,  uint32_t n,  uint32_t &m,
   t = ( t - 25569 ) * 86400;
 
   struct tm tmbuf;
-  ::localtime_r( &t, &tmbuf );
+  md_localtime( t, tmbuf );
   y = tmbuf.tm_year + 1900;
   m = tmbuf.tm_mon + 1;
   d = tmbuf.tm_mday;
@@ -2624,9 +2662,9 @@ MDDate::to_utc( bool is_gm_time ) noexcept
   if ( this->year == 0 || this->mon == 0 || this->day == 0 ) {
     t = ::time( NULL );
     if ( is_gm_time )
-      ::gmtime_r( &t, &tmbuf );
+      md_gmtime( t, tmbuf );
     else
-      ::localtime_r( &t, &tmbuf );
+      md_localtime( t, tmbuf );
     tmbuf.tm_sec = 0;
     tmbuf.tm_min = 0;
     tmbuf.tm_hour = 0;
@@ -2642,9 +2680,9 @@ MDDate::to_utc( bool is_gm_time ) noexcept
   tmbuf.tm_isdst = -1;
 
   if ( is_gm_time )
-    t = ::timegm( &tmbuf );
+    t = md_timegm( tmbuf );
   else
-    t = ::mktime( &tmbuf );
+    t = md_mktime( tmbuf );
   if ( t == -1 )
     return 0;
   return (uint64_t) t;
@@ -2662,9 +2700,9 @@ MDTime::to_utc( MDDate *dt,  bool is_gm_time ) noexcept
   if ( dt == NULL || dt->year == 0 || dt->mon == 0 || dt->day == 0 ) {
     t = ::time( NULL );
     if ( is_gm_time )
-      ::gmtime_r( &t, &tmbuf );
+      md_gmtime( t, tmbuf );
     else
-      ::localtime_r( &t, &tmbuf );
+      md_localtime( t, tmbuf );
 
     if ( dt == NULL && this->hour < tmbuf.tm_hour )
       next_day = true;
@@ -2683,9 +2721,9 @@ MDTime::to_utc( MDDate *dt,  bool is_gm_time ) noexcept
   tmbuf.tm_min  = this->min;
   tmbuf.tm_sec  = this->sec;
   if ( is_gm_time )
-    t = ::timegm( &tmbuf );
+    t = md_timegm( tmbuf );
   else
-    t = ::mktime( &tmbuf );
+    t = md_mktime( tmbuf );
   if ( t == -1 )
     return 0;
   if ( next_day )
