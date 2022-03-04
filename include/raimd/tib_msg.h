@@ -10,11 +10,12 @@ static const uint32_t RAIMSG_TYPE_ID = 0x07344064,
                       TIBMSG_TYPE_ID = RAIMSG_TYPE_ID;
 
 struct TibMsg : public MDMsg {
+  bool is_submsg;         /* if has tibmsg 9 byte header */
   /* used by unpack() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }
 
   TibMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
-    : MDMsg( bb, off, len, d, m ) {}
+    : MDMsg( bb, off, len, d, m ), is_submsg( false ) {}
 
   virtual const char *get_proto_string( void ) noexcept final;
   virtual uint32_t get_type_id( void ) noexcept final;
@@ -41,12 +42,13 @@ struct TibFieldIter : public MDFieldIter {
   MDDecimal dec;          /* temp storage for decimal */
   MDDate    date;         /* temp storage for date */
   MDTime    time;         /* temp storage for time */
+  bool      is_submsg;    /* if has tibmsg header */
 
   /* used by GetFieldIterator() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }
 
-  TibFieldIter( MDMsg &m ) : MDFieldIter( m ), size( 0 ), hint_size( 0 ),
-    name_len( 0 ), type( 0 ), hint_type( 0 ) {}
+  TibFieldIter( TibMsg &m ) : MDFieldIter( m ), size( 0 ), hint_size( 0 ),
+    name_len( 0 ), type( 0 ), hint_type( 0 ), is_submsg( m.is_submsg ) {}
 
   virtual int get_name( MDName &name ) noexcept final;
   virtual int get_reference( MDReference &mref ) noexcept final;

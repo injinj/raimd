@@ -65,7 +65,7 @@ namespace md {
 const char *
 TibSassMsg::get_proto_string( void ) noexcept
 {
-  return "TIB_SASS";
+  return "TIB_QFORM";
 }
 
 uint32_t

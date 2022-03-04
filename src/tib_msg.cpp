@@ -113,11 +113,14 @@ TibMsg::get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept
 {
   uint8_t * bb    = (uint8_t *) this->msg_buf;
   size_t    start = (size_t) ( mref.fptr - bb );
+  TibMsg  * tib_msg;
   void    * ptr;
 
   this->mem->alloc( sizeof( TibMsg ), &ptr );
-  msg = new ( ptr ) TibMsg( bb, start, start + mref.fsize, this->dict,
-                            this->mem );
+  tib_msg = new ( ptr ) TibMsg( bb, start, start + mref.fsize, this->dict,
+                                this->mem );
+  tib_msg->is_submsg = true;
+  msg = tib_msg;
   return 0;
 }
 
@@ -222,7 +225,9 @@ TibFieldIter::find( const char *name,  size_t name_len,
 int
 TibFieldIter::first( void ) noexcept
 {
-  this->field_start = this->iter_msg.msg_off + 9;
+  this->field_start = this->iter_msg.msg_off;
+  if ( ! this->is_submsg )
+    this->field_start += 9;
   this->field_end   = this->iter_msg.msg_end;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;

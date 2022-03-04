@@ -93,6 +93,7 @@ struct CFRecField {
 };
 
 struct MDDictBuild;
+struct MDMsg;
 struct CFile : public DictParser {
   CFileTok stmt;
   bool     cf_includes;
@@ -154,6 +155,7 @@ struct CFile : public DictParser {
                            size_t str_size ) noexcept;
   static int parse_loop( MDDictBuild &dict_build,  CFile *p,
                          const char *path ) noexcept;
+  static int unpack_sass( MDDictBuild &dict_build,  MDMsg *m ) noexcept;
 };
 
 }
