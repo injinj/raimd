@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <raimd/md_dict.h>
 #include <raimd/cfile.h>
+#include <raimd/md_msg.h>
 
 using namespace rai;
 using namespace md;
@@ -136,15 +137,9 @@ CFile::push_path( CFile *tos,  const char *path,  const char *filename,
 }
 
 static MDType
-tss_to_md_type( CFile *p )
+tss_data_type_to_md_type( int data_type ) noexcept
 {
-  if ( ! p->fld.is_empty() )
-    return MD_MESSAGE;
-  if ( p->is_partial == 1 &&
-       ( p->data_type == MD_OPAQUE ||
-         p->data_type == MD_STRING ) )
-    return MD_PARTIAL;
-  switch ( p->data_type ) {
+  switch ( data_type ) {
     default: return MD_NODATA;
     case TSS_INTEGER     /*1*/: return MD_INT;
     case TSS_STRING      /*2*/: return MD_STRING;
@@ -170,8 +165,21 @@ tss_to_md_type( CFile *p )
   }
 }
 
+static MDType
+tss_to_md_type( CFile *p ) noexcept
+{
+  if ( ! p->fld.is_empty() )
+    return MD_MESSAGE;
+  if ( p->is_partial == 1 &&
+       ( p->data_type == MD_OPAQUE ||
+         p->data_type == MD_STRING ) )
+    return MD_PARTIAL;
+  return tss_data_type_to_md_type( p->data_type );
+}
+
 static int
-tss_type_default_size( int data_type ) {
+tss_type_default_size( int data_type ) noexcept
+{
   switch ( data_type ) {
     default:                    return 0;
     case TSS_INTEGER     /*1*/: return 4;
@@ -198,17 +206,17 @@ tss_type_default_size( int data_type ) {
   }
 }
 
-static bool si( int &ival,  int v ) {
+static bool si( int &ival,  int v ) noexcept {
   bool x = ( ival != 0 );
   ival = v;
   return x;
 }
 
-static bool eq( const char *str,  const char *tss,  size_t sz ) {
+static bool eq( const char *str,  const char *tss,  size_t sz ) noexcept {
   return sz == ::strlen( tss ) && ::strncasecmp( str, tss, sz ) == 0;
 }
 
-static bool st( int &ival,  const char *tss_type,  size_t tok_sz ) {
+static bool st( int &ival,  const char *tss_type,  size_t tok_sz ) noexcept {
   switch ( tss_type[ 0 ] ) {
     case '0': case '1': case '2': case '3': case '4':
     case '5': case '6': case '7': case '8': case '9':
@@ -265,7 +273,7 @@ static bool st( int &ival,  const char *tss_type,  size_t tok_sz ) {
   return si( ival, 0 );
 }
 
-static bool sb( uint8_t &bval,  bool v ) {
+static bool sb( uint8_t &bval,  bool v ) noexcept {
   bool x = ( bval != 0 );
   bval = ( v ? 1 : 2 );
   return x;
@@ -466,5 +474,85 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
     }
   }
   return ret;
+}
+
+int
+CFile::unpack_sass( MDDictBuild &dict_build,  MDMsg *m ) noexcept
+{
+  MDMsg       * fids_msg  = NULL;
+  MDFieldIter * iter      = NULL,
+              * fids_iter = NULL;
+  MDName        name;
+  MDReference   mref,
+                href;
+  uint32_t      bits,
+                num = 0;
+  uint16_t      class_id,
+                fsize;
+  uint8_t       ftype,
+                flags = ( MD_FIXED | MD_PRIMITIVE ),
+                tss_type;
+  int           status;
+
+  status = m->get_field_iter( iter );
+  if ( status != 0 ) {
+    fprintf( stderr, "Unable to get dict field iter: %d\n", status );
+    return status;
+  }
+  status = iter->find( "FIDS", 5, mref );
+  if ( status != 0 ) {
+    fprintf( stderr, "Unable to find FIDS in dictionary: %d\n", status );
+    return status;
+  }
+  status = m->get_sub_msg( mref, fids_msg );
+  if ( status != 0 ) {
+    fprintf( stderr, "FIDS field is not a message: %d\n", status );
+    return status;
+  }
+  status = fids_msg->get_field_iter( fids_iter );
+  if ( status != 0 ) {
+    fprintf( stderr, "Unable to get fids field iter: %d\n", status );
+    return status;
+  }
+  status = fids_iter->first();
+  if ( status != 0 ) {
+    fprintf( stderr, "Empty dict FIDS message: %d\n", status );
+    return status;
+  }
+  do {
+    if ( (status = fids_iter->get_name( name )) != 0 ||
+         (status = fids_iter->get_reference( mref )) != 0 ||
+         (status = fids_iter->get_hint_reference( href )) != 0 )
+      break;
+    if ( name.fnamelen > 0 &&
+         ( mref.ftype == MD_UINT || mref.ftype == MD_INT ) &&
+         ( href.ftype == MD_UINT || href.ftype == MD_INT ) ) {
+      class_id = get_uint<uint16_t>( mref );
+      bits     = get_uint<uint32_t>( href );
+      tss_type = (uint8_t) ( bits >> 16 );
+      fsize    = (uint16_t) bits;
+      if ( ( ( bits >> 24 ) & 1 ) != 0 )
+        ftype = MD_PARTIAL;
+      else
+        ftype = tss_data_type_to_md_type( tss_type );
+      if ( fsize == 0 )
+        fsize = tss_type_default_size( tss_type );
+      status = dict_build.add_entry( class_id, fsize, (MDType) ftype, flags,
+                                     name.fname, NULL, NULL, "msg", ++num );
+      if ( status != 0 ) {
+        fprintf( stderr, "Bad dict entry: %.*s class_id %d fsize %u ftype %u\n",
+                 (int) name.fnamelen, name.fname, class_id, fsize, ftype );
+      }
+    }
+    else {
+      fprintf( stderr, "Bad dict entry: %.*s mref.ftype %d href.ftype %d\n",
+               (int) name.fnamelen, name.fname, mref.ftype, href.ftype );
+    }
+  } while ( (status = fids_iter->next()) == 0 );
+  if ( status != Err::NOT_FOUND ) {
+    fprintf( stderr, "Error iterating dict msg: %d\n", status );
+    return status;
+  }
+  return 0;
 }
 
