@@ -96,22 +96,22 @@ MDTime::get_time( const MDReference &mref ) noexcept
   if ( mref.ftype == MD_TIME ) {
     if ( mref.fsize == sizeof( MDTime ) ) {
       this->hour       = mref.fptr[ 0 ];
-      this->min        = mref.fptr[ 1 ];
+      this->minute     = mref.fptr[ 1 ];
       this->sec        = mref.fptr[ 2 ];
       this->resolution = mref.fptr[ 3 ];
       this->fraction   = get_int<uint32_t>( &mref.fptr[ 4 ], mref.fendian );
       return 0;
     }
-    else if ( mref.fsize == sizeof( this->hour ) + sizeof( this->min ) ) {
-      this->hour = mref.fptr[ 0 ];
-      this->min  = mref.fptr[ 1 ];
+    else if ( mref.fsize == sizeof( this->hour ) + sizeof( this->minute ) ) {
+      this->hour   = mref.fptr[ 0 ];
+      this->minute = mref.fptr[ 1 ];
       return 0;
     }
-    else if ( mref.fsize == sizeof( this->hour ) + sizeof( this->min ) +
+    else if ( mref.fsize == sizeof( this->hour ) + sizeof( this->minute ) +
                             sizeof( this->sec ) ) {
-      this->hour = mref.fptr[ 0 ];
-      this->min  = mref.fptr[ 1 ];
-      this->sec  = mref.fptr[ 1 ];
+      this->hour   = mref.fptr[ 0 ];
+      this->minute = mref.fptr[ 1 ];
+      this->sec    = mref.fptr[ 1 ];
       return 0;
     }
   }
@@ -2036,9 +2036,9 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
       if ( val > 60 )
         goto bad_time;
       switch ( colon++ ) {
-        case 0: this->hour = (uint8_t) val; break; /* [05]:01:58.384 */
-        case 1: this->min  = (uint8_t) val; break; /* 05:[01]:58.384 */
-        case 2: this->sec  = (uint8_t) val; break; /* 05:01:[58]:384 */
+        case 0: this->hour   = (uint8_t) val; break; /* [05]:01:58.384 */
+        case 1: this->minute = (uint8_t) val; break; /* 05:[01]:58.384 */
+        case 2: this->sec    = (uint8_t) val; break; /* 05:01:[58]:384 */
         default: break;
       }
       val = 0;
@@ -2048,7 +2048,7 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
       if ( dot == 0 && colon == 2 ) /* 01:02:03.456 */
         this->sec = (uint8_t) val;
       else if ( dot == 0 && colon == 1 ) /* 01:02.456 */
-        this->min = (uint8_t) val;
+        this->minute = (uint8_t) val;
       else if ( colon == 0 ) /* 1300000000.000 timestamp */
         ms = val;
       dot++;
@@ -2075,7 +2075,7 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
     /* resolution already set */
   }
   else if ( colon == 1 ) {
-    this->min = (uint8_t) val;
+    this->minute = (uint8_t) val;
     this->resolution = MD_RES_MINUTES;
   }
   /* a single number */
@@ -2088,12 +2088,12 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
       struct tm tmbuf;
       md_localtime( t, tmbuf );
 
-      this->hour = tmbuf.tm_hour;
-      this->min  = tmbuf.tm_min;
-      this->sec  = tmbuf.tm_sec;
+      this->hour   = tmbuf.tm_hour;
+      this->minute = tmbuf.tm_min;
+      this->sec    = tmbuf.tm_sec;
     }
   }
-  if ( this->hour <= 24 && this->min <= 60 && this->sec <= 60 ) {
+  if ( this->hour <= 24 && this->minute <= 60 && this->sec <= 60 ) {
     if ( ! has_digit )
       this->resolution |= MD_RES_NULL;
     return 0;
@@ -2530,8 +2530,8 @@ MDTime::get_string( char *str,  size_t len ) const noexcept
     return n;
   }
   if ( this->res() == MD_RES_MINUTES )
-    return cpy3( str, len, this->hour, _EMPTY_, ':', this->min );
-  n = cpy3( str, len, this->hour, _EMPTY_, ':', this->min, _EMPTY_, ':',
+    return cpy3( str, len, this->hour, _EMPTY_, ':', this->minute );
+  n = cpy3( str, len, this->hour, _EMPTY_, ':', this->minute, _EMPTY_, ':',
             this->sec );
   switch ( this->res() ) {
     case MD_RES_MILLISECS: places = 1000; break;
@@ -2718,7 +2718,7 @@ MDTime::to_utc( MDDate *dt,  bool is_gm_time ) noexcept
     tmbuf.tm_mday  = dt->day;
 
   tmbuf.tm_hour = this->hour;
-  tmbuf.tm_min  = this->min;
+  tmbuf.tm_min  = this->minute;
   tmbuf.tm_sec  = this->sec;
   if ( is_gm_time )
     t = md_timegm( tmbuf );

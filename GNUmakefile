@@ -273,13 +273,13 @@ all_dirs := $(bind) $(libd) $(objd) $(dependd)
 #src/hashaction.c: $(bind)/print_keys include/raimd/keycook.h
 #	$(bind)/print_keys hash > src/hashaction.c
 
-all: $(all_libs) $(all_dlls) $(all_exes)
+all: $(all_libs) $(all_dlls) $(all_exes) cmake
 
 .PHONY: cmake
 cmake: CMakeLists.txt
 
 .ONESHELL: CMakeLists.txt
-CMakeLists.txt:
+CMakeLists.txt: .copr/Makefile
 	@cat <<'EOF' > $@
 	cmake_minimum_required (VERSION 3.9.0)
 	project (raimd)
@@ -304,20 +304,20 @@ CMakeLists.txt:
 	  set_property(TARGET decnumber PROPERTY IMPORTED_LOCATION ../libdecnumber/build/libdecnumber.a)
 	endif ()
 	link_libraries (raimd decnumber)
-	add_executable (test_mddec test/test_mddec.cpp)
-	add_executable (test_json test/test_json.cpp)
-	add_executable (test_msg test/test_msg.cpp)
-	add_executable (test_list test/test_list.cpp)
-	add_executable (test_hash test/test_hash.cpp)
-	add_executable (test_set test/test_set.cpp)
-	add_executable (test_zset test/test_zset.cpp)
-	add_executable (test_geo test/test_geo.cpp)
-	add_executable (test_hll test/test_hll.cpp)
-	add_executable (test_stream test/test_stream.cpp)
-	add_executable (test_mddict test/test_dict.cpp)
-	add_executable (read_msg test/read_msg.cpp)
-	add_executable (write_msg test/write_msg.cpp)
-	add_executable (basic_msg test/basic_msg.cpp)
+	add_executable (test_mddec $(test_mddec_cfile))
+	add_executable (test_json $(test_json_cfile))
+	add_executable (test_msg $(test_msg_cfile))
+	add_executable (test_list $(test_list_cfile))
+	add_executable (test_hash $(test_hash_cfile))
+	add_executable (test_set $(test_set_cfile))
+	add_executable (test_zset $(test_zset_cfile))
+	add_executable (test_geo $(test_geo_cfile))
+	add_executable (test_hll $(test_hll_cfile))
+	add_executable (test_stream $(test_stream_cfile))
+	add_executable (test_mddict $(test_mddict_cfile))
+	add_executable (read_msg $(read_msg_cfile))
+	add_executable (write_msg $(write_msg_cfile))
+	add_executable (basic_msg $(basic_msg_cfile))
 	EOF
 
 
