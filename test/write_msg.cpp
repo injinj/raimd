@@ -1,4 +1,5 @@
 #include <stdio.h>
+#define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 #include <raimd/md_dict.h>
 #include <raimd/cfile.h>
@@ -50,7 +51,7 @@ test_write( Writer &writer )
   writer.append_decimal( ask, sizeof( ask ), dec );
 
   time.hour       = 13;
-  time.min        = 15;
+  time.minute     = 15;
   time.sec        = 0;
   time.resolution = MD_RES_MINUTES;
   time.fraction   = 0;

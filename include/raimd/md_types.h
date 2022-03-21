@@ -185,16 +185,17 @@ struct MDDecimal { /* base 10 decimal */
 };
 
 struct MDTime {
-  uint8_t  hour, /* hour: 0 -> 23 */
-           min,  /* minute: 0 -> 59 */
-           sec,  /* second: 0 -> 59 */
+  uint8_t  hour,   /* hour: 0 -> 23 */
+           minute, /* minute: 0 -> 59 */
+           sec,    /* second: 0 -> 59 */
            resolution; /* 0 = sec, 1 = ms, 2 = us, 3 = ns, 4 = min */
   uint32_t fraction; /* fraction of a second depending on resolution */
   MDTime() {}
   MDTime( uint8_t h,  uint8_t m,  uint8_t s,  uint32_t f,  uint8_t r )
-    : hour( h ), min( m ), sec( s ), resolution( r ), fraction( f ) {}
+    : hour( h ), minute( m ), sec( s ), resolution( r ), fraction( f ) {}
   int parse( const char *fptr, const size_t fsize ) noexcept;
-  void zero( void ) { hour = 0; min = 0; sec = 0; resolution = 0; fraction = 0;}
+  void zero( void ) { hour = 0; minute = 0; sec = 0; resolution = 0;
+                      fraction = 0; }
   size_t get_string( char *str,  size_t len ) const noexcept;
   bool is_null( void ) const { return ( this->resolution & MD_RES_NULL ) != 0; }
   uint8_t res( void ) const { return this->resolution & ~MD_RES_NULL; }

@@ -303,8 +303,8 @@ RwfFieldIter::get_reference( MDReference &mref ) noexcept
 
     case MD_TIME:
       if ( mref.fsize >= 2 ) {
-        this->time.hour = buf[ 0 ];
-        this->time.min  = buf[ 1 ];
+        this->time.hour   = buf[ 0 ];
+        this->time.minute = buf[ 1 ];
         if ( mref.fsize >= 3 ) {
           this->time.sec  = buf[ 2 ];
           this->time.resolution = MD_RES_SECONDS;
@@ -910,7 +910,7 @@ RwfMsgWriter::append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
       ptr[ 1 ] = fid & 0xffU;
       ptr[ 2 ] = 2;
       ptr[ 3 ] = time.hour;
-      ptr[ 4 ] = time.min;
+      ptr[ 4 ] = time.minute;
     }
     else {
       if ( ! this->has_space( 6 ) )
@@ -922,7 +922,7 @@ RwfMsgWriter::append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
       ptr[ 1 ] = fid & 0xffU;
       ptr[ 2 ] = 3;
       ptr[ 3 ] = time.hour;
-      ptr[ 4 ] = time.min;
+      ptr[ 4 ] = time.minute;
       ptr[ 5 ] = time.sec;
     }
 

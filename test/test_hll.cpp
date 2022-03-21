@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 #include <raimd/md_hll.h>
 /*#include "../meow_intrinsics.h"

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 #include <math.h>
 #include <raimd/md_zset.h>
