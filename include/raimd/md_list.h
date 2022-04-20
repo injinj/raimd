@@ -280,6 +280,10 @@ struct ListVal {
 
 static const uint8_t mt_list[] = {0xe4,0xf7,3,3,0,0,0,0,0,0,0,0,0,0,0,0};
 
+#if __GNUC__ >= 12
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
 template <class UIntSig, class UIntType>
 struct ListStorage {
   void * operator new( size_t, void *ptr ) { return ptr; }
@@ -774,6 +778,9 @@ struct ListStorage {
     }
   }
 };
+#if __GNUC__ >= 12
+#pragma GCC diagnostic pop
+#endif
 
 typedef ListStorage<uint16_t, uint8_t>  ListStorage8;
 typedef ListStorage<uint32_t, uint16_t> ListStorage16;
