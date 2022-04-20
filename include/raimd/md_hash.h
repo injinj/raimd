@@ -81,6 +81,10 @@ struct MergeCtx {
   }
 };
 
+#if __GNUC__ >= 12
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
 template <class UIntSig, class UIntType>
 struct HashStorage : public ListStorage<UIntSig, UIntType> {
   /* add a zero length hash map at position talbe[ 0 ] */
@@ -702,6 +706,9 @@ struct HashStorage : public ListStorage<UIntSig, UIntType> {
     return HASH_OK;
   }
 };
+#if __GNUC__ >= 12
+#pragma GCC diagnostic pop
+#endif
 
 typedef HashStorage<uint16_t, uint8_t>  HashStorage8;
 typedef HashStorage<uint32_t, uint16_t> HashStorage16;
