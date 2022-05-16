@@ -3,6 +3,17 @@
 using namespace rai;
 using namespace md;
 
+extern "C" {
+#define md_stringify(S) md_str(S)
+#define md_str(S) #S
+
+const char *
+md_get_version( void )
+{
+  return md_stringify( MD_VER );
+}
+}
+
 namespace rai {
 namespace md {
 

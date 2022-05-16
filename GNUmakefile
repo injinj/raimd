@@ -17,9 +17,13 @@ libd      := $(build_dir)/lib64
 objd      := $(build_dir)/obj
 dependd   := $(build_dir)/dep
 
+default_cflags := -ggdb -O3
 # use 'make port_extra=-g' for debug build
 ifeq (-g,$(findstring -g,$(port_extra)))
-  DEBUG = true
+  default_cflags := -ggdb
+endif
+ifeq (-a,$(findstring -a,$(port_extra)))
+  default_cflags := -fsanitize=address -ggdb -O3
 endif
 
 CC          ?= gcc
@@ -39,11 +43,6 @@ gcc_wflags  := -Wall -Werror -Wextra
 fpicflags   := -fPIC
 soflag      := -shared
 
-ifdef DEBUG
-default_cflags := -ggdb
-else
-default_cflags := -ggdb -O3
-endif
 # rpmbuild uses RPM_OPT_FLAGS
 ifeq ($(RPM_OPT_FLAGS),)
 CFLAGS ?= $(default_cflags)
@@ -73,6 +72,8 @@ dec_dll     := libdecnumber/$(libd)/libdecnumber.so
 lnk_lib     += $(dec_lib)
 dlnk_lib    += -Llibdecnumber/$(libd) -ldecnumber
 rpath3       = ,-rpath,$(pwd)/libdecnumber/$(libd)
+update_submod:
+	git update-index --cacheinfo 160000 `cd ./libdecnumber && git rev-parse HEAD` libdecnumber
 else
 lnk_lib     += -ldecnumber
 dlnk_lib    += -ldecnumber
@@ -104,6 +105,7 @@ all_depends :=
 
 decimal_includes := -Ilibdecnumber/include
 
+md_msg_defines := -DMD_VER=$(ver_build)
 libraimd_files := md_msg md_field_iter json json_msg rv_msg tib_msg \
                   tib_sass_msg mf_msg rwf_msg md_dict cfile app_a enum_def \
                   decimal md_list md_hash md_set md_zset md_geo md_hll \
