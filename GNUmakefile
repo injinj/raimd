@@ -72,8 +72,6 @@ dec_dll     := libdecnumber/$(libd)/libdecnumber.so
 lnk_lib     += $(dec_lib)
 dlnk_lib    += -Llibdecnumber/$(libd) -ldecnumber
 rpath3       = ,-rpath,$(pwd)/libdecnumber/$(libd)
-update_submod:
-	git update-index --cacheinfo 160000 `cd ./libdecnumber && git rev-parse HEAD` libdecnumber
 else
 lnk_lib     += -ldecnumber
 dlnk_lib    += -ldecnumber
@@ -88,6 +86,8 @@ everything: $(dec_lib) $(dec_dll) all
 ifeq (yes,$(have_dec_submodule))
 $(dec_lib) $(dec_dll):
 	$(MAKE) -C libdecnumber
+update_submod:
+	git update-index --cacheinfo 160000 `cd ./libdecnumber && git rev-parse HEAD` libdecnumber
 endif
 
 # copr/fedora build (with version env vars)
