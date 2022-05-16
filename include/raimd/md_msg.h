@@ -3,7 +3,10 @@
 
 #include <raimd/md_field_iter.h>
 
-extern "C" void md_init_auto_unpack( void );
+extern "C" {
+const char *md_get_version( void );
+void md_init_auto_unpack( void );
+}
 
 namespace rai {
 namespace md {
