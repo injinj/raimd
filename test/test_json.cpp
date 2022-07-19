@@ -66,7 +66,10 @@ main( int argc, char **argv )
      "    type: tcp\n"
      "    route:\n"
      "      listen: '*'\n"
-     "      connect: unknownhost\n";
+     "      connect: [ \"unknownhost\", \"host2\" ]\n"
+     "      port:\n"
+     "        - 1234\n"
+     "        - 7890\n";
 
   JsonParser jparse( jmem );
 

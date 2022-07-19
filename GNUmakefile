@@ -310,6 +310,7 @@ CMakeLists.txt: .copr/Makefile
 	  endif ()
 	endif ()
 	link_libraries (raimd decnumber)
+	add_definitions (-DMD_VER=$(ver_build))
 	add_executable (test_mddec $(test_mddec_cfile))
 	add_executable (test_json $(test_json_cfile))
 	add_executable (test_msg $(test_msg_cfile))
