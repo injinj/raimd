@@ -531,7 +531,7 @@ JsonContext::split_field( const char *line,  size_t len,  JsonString &field,
         x = this->create_string();
         res = p.parse_string( (JsonString &) *x );
       }
-      else if ( line[ 0 ] == '[' ) {
+      else if ( data[ 0 ] == '[' ) {
         JsonArray * ar = this->create_array();
         res = p.parse_array( *ar );
         if ( res == 0 )
