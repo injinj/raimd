@@ -761,12 +761,18 @@ JsonOne<JsonInput>::parse_yaml( JsonValue *&val ) noexcept
              * eol;
   val = NULL;
   for (;;) {
-    while ( line == end ||
-            (eol = (const char *) ::memchr( line, '\n', end - line )) == NULL ) {
-      if ( ! this->input.fill_buf() )
-        goto break_loop;
-      line = this->input.line_ptr();
-      end  = this->input.end_ptr();
+    while ( line >= end ||
+          (eol = (const char *) ::memchr( line, '\n', end - line )) == NULL ) {
+      if ( ! this->input.fill_buf() ) {
+        if ( line >= end )
+          goto break_loop;
+        eol = end;
+        break;
+      }
+      else {
+        line = this->input.line_ptr();
+        end  = this->input.end_ptr();
+      }
     }
     size_t len         = eol - line,
            line_offset = this->input.line_start;
@@ -841,7 +847,7 @@ JsonOne<JsonInput>::parse_yaml( JsonValue *&val ) noexcept
     }
     this->input.offset = line_offset + len + 1;
     this->input.line_start = this->input.offset;
-    line = &eol[ 1 ];
+    line = &eol[ 1 ]; /* could be past end if no newline */
   }
 break_loop:;
   while ( stk.tos > 1 )
