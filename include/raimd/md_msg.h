@@ -12,48 +12,56 @@ namespace rai {
 namespace md {
 
 struct MDMsgMem {
-  static const uint32_t NO_REF_COUNT = 0x7fffffffU,
-                        MEM_CNT      = 255;
+  static const uint32_t NO_REF_COUNT = 0x7fffffffU;
+  static const size_t   MEM_CNT      = 256 - 4;
   uint32_t mem_off, /* offset in mem[] where next is allocated */
            ref_cnt; /* incremented when attached to a MDMsg */
-  void   * mem[ MEM_CNT ];
+  struct MemBlock {
+    MemBlock * next;
+    size_t     size;
+    void     * mem[ MEM_CNT ];
+  };
+  MemBlock blk, * blk_ptr;
 
   void * operator new( size_t, void *ptr ) { return ptr; }
   void operator delete( void *ptr ) { ::free( ptr ); }
   /* ref count should be set when created dynamically,
    * this default is set to not release memory based on refs */
   MDMsgMem() : ref_cnt( NO_REF_COUNT ) {
-    this->mem[ 0 ] = (void *) this->mem;
-    this->mem_off  = 1;
+    this->blk_ptr  = &this->blk;
+    this->blk.next = &this->blk;
+    this->blk.size = MEM_CNT;
+    this->mem_off  = 0;
   }
   ~MDMsgMem() {
     this->reuse();
   }
+  void error( void ) noexcept;
+
   void reuse( void ) {
-    if ( this->mem[ 0 ] != (void *) this->mem )
+    if ( this->blk_ptr != &this->blk )
       this->release();
-    this->mem_off = 1;
+    this->mem_off = 0;
   }
-  static uint32_t mem_size( size_t sz ) {
-    return (uint32_t) ( ( sz + sizeof( void * ) - 1 ) / sizeof( void * ) );
+  static size_t align_size( size_t sz ) {
+    return ( sz + sizeof( void * ) - 1 ) / sizeof( void * );
   }
   void alloc( size_t size,  void *ptr ) {
     void * next = this->mem_ptr();
-    size = this->mem_size( size );
-    if ( size + this->mem_off <= MEM_CNT )
+    size = this->align_size( size );
+    if ( size + (size_t) this->mem_off <= MEM_CNT )
       this->mem_off += (uint32_t) size;
     else
       next = this->alloc_slow( size );
     *(void **) ptr = next;
   }
   void *mem_ptr( void ) const {
-    void ** area = (void **) this->mem[ 0 ];
-    return &area[ this->mem_off ];
+    return &this->blk_ptr->mem[ this->mem_off ];
   }
   void *make( size_t size ) {
     void * next = this->mem_ptr();
-    size = this->mem_size( size );
-    if ( size + this->mem_off <= MEM_CNT ) {
+    size = this->align_size( size );
+    if ( size + (size_t) this->mem_off <= MEM_CNT ) {
       this->mem_off += (uint32_t) size;
       return next;
     }
