@@ -250,37 +250,46 @@ found_msg_type:;
 void *
 MDMsgMem::alloc_slow( size_t size ) noexcept
 {
-  void  * p,
-       ** area = (void **) this->mem[ 0 ],
-       ** next;
+  MemBlock * p;
+  size_t     alloc_size = sizeof( MemBlock ) + sizeof( void * ),
+             edge;
+  edge = MEM_CNT;
+  if ( size + 1 > MEM_CNT ) {
+    edge = size;
+    alloc_size += ( size + 1 - MEM_CNT ) * sizeof( void * );
+  }
   /* use malloc() for msg mem when local stack storage is exhausted */
-  if ( size > MEM_CNT - 1 )
-    p = ::malloc( sizeof( void * ) * ( size + 1 ) );
-  else
-    p = ::malloc( sizeof( void * ) * MEM_CNT );
-  next = (void **) p;
-  next[ 0 ] = (void *) area;
-  this->mem[ 0 ] = (void *) next;
-  area = next;
-  this->mem_off = 1 + (uint32_t) size;
-  return &area[ 1 ];
+  p = (MemBlock *) ::malloc( alloc_size );
+  p->next = this->blk_ptr;
+  p->size = edge;
+  this->blk_ptr = p;
+#if __GNUC__ >= 12
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
+  p->mem[ edge ] = p; /* mark trailing edge to error on array overflow */
+#if __GNUC__ >= 12
+#pragma GCC diagnostic pop
+#endif
+  this->mem_off = (uint32_t) size;
+  return p->mem;
 }
 
 void
 MDMsgMem::extend( size_t old_size,  size_t new_size,  void *ptr ) noexcept
 {
-  void  ** area = (void **) this->mem[ 0 ],
-         * tmp;
-  uint32_t new_sz = this->mem_size( new_size ),
-           old_sz = this->mem_size( old_size );
+  size_t new_sz = this->align_size( new_size ),
+         old_sz = this->align_size( old_size );
   /* a realloc() the last data alloced, if possible */
-  if ( this->mem_off > old_sz &&
-       this->mem_off + new_sz <= MEM_CNT ) {
-    if ( (void *) &area[ this->mem_off - old_sz ] == *(void **) ptr ) {
-      this->mem_off += ( new_sz - old_sz );
+  if ( (size_t) this->mem_off >= old_sz &&
+   (void *) &this->blk_ptr->mem[ this->mem_off - old_sz ] == *(void **) ptr ) {
+    size_t new_off = (size_t) this->mem_off - old_sz + new_sz;
+    if ( new_off <= MEM_CNT ) {
+      this->mem_off = new_off;
       return;
     }
   }
+  void * tmp;
   this->alloc( new_size, &tmp );
   ::memcpy( tmp, *(void **) ptr, old_size );
   *(void **) ptr = tmp;
@@ -290,11 +299,23 @@ void
 MDMsgMem::release( void ) noexcept
 {
   /* release malloc()ed mem */
-  while ( this->mem[ 0 ] != (void *) this->mem ) {
-    void * next = this->mem[ 0 ];
-    this->mem[ 0 ] = ((void **) next)[ 0 ];
-    ::free( next );
+  while ( this->blk_ptr != &this->blk ) {
+    MemBlock * next = this->blk_ptr->next;
+    if ( (void *) this->blk_ptr != this->blk_ptr->mem[ this->blk_ptr->size ] )
+      this->error();
+    else
+      ::free( this->blk_ptr );
+    this->blk_ptr = next;
   }
+  this->mem_off = 0;
+}
+
+#include <stdio.h>
+void
+MDMsgMem::error( void ) noexcept
+{
+  fprintf( stderr, "**** MDMsgMem error blk_ptr %p self %p ****\n",
+           this->blk_ptr, this->blk_ptr->mem[ this->blk_ptr->size ] );
 }
 
 void
