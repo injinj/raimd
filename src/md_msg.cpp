@@ -263,12 +263,12 @@ MDMsgMem::alloc_slow( size_t size ) noexcept
   p->next = this->blk_ptr;
   p->size = edge;
   this->blk_ptr = p;
-#if __GNUC__ >= 12
+#if __GNUC__ >= 11
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
   p->mem[ edge ] = p; /* mark trailing edge to error on array overflow */
-#if __GNUC__ >= 12
+#if __GNUC__ >= 11
 #pragma GCC diagnostic pop
 #endif
   this->mem_off = (uint32_t) size;
