@@ -67,6 +67,9 @@ struct MDMsgMem {
     }
     return this->alloc_slow( size );
   }
+  char *str_make( size_t size ) {
+    return (char *) this->make( size );
+  }
   /* when out of static space, add mem block using malloc() */
   void *alloc_slow( size_t size ) noexcept;
   /* extend last alloc for more space */
