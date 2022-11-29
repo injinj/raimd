@@ -34,7 +34,8 @@ namespace md {
     RV_ARRAY_I64 = 40,  /* 28 */
     RV_ARRAY_U64 = 41,  /* 29 */
     RV_ARRAY_F32 = 44,  /* 2c */
-    RV_ARRAY_F64 = 45   /* 2d */
+    RV_ARRAY_F64 = 45,  /* 2d */
+    RV_ARRAY_STR = 48   /* 30 */
   };
 }
 }
@@ -229,7 +230,10 @@ static const int rv_type_to_md_type[ 64 ] = {
                   /* 42 */ 0,
                   /* 43 */ 0,
     /*RV_ARRAY_F32 = 44 */ MD_ARRAY,
-    /*RV_ARRAY_F64 = 45 */ MD_ARRAY
+    /*RV_ARRAY_F64 = 45 */ MD_ARRAY,
+                  /* 46 */ 0,
+                  /* 47 */ 0,
+    /*RV_ARRAY_STR = 48 */ MD_ARRAY
 };
 
 
@@ -289,6 +293,27 @@ RvFieldIter::get_reference( MDReference &mref ) noexcept
       case RV_ARRAY_I64:
       case RV_ARRAY_U64:
       case RV_ARRAY_F64: mref.fentrysz = 8; break;
+      case RV_ARRAY_STR:
+        if ( this->size >= 4 ) {
+          uint32_t count = get_uint<uint32_t>( mref.fptr, MD_BIG );
+          const char * ptr = (const char *) &mref.fptr[ 4 ],
+                     * end = (const char *) &mref.fptr[ this->size ];
+          for ( uint32_t i = 0; i < count; i++ ) {
+            size_t len = ::strnlen( ptr, end - ptr );
+            if ( &ptr[ len ] >= end || ptr[ len ] != '\0' )
+              return Err::BAD_FIELD_SIZE;
+            ptr = &ptr[ len + 1 ];
+          }
+          if ( ptr != end )
+            return Err::BAD_FIELD_SIZE;
+          mref.fsize = count;
+          mref.fptr  = &mref.fptr[ 4 ];
+        }
+        else {
+          mref.fsize = 0;
+        }
+        mref.fentrysz = 0;
+        break;
     }
     switch ( this->type ) {
       default: break;
@@ -302,9 +327,27 @@ RvFieldIter::get_reference( MDReference &mref ) noexcept
       case RV_ARRAY_I64: mref.fentrytp = MD_INT; break;
       case RV_ARRAY_F32: 
       case RV_ARRAY_F64: mref.fentrytp = MD_REAL; break;
+      case RV_ARRAY_STR: mref.fentrytp = MD_STRING; break;
     }
   }
   return 0;
+}
+
+int
+RvMsg::get_array_ref( MDReference &mref,  size_t i, MDReference &aref ) noexcept
+{
+  if ( mref.fentrytp == MD_STRING && i < mref.fsize ) {
+    const char * ptr = (const char *) mref.fptr;
+    size_t       len = ::strlen( ptr );
+    for ( ; i > 0; i-- ) {
+      ptr = &ptr[ len + 1 ];
+      len = ::strlen( ptr );
+    }
+    aref.set( (void *) ptr, len + 1, MD_STRING );
+    return 0;
+  }
+  aref.zero();
+  return Err::NOT_FOUND;
 }
 
 int
@@ -382,6 +425,7 @@ RvFieldIter::unpack( void ) noexcept
     case RV_ARRAY_U64:
     case RV_ARRAY_F32:
     case RV_ARRAY_F64:
+    case RV_ARRAY_STR:
       this->size = buf[ i++ ];
       switch ( this->size ) {
         case RV_LONG_SIZE:
@@ -520,6 +564,109 @@ RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
   return 0;
 }
 
+static bool
+get_rv_array_type( MDReference &mref,  uint8_t &t ) noexcept
+{
+  switch ( mref.fentrytp ) {
+    case MD_BOOLEAN:
+      if ( mref.fentrysz != 1 )
+        return false;
+      t = RV_ARRAY_I8;
+      break;
+    case MD_UINT:
+      if ( mref.fentrysz == 1 )
+        t = RV_ARRAY_U8;
+      else if ( mref.fentrysz == 2 )
+        t = RV_ARRAY_U16;
+      else if ( mref.fentrysz == 4 )
+        t = RV_ARRAY_U32;
+      else if ( mref.fentrysz == 8 )
+        t = RV_ARRAY_U64;
+      else
+        return false;
+      break;
+    case MD_INT:
+      if ( mref.fentrysz == 1 )
+        t = RV_ARRAY_I8;
+      else if ( mref.fentrysz == 2 )
+        t = RV_ARRAY_I16;
+      else if ( mref.fentrysz == 4 )
+        t = RV_ARRAY_I32;
+      else if ( mref.fentrysz == 8 )
+        t = RV_ARRAY_I64;
+      else
+        return false;
+      break;
+    case MD_REAL:
+      if ( mref.fentrysz == 4 )
+        t = RV_ARRAY_F32;
+      else if ( mref.fentrysz == 8 )
+        t = RV_ARRAY_F64;
+      else
+        return false;
+      break;
+    case MD_STRING:
+    default:
+      return false;
+  }
+  return true;
+}
+
+static void
+swap_rv_array( MDReference &mref,  uint8_t *fptr ) noexcept
+{
+  uint8_t *fend = &fptr[ mref.fsize ];
+
+  switch ( mref.fentrytp ) {
+    case MD_UINT:
+      if ( mref.fentrysz == 2 )
+        goto swap2;
+      else if ( mref.fentrysz == 4 )
+        goto swap4;
+      else if ( mref.fentrysz == 8 )
+        goto swap8;
+      break;
+    case MD_INT:
+      if ( mref.fentrysz == 2 )
+        goto swap2;
+      else if ( mref.fentrysz == 4 )
+        goto swap4;
+      else if ( mref.fentrysz == 8 )
+        goto swap8;
+      break;
+    case MD_REAL:
+      if ( mref.fentrysz == 4 )
+        goto swap4;
+      else if ( mref.fentrysz == 8 )
+        goto swap8;
+      break;
+    default:
+      break;
+  }
+  return;
+swap2:
+  while ( fptr < fend ) {
+    uint16_t x = get_uint<uint16_t>( fptr, MD_BIG );
+    ::memcpy( fptr, &x, sizeof( x ) );
+    fptr = &fptr[ 2 ];
+  }
+  return;
+swap4:
+  while ( fptr < fend ) {
+    uint32_t x = get_uint<uint32_t>( fptr, MD_BIG );
+    ::memcpy( fptr, &x, sizeof( x ) );
+    fptr = &fptr[ 4 ];
+  }
+  return;
+swap8:
+  while ( fptr < fend ) {
+    uint64_t x = get_uint<uint64_t>( fptr, MD_BIG );
+    ::memcpy( fptr, &x, sizeof( x ) );
+    fptr = &fptr[ 8 ];
+  }
+  return;
+}
+
 int
 RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
                          MDReference &mref ) noexcept
@@ -555,6 +702,9 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
     case MD_UINT:     ptr[ 0 ] = RV_UINT;     break;
     case MD_REAL:     ptr[ 0 ] = RV_REAL;     break;
     case MD_DATETIME: ptr[ 0 ] = RV_DATETIME; break;
+    case MD_ARRAY:    if ( ! get_rv_array_type( mref, ptr[ 0 ] ) )
+                        return Err::BAD_FIELD_TYPE;
+                      break;
   }
 
   if ( szbytes == 1 ) {
@@ -596,6 +746,67 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
   }
   else {
     ::memcpy( ptr, mref.fptr, mref.fsize );
+    if ( mref.fendian == MD_LITTLE && mref.ftype == MD_ARRAY &&
+         mref.fentrysz > 1 )
+      swap_rv_array( mref, ptr );
+  }
+  this->off += len;
+  return 0;
+}
+
+int
+RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
+                                  char **ar,  size_t array_size,
+                                  size_t fsize ) noexcept
+{
+  uint8_t * ptr = &this->buf[ this->off ];
+  size_t    len = 1 + fname_len + 1 + fsize,
+            szbytes;
+
+  fsize += 4; /* array size */
+  if ( fsize < RV_TINY_SIZE )
+    szbytes = 1;
+  else if ( fsize < MAX_RV_SHORT_SIZE )
+    szbytes = 3;
+  else
+    szbytes = 5;
+
+  len += 4 + szbytes;
+  if ( ! this->has_space( len ) )
+    return Err::NO_SPACE;
+  if ( fname_len > 0xff )
+    return Err::BAD_NAME;
+  ptr[ 0 ] = (uint8_t) fname_len;
+  ::memcpy( &ptr[ 1 ], fname, fname_len );
+  ptr = &ptr[ fname_len + 1 ];
+  ptr[ 0 ] = RV_ARRAY_STR;
+
+  if ( szbytes == 1 ) {
+    ptr[ 1 ] = (uint8_t) fsize;
+    ptr = &ptr[ 2 ];
+  }
+  else if ( szbytes == 3 ) {
+    ptr[ 1 ] = RV_SHORT_SIZE;
+    ptr[ 2 ] = ( ( fsize + 2 ) >> 8 ) & 0xffU;
+    ptr[ 3 ] = ( fsize + 2 ) & 0xffU;
+    ptr = &ptr[ 4 ];
+  }
+  else {
+    ptr[ 1 ] = RV_LONG_SIZE;
+    ptr[ 2 ] = ( ( fsize + 4 ) >> 24 ) & 0xffU;
+    ptr[ 3 ] = ( ( fsize + 4 ) >> 16 ) & 0xffU;
+    ptr[ 4 ] = ( ( fsize + 4 ) >> 8 ) & 0xffU;
+    ptr[ 5 ] = ( fsize + 4 ) & 0xffU;
+    ptr = &ptr[ 6 ];
+  }
+  uint32_t tmp = (uint32_t) array_size;
+  tmp = get_u32<MD_BIG>( &tmp );
+  ::memcpy( ptr, &tmp, 4 );
+  ptr = &ptr[ 4 ];
+  for ( uint32_t i = 0; i < array_size; i++ ) {
+    size_t slen = ::strlen( ar[ i ] ) + 1;
+    ::memcpy( ptr, ar[ i ], slen );
+    ptr = &ptr[ slen ];
   }
   this->off += len;
   return 0;
@@ -681,6 +892,174 @@ RvMsgWriter::append_date( const char *fname,  size_t fname_len,
   ptr = &ptr[ 2 ];
   ::memcpy( ptr, sbuf, n + 1 );
   this->off += len;
+  return 0;
+}
+
+int
+RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
+{
+  MDFieldIter *iter;
+  int status;
+  if ( (status = jmsg.get_field_iter( iter )) == 0 ) {
+    status = iter->first();
+    while ( status == 0 ) {
+      MDName      name;
+      MDReference mref;
+      MDDecimal   dec;
+      if ( iter->get_name( name ) == 0 && iter->get_reference( mref ) == 0 ) {
+        switch ( mref.ftype ) {
+          default:
+            status = this->append_ref( name.fname, name.fnamelen, mref );
+            break;
+
+          case MD_DECIMAL:
+            dec.get_decimal( mref );
+            if ( dec.hint == MD_DEC_INTEGER ) {
+              if ( dec.ival == (int64_t) (int16_t) dec.ival )
+                status = this->append_int<int16_t>( name.fname, name.fnamelen,
+                                                    (int16_t) dec.ival );
+              else if ( dec.ival == (int64_t) (int32_t) dec.ival )
+                status = this->append_int<int32_t>( name.fname, name.fnamelen,
+                                                    (int32_t) dec.ival );
+              else
+                status = this->append_int<int64_t>( name.fname, name.fnamelen,
+                                                    dec.ival );
+            }
+            else {
+              status = this->append_decimal( name.fname, name.fnamelen, dec );
+            }
+            break;
+
+          case MD_MESSAGE: {
+            RvMsgWriter submsg( NULL, 0 );
+            MDMsg * jmsg2 = NULL;
+            status = this->append_msg( name.fname, name.fnamelen, submsg );
+            if ( status == 0 )
+              status = jmsg.get_sub_msg( mref, jmsg2 );
+            if ( status == 0 ) {
+              status = submsg.convert_msg( *jmsg2 );
+              if ( status == 0 )
+                this->update_hdr( submsg );
+            }
+            break;
+          }
+
+          case MD_ARRAY: {
+            MDReference aref;
+            MDType      atype = MD_INT;
+            size_t      asize = 1;
+            size_t      i,
+                        num_entries = mref.fsize;
+
+            if ( mref.fentrysz > 0 )
+              num_entries /= mref.fentrysz;
+
+            for ( i = 0; i < num_entries; i++ ) {
+              if ( (status = jmsg.get_array_ref( mref, i, aref )) != 0 )
+                break;
+              if ( aref.ftype == MD_DECIMAL ||
+                   aref.ftype == MD_INT     ||
+                   aref.ftype == MD_UINT    ||
+                   aref.ftype == MD_BOOLEAN ) {
+                if ( atype != MD_REAL ) {
+                  dec.get_decimal( aref );
+                  if ( dec.hint == MD_DEC_INTEGER ) {
+                    if ( asize < 8 &&
+                         dec.ival != (int64_t) (int32_t) dec.ival ) {
+                      atype = MD_INT;
+                      asize = 8;
+                    }
+                    else if ( asize < 4 &&
+                              dec.ival != (int64_t) (int16_t) dec.ival ) {
+                      atype = MD_INT;
+                      asize = 4;
+                    }
+                    else if ( asize < 2 &&
+                              dec.ival != (int64_t) (int8_t) dec.ival ) {
+                      atype = MD_INT;
+                      asize = 2;
+                    }
+                  }
+                  else {
+                    atype = MD_REAL;
+                    asize = 8;
+                  }
+                }
+                else if ( aref.ftype == MD_REAL ) {
+                  atype = MD_REAL;
+                  asize = 8;
+                }
+              }
+              else {
+                atype = MD_STRING;
+                break;
+              }
+            }
+            if ( status == 0 ) {
+              if ( atype == MD_INT ) {
+                void * ar = (int32_t *) jmsg.mem->make( num_entries * asize );
+                for ( i = 0; i < num_entries; i++ ) {
+                  jmsg.get_array_ref( mref, i, aref );
+                  dec.get_decimal( aref );
+                  if ( asize == 8 )
+                    ((int64_t *) ar)[ i ] = dec.ival;
+                  else if ( asize == 4 )
+                    ((int32_t *) ar)[ i ] = (int32_t) dec.ival;
+                  else if ( asize == 2 )
+                    ((int16_t *) ar)[ i ] = (int16_t) dec.ival;
+                  else
+                    ((int8_t *) ar)[ i ] = (int8_t) dec.ival;
+                }
+                aref.set( ar, num_entries * asize, MD_ARRAY );
+                aref.fentrytp = MD_INT;
+                aref.fentrysz = asize;
+                status = this->append_ref( name.fname, name.fnamelen, aref );
+              }
+              else if ( atype == MD_REAL ) {
+                double * ar = (double *) jmsg.mem->make( num_entries * 8 );
+                for ( i = 0; i < num_entries; i++ ) {
+                  jmsg.get_array_ref( mref, i, aref );
+                  if ( aref.ftype == MD_REAL )
+                    ar[ i ] = get_float<double>( mref );
+                  else if ( aref.ftype == MD_INT )
+                    ar[ i ] = (double) get_uint<int64_t>( mref );
+                  else if ( aref.ftype == MD_UINT || aref.ftype == MD_BOOLEAN )
+                    ar[ i ] = (double) get_int<uint64_t>( mref );
+                  else if ( dec.get_decimal( aref ) != 0 ||
+                            dec.get_real( ar[ i ] ) != 0 )
+                    ar[ i ] = 0;
+                }
+                aref.set( ar, num_entries * 8, MD_ARRAY );
+                aref.fentrytp = MD_REAL;
+                aref.fentrysz = 8;
+                status = this->append_ref( name.fname, name.fnamelen, aref );
+              }
+              else if ( atype == MD_STRING ) {
+                char ** ar = (char **)
+                  jmsg.mem->make( num_entries * sizeof( char * ) );
+                size_t len = 0, slen;
+                for ( i = 0; i < num_entries; i++ ) {
+                  jmsg.get_array_ref( mref, i, aref );
+                  if ( (status = jmsg.get_string( aref, ar[ i ], slen )) != 0 )
+                    break;
+                  len += slen + 1;
+                }
+                if ( status == 0 )
+                  status = this->append_string_array( name.fname, name.fnamelen,
+                                                      ar, num_entries, len );
+              }
+            }
+            break;
+          }
+        }
+        if ( status != 0 )
+          break;
+      }
+      status = iter->next();
+    }
+  }
+  if ( status != Err::NOT_FOUND )
+    return status;
   return 0;
 }
 

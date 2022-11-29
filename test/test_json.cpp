@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <raimd/json.h>
+#include <raimd/json_msg.h>
 #include <raimd/md_msg.h>
+#include <raimd/rv_msg.h>
 
 using namespace rai;
 using namespace md;
@@ -98,6 +100,49 @@ main( int argc, char **argv )
       }
     }
   }
+
+  {
+    static char minput[] =
+      "{\n"
+      "  \"MSG_TYPE\" : \"INITIAL\",\n"
+      "  \"SUB1\"     : {\n"
+      "    \"SVAL\"   : \"hello world\",\n"
+      "    \"FVAL\"   : 16.16,\n"
+      "    \"IVAL\"   : 16,\n"
+      "    \"BVAL\"   : true\n"
+      "  },\n"
+      "  \"SUB2\"     : {\n"
+      "    \"IARRAY\" : [100,200,300,true,false],\n"
+      "    \"FARRAY\" : [1.1,2.2,3],\n"
+      "    \"SARRAY\" : [\"array\",\"hello\",\"world\",1,2,3]\n"
+      "  }\n"
+      "}";
+    JsonMsgCtx   ctx;
+    jmem.reuse();
+    printf( "parsing:  %s\n", minput );
+    n = ctx.parse( minput, 0, ::strlen( minput ), NULL, &jmem, false );
+    if ( n == 0 ) {
+      printf( "printing:\n" ); ctx.msg->print( &jout );
+
+      char buf[ sizeof( minput ) * 8 ];
+      RvMsgWriter rvmsg( buf, sizeof( buf ) );
+      n = rvmsg.convert_msg( *ctx.msg );
+      if ( n == 0 ) {
+        printf( "converting to rv:\n" );
+        rvmsg.update_hdr();
+        RvMsg * msg = RvMsg::unpack_rv( rvmsg.buf, 0, rvmsg.off, 0, NULL,
+                                        &jmem );
+        msg->print( &jout );
+      }
+      else {
+        printf( "status %d: %s\n", n, Err::err( n )->descr );
+      }
+    }
+    else {
+      printf( "status %d: %s\n", n, Err::err( n )->descr );
+    }
+  }
+
   return 0;
 }
 
