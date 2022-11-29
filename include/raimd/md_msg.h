@@ -43,6 +43,15 @@ struct MDMsgMem {
       this->release();
     this->mem_off = 0;
   }
+  void *reuse_make( size_t size ) {
+    size = this->align_size( size );
+    if ( size <= this->blk_ptr->size ) {
+      this->mem_off = size;
+      return this->blk_ptr->mem;
+    }
+    this->reuse();
+    return this->alloc_slow( size );
+  }
   static size_t align_size( size_t sz ) {
     return ( sz + sizeof( void * ) - 1 ) / sizeof( void * );
   }

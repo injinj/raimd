@@ -19,7 +19,8 @@ struct RvMsg : public MDMsg {
   virtual uint32_t get_type_id( void ) noexcept final;
   virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept final;
   virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
-
+  virtual int get_array_ref( MDReference &mref,  size_t i,
+                             MDReference &aref ) noexcept;
   /* may return tibmsg, sass qform or rv */
   static bool is_rvmsg( void *bb,  size_t off,  size_t end,
                         uint32_t h ) noexcept;
@@ -148,6 +149,9 @@ struct RvMsgWriter {
                    MDTime &time ) noexcept;
   int append_date( const char *fname,  size_t fname_len,
                    MDDate &date ) noexcept;
+  int append_string_array( const char *fname,  size_t fname_len,  char **ar,
+                           size_t array_size,  size_t fsize ) noexcept;
+  int convert_msg( MDMsg &jmsg ) noexcept;
 };
 
 }
