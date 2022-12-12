@@ -187,6 +187,24 @@ TibFieldIter::get_reference( MDReference &mref ) noexcept
 }
 
 int
+TibMsg::get_array_ref( MDReference &mref, size_t i, MDReference &aref ) noexcept
+{
+  size_t num_entries = mref.fsize;
+  aref.zero();
+  if ( mref.fentrysz != 0 ) {
+    num_entries /= mref.fentrysz;
+    if ( i < num_entries ) {
+      aref.ftype   = mref.fentrytp;
+      aref.fsize   = mref.fentrysz;
+      aref.fendian = mref.fendian;
+      aref.fptr = &mref.fptr[ i * (size_t) mref.fentrysz ];
+      return 0;
+    }
+  }
+  return Err::NOT_FOUND;
+}
+
+int
 TibFieldIter::get_hint_reference( MDReference &mref ) noexcept
 {
   if ( this->hint_type != MD_NODATA ) {

@@ -586,22 +586,18 @@ MDMsg::get_quoted_string( MDReference &mref,  char *&buf,
   }
 }
 
-int
-MDMsg::get_escaped_string( MDReference &mref,  const char *quotes,
-                           char *&buf,  size_t &len ) noexcept
+size_t
+MDMsg::get_escaped_string_len( MDReference &mref,  const char *quotes ) noexcept
 {
   uint8_t * ptr = mref.fptr;
-  char    * str;
-  size_t    i, j = 0;
+  size_t    j   = 0;
 
-  if ( mref.fsize == 0 ) {
-    buf = nul_string;
-    len = nul_string_len;
-    return 0;
-  }
+  if ( mref.fsize == 0 )
+    return nul_string_len;
+
   if ( quotes != NULL )
     j += 2;
-  for ( i = 0; i < mref.fsize; i++ ) {
+  for ( size_t i = 0; i < mref.fsize; i++ ) {
     switch ( ptr[ i ] ) {
       case '\n': case '\r': case '\t': case '\"': case '\\':
       case '\b': case '\f':
@@ -609,19 +605,30 @@ MDMsg::get_escaped_string( MDReference &mref,  const char *quotes,
         break;
       case 0:
         if ( mref.ftype == MD_STRING )
-          goto end_of_string;
+          return j;
         /* FALLTHRU */
       default:
         j += ( ( ptr[ i ] >= ' ' && ptr[ i ] <= '~' ) ? 1 : 6 );
         break;
     }
   }
-end_of_string:;
-  this->mem->alloc( j + 1, &str );
-  j = 0;
+  return j;
+}
+
+size_t
+MDMsg::get_escaped_string_output( MDReference &mref,  const char *quotes,
+                                  char *str ) noexcept
+{
+  uint8_t * ptr = mref.fptr;
+  size_t    j   = 0;
+
+  if ( mref.fsize == 0 ) {
+    ::memcpy( str, nul_string, nul_string_len );
+    return nul_string_len;
+  }
   if ( quotes != NULL )
     str[ j++ ] = quotes[ 0 ];
-  for ( i = 0; i < mref.fsize; i++ ) {
+  for ( size_t i = 0; i < mref.fsize; i++ ) {
     switch ( ptr[ i ] ) {
       case '\b': str[ j++ ] = '\\'; str[ j++ ] = 'b'; break;
       case '\f': str[ j++ ] = '\\'; str[ j++ ] = 'f'; break;
@@ -652,8 +659,18 @@ break_loop:;
   if ( quotes != NULL )
     str[ j++ ] = quotes[ 0 ];
   str[ j ] = '\0';
+  return j;
+}
+
+int
+MDMsg::get_escaped_string( MDReference &mref,  const char *quotes,
+                           char *&buf,  size_t &len ) noexcept
+{
+  size_t j   = this->get_escaped_string_len( mref, quotes );
+  char * str = NULL;
+  this->mem->alloc( j + 1, &str );
+  len = this->get_escaped_string_output( mref, quotes, str );
   buf = str;
-  len = j;
   return 0;
 }
 

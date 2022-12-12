@@ -70,6 +70,58 @@ struct JsonFieldIter : public MDFieldIter {
   virtual int next( void ) noexcept final;
 };
 
+struct JsonMsgWriter {
+  enum {
+    FIRST_FIELD = 1
+  };
+  uint8_t * buf;
+  size_t    off,
+            buflen;
+  int       flags;
+
+  JsonMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 0 ),
+                                           buflen( len ), flags( 0 ) {}
+  void reset( void ) {
+    this->off = 0;
+  }
+  bool has_space( size_t len ) const {
+    return this->off + len <= this->buflen;
+  }
+  int append_field_name( const char *fname,  size_t fname_len ) noexcept;
+
+  int append_field( const char *fname,  size_t fname_len,
+                    MDReference &mref ) noexcept;
+  int append_ref( MDReference &mref ) noexcept;
+
+  int append_msg( const char *fname,  size_t fname_len,
+                  JsonMsgWriter &submsg ) noexcept;
+  int convert_msg( MDMsg &msg ) noexcept;
+
+  bool s( const char *str,  size_t len ) {
+    bool b = this->has_space( len );
+    if ( b ) {
+      ::memcpy( &this->buf[ this->off ], str, len );
+      this->off += len;
+    }
+    return b;
+  }
+  bool start( void ) {
+    bool b = this->has_space( 3 );
+    if ( b )
+      this->buf[ this->off++ ] = '{';
+    return b;
+  }
+  bool finish( void ) {
+    bool b = ( ( this->flags & FIRST_FIELD ) == 0 ) ?
+      this->start() : this->has_space( 2 );
+    if ( b ) {
+      this->buf[ this->off++ ] = '}';
+      this->buf[ this->off ]   = '\0';
+    }
+    return b;
+  }
+};
+
 }
 }
 
