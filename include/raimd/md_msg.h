@@ -45,9 +45,12 @@ struct MDMsgMem {
   }
   void *reuse_make( size_t size ) {
     size = this->align_size( size );
-    if ( size <= this->blk_ptr->size ) {
-      this->mem_off = size;
-      return this->blk_ptr->mem;
+    if ( this->blk_ptr == &this->blk ||
+         this->blk_ptr->next == &this->blk ) {
+      if ( size <= this->blk_ptr->size ) {
+        this->mem_off = size;
+        return this->blk_ptr->mem;
+      }
     }
     this->reuse();
     return this->alloc_slow( size );
@@ -238,6 +241,10 @@ struct MDMsg {
                         size_t &len ) noexcept;
   int get_quoted_string( MDReference &mref,  char *&buf,
                          size_t &len ) noexcept;
+  static size_t get_escaped_string_len( MDReference &mref,
+                                        const char *quotes ) noexcept;
+  static size_t get_escaped_string_output( MDReference &mref,  const char *quotes,
+                                           char *str ) noexcept;
   int get_escaped_string( MDReference &mref,  const char *quotes,
                            char *&buf,  size_t &len ) noexcept;
   int get_hex_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;

@@ -336,7 +336,20 @@ RvFieldIter::get_reference( MDReference &mref ) noexcept
 int
 RvMsg::get_array_ref( MDReference &mref,  size_t i, MDReference &aref ) noexcept
 {
-  if ( mref.fentrytp == MD_STRING && i < mref.fsize ) {
+  size_t num_entries = mref.fsize;
+  if ( mref.fentrysz != 0 ) {
+    num_entries /= mref.fentrysz;
+    if ( i < num_entries ) {
+      aref.zero();
+      aref.ftype   = mref.fentrytp;
+      aref.fsize   = mref.fentrysz;
+      aref.fendian = mref.fendian;
+      aref.fptr = &mref.fptr[ i * (size_t) mref.fentrysz ];
+      return 0;
+    }
+    return Err::NOT_FOUND;
+  }
+  if ( mref.fentrytp == MD_STRING && i < num_entries ) {
     const char * ptr = (const char *) mref.fptr;
     size_t       len = ::strlen( ptr );
     for ( ; i > 0; i-- ) {

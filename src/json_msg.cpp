@@ -312,3 +312,245 @@ JsonFieldIter::next( void ) noexcept
   return 0;
 }
 
+int
+JsonMsgWriter::append_field_name( const char *fname, size_t fname_len ) noexcept
+{
+  if ( ( this->flags & FIRST_FIELD ) == 0 ) {
+    if ( ! this->start() )
+      return Err::NO_SPACE;
+    this->flags |= FIRST_FIELD;
+  }
+  else {
+    if ( ! this->has_space( 1 ) )
+      return Err::NO_SPACE;
+    this->buf[ this->off++ ] = ',';
+  }
+  if ( ! this->has_space( fname_len + 3 ) )
+    return Err::NO_SPACE;
+
+  this->buf[ this->off++ ] = '\"';
+  if ( fname_len > 0 )
+    this->s( fname, fname_len - 1 );
+  this->buf[ this->off++ ] = '\"';
+  this->buf[ this->off++ ] = ':';
+  return 0;
+}
+
+int
+JsonMsgWriter::append_field( const char *fname,  size_t fname_len,
+                             MDReference &mref ) noexcept
+{
+  int status = this->append_field_name( fname, fname_len );
+  if ( status == 0 )
+    status = this->append_ref( mref );
+  return status;
+}
+
+int
+JsonMsgWriter::append_ref( MDReference &mref ) noexcept
+{
+  char * ptr;
+  size_t avail;
+  switch ( mref.ftype ) {
+    case MD_STRING:
+    case MD_OPAQUE:
+    case MD_PARTIAL: {
+      ptr = (char *) &this->buf[ this->off ];
+      if ( ! this->has_space( MDMsg::get_escaped_string_len( mref, "\"" )+1 ) )
+        return Err::NO_SPACE;
+      this->off += MDMsg::get_escaped_string_output( mref, "\"", ptr );
+      break;
+    }
+    case MD_INT: {
+      int64_t ival = get_int<uint64_t>( mref );
+      size_t  len  = int_digs( ival );
+      ptr = (char *) &this->buf[ this->off ];
+      if ( ! this->has_space( len ) )
+        return Err::NO_SPACE;
+      this->off += int_str( ival, ptr, len );
+      break;
+    }
+    case MD_IPDATA:
+      if ( mref.fsize == 4 ) {
+        const uint8_t * q = (const uint8_t *) mref.fptr;
+        bool b = this->s( "\"", 1 );
+        if ( b ) {
+          for ( size_t i = 0; i < 4; i++ ) {
+            size_t len = uint_digs( q[ i ] );
+            b = this->has_space( len + 1 );
+            if ( ! b ) break;
+            ptr = (char *) &this->buf[ this->off ];
+            uint_str( q[ i ], ptr, len );
+            if ( i != 3 )
+              ptr[ len++ ] = '.';
+            this->off += len;
+          }
+          if ( b )
+            b = this->s( "\"", 1 );
+        }
+        if ( ! b )
+          return Err::NO_SPACE;
+        break;
+      }
+    /* FALLTHRU */
+    case MD_ENUM:
+    case MD_UINT: {
+      uint64_t ival = get_uint<uint64_t>( mref );
+      size_t   len  = uint_digs( ival );
+      ptr = (char *) &this->buf[ this->off ];
+      if ( ! this->has_space( len ) )
+        return Err::NO_SPACE;
+      this->off += uint_str( ival, ptr, len );
+      break;
+    }
+    case MD_DECIMAL:
+    case MD_REAL: {
+      MDDecimal dec;
+      bool b;
+      ptr = (char *) &this->buf[ this->off ];
+      dec.get_decimal( mref );
+      switch ( dec.hint ) {
+        case MD_DEC_NULL: b = this->s( "null", 4 ); break;
+        case MD_DEC_NNAN: b = this->s( "\"-NaN\"", 6 ); break;
+        case MD_DEC_NAN:  b = this->s( "\"NaN\"", 5 ); break;
+        case MD_DEC_INF:  b = this->s( "\"Inf\"", 5 ); break;
+        default:
+          avail = this->buflen - this->off;
+          avail = dec.get_string( ptr, avail, true );
+          this->off += avail;
+          b = ( avail != 0 );
+          break;
+      }
+      if ( ! b )
+        return Err::NO_SPACE;
+      break;
+    }
+    case MD_BOOLEAN: {
+      bool b = ( *mref.fptr != 0 ) ?
+               this->s( "true", 4 ) : this->s( "false", 5 );
+      if ( ! b )
+        return Err::NO_SPACE;
+      break;
+    }
+    case MD_TIME: {
+      MDTime time;
+      time.get_time( mref );
+      bool b = this->s( "\"", 1 );
+      if ( b ) {
+        ptr   = (char *) &this->buf[ this->off ];
+        avail = this->buflen - this->off;
+        this->off += time.get_string( ptr, avail );
+        b = this->s( "\"", 1 );
+      }
+      if ( ! b )
+        return Err::NO_SPACE;
+      break;
+    }
+    case MD_DATE: {
+      MDDate date;
+      date.get_date( mref );
+      bool b = this->s( "\"", 1 );
+      if ( b ) {
+        ptr   = (char *) &this->buf[ this->off ];
+        avail = this->buflen - this->off;
+        this->off += date.get_string( ptr, avail );
+        b = this->s( "\"", 1 );
+      }
+      if ( ! b )
+        return Err::NO_SPACE;
+      break;
+    }
+    default:
+      if ( ! this->s( "null", 4 ) )
+        return Err::NO_SPACE;
+      break;
+  }
+  return 0;
+}
+
+int
+JsonMsgWriter::append_msg( const char *fname,  size_t fname_len,
+                           JsonMsgWriter &submsg ) noexcept
+{
+  if ( ! this->has_space( fname_len + 3 ) )
+    return Err::NO_SPACE;
+
+  this->buf[ this->off++ ] = '\"';
+  if ( fname_len > 0 )
+    this->s( fname, fname_len - 1 );
+  this->buf[ this->off++ ] = '\"';
+  this->buf[ this->off++ ] = ':';
+
+  submsg.buf    = &this->buf[ this->off ];
+  submsg.off    = 0;
+  submsg.buflen = this->buflen - this->off;
+  submsg.flags  = 0;
+  return 0;
+}
+
+int
+JsonMsgWriter::convert_msg( MDMsg &msg ) noexcept
+{
+  MDFieldIter * iter;
+  int status = msg.get_field_iter( iter );
+  if ( status == 0 )
+    status = iter->first();
+  while ( status == 0 ) {
+    MDName      name;
+    MDReference mref;
+    if ( iter->get_name( name ) == 0 && iter->get_reference( mref ) == 0 ) {
+      if ( name.fnamelen > 0 ) {
+        switch ( mref.ftype ) {
+          case MD_MESSAGE: {
+            JsonMsgWriter submsg( NULL, 0 );
+            MDMsg * msg2 = NULL;
+            status = this->append_msg( name.fname, name.fnamelen, submsg );
+            if ( status == 0 )
+              status = msg.get_sub_msg( mref, msg2 );
+            if ( status == 0 ) {
+              status = submsg.convert_msg( *msg2 );
+              if ( status == 0 && ! submsg.finish() )
+                status = Err::NO_SPACE;
+              else
+                this->off += submsg.off;
+            }
+            if ( status != 0 )
+              return status;
+            break;
+          }
+          case MD_ARRAY: {
+            MDReference aref;
+            size_t      num_entries = mref.fsize;
+            if ( mref.fentrysz > 0 )
+              num_entries /= mref.fentrysz;
+            status = this->append_field_name( name.fname, name.fnamelen );
+            if ( status == 0 && ! this->s( "[", 1 ) )
+              status = Err::NO_SPACE;
+            if ( status != 0 )
+              return status;
+            for ( size_t i = 0; i < num_entries; i++ ) {
+              status = msg.get_array_ref( mref, i, aref );
+              if ( status == 0 )
+                status = this->append_ref( aref );
+              if ( status == 0 && i + 1 < num_entries && ! this->s( ",", 1 ) )
+                status = Err::NO_SPACE;
+              if ( status != 0 )
+                return status;
+            }
+            if ( ! this->s( "]", 1 ) )
+              return Err::NO_SPACE;
+            break;
+          }
+          default:
+            status = this->append_field( name.fname, name.fnamelen, mref );
+            if ( status != 0 )
+              return status;
+        }
+      }
+    }
+    status = iter->next();
+  }
+  if ( status == Err::NOT_FOUND )
+    return 0;
+  return status;
+}

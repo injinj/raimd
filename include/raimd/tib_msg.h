@@ -20,6 +20,8 @@ struct TibMsg : public MDMsg {
   virtual const char *get_proto_string( void ) noexcept final;
   virtual uint32_t get_type_id( void ) noexcept final;
   virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept final;
+  virtual int get_array_ref( MDReference &mref, size_t i,
+                             MDReference &aref ) noexcept final;
   virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
   /* convert tib decimal to md decimal */
   static bool set_decimal( MDDecimal &dec,  double val,
