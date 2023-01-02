@@ -120,6 +120,56 @@ struct JsonMsgWriter {
     }
     return b;
   }
+
+  template< class T >
+  int append_type( const char *fname,  size_t fname_len,  T val,  MDType t ) {
+    MDReference mref;
+    mref.fptr    = (uint8_t *) (void *) &val;
+    mref.fsize   = sizeof( val );
+    mref.ftype   = t;
+    mref.fendian = md_endian;
+    return this->append_field( fname, fname_len, mref );
+  }
+
+  template< class T >
+  int append_int( const char *fname,  size_t fname_len,  T ival ) {
+    return this->append_type( fname, fname_len, ival, MD_INT );
+  }
+  template< class T >
+  int append_uint( const char *fname,  size_t fname_len,  T uval ) {
+    return this->append_type( fname, fname_len, uval, MD_UINT );
+  }
+  template< class T >
+  int append_real( const char *fname,  size_t fname_len,  T rval ) {
+    return this->append_type( fname, fname_len, rval, MD_REAL );
+  }
+
+  int append_string( const char *fname,  size_t fname_len,
+                     const char *str,  size_t len ) {
+    MDReference mref;
+    mref.fptr    = (uint8_t *) (void *) str;
+    mref.fsize   = len;
+    mref.ftype   = MD_STRING;
+    mref.fendian = md_endian;
+    return this->append_field( fname, fname_len, mref );
+  }
+
+  int append_decimal( const char *fname,  size_t fname_len,
+                      MDDecimal &dec ) {
+    return this->append_type( fname, fname_len, dec, MD_DECIMAL );
+  }
+  int append_time( const char *fname,  size_t fname_len,
+                   MDTime &time ) {
+    return this->append_type( fname, fname_len, time, MD_TIME );
+  }
+  int append_date( const char *fname,  size_t fname_len,
+                   MDDate &date ) {
+    return this->append_type( fname, fname_len, date, MD_DATE );
+  }
+  size_t update_hdr( void ) {
+    this->finish();
+    return this->off;
+  }
 };
 
 }
