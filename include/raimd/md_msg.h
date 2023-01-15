@@ -154,8 +154,11 @@ struct MDMatchGroup {
     uint16_t i;
     /* if char matches, i > 0 */
     if ( this->haslen ) {
+      if ( off + this->off >= end )
+        return NULL;
       /* if i == 0, there is no match, otherwise start matching at i */
-      if ((i = this->xoff[ ((uint8_t *) bb)[ off + this->off ] ]) == 0 )
+      i = this->xoff[ ((uint8_t *) bb)[ off + this->off ] ];
+      if ( i == 0 )
         return NULL;
     }
     else {
@@ -170,8 +173,11 @@ struct MDMatchGroup {
     uint16_t i;
     /* if char matches, i > 0 */
     if ( this->haslen ) {
+      if ( off + this->off >= end )
+        return NULL;
       /* if i == 0, there is no match, otherwise start matching at i */
-      if ((i = this->xoff[ ((uint8_t *) bb)[ off + this->off ] ]) == 0 )
+      i = this->xoff[ ((uint8_t *) bb)[ off + this->off ] ];
+      if ( i == 0 )
         return NULL;
     }
     else {
