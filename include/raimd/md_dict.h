@@ -435,8 +435,8 @@ struct DictParser {
       len = ::strlen( p );
       if ( len > sizeof( this->fname ) - 1 )
         len = sizeof( this->fname ) - 1;
+      ::memcpy( this->fname, p, len );
     }
-    ::memcpy( this->fname, p, len );
     this->fname[ len ] = '\0';
     this->tok    = -1;
     this->lineno = 1;
