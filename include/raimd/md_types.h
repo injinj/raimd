@@ -31,7 +31,8 @@ struct MDOutput {
   int output_hints;
   MDOutput( int hints = 0 ) : output_hints( hints ) {}
   virtual int puts( const char *s ) noexcept; /* funcs send output to stdout */
-  virtual int printf( const char *fmt, ... ) noexcept;
+  virtual int printf( const char *fmt, ... ) noexcept
+    __attribute__((format(printf,2,3)));
   int print_hex( const void *buf,  size_t buflen ) noexcept;
   int print_hex( const MDMsg *m ) noexcept; /* print hex buf */
   int indent( int i ) { /* message data indented */

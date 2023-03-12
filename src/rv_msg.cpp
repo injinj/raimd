@@ -183,9 +183,9 @@ RvMsg::opaque_extract( uint8_t *bb,  size_t off,  size_t end,  MDDict *d,
   off   += szbytes;
   if ( off + fsize > end )
     return NULL;
-  if ( ( is_tibmsg || is_data ) && TibMsg::is_tibmsg( bb, off, fsize, 0 ) )
+  if ( ( is_tibmsg || is_data ) && TibMsg::is_tibmsg( bb, off, end, 0 ) )
     return TibMsg::unpack( bb, off, end, 0, d, m );
-  if ( ( is_qform || is_data ) && TibSassMsg::is_tibsassmsg( bb, off, fsize, 0))
+  if ( ( is_qform || is_data ) && TibSassMsg::is_tibsassmsg( bb, off, end, 0))
     return TibSassMsg::unpack( bb, off, end, 0, d, m );
   return NULL;
 }

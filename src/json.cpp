@@ -511,8 +511,10 @@ JsonContext::split_field( const char *line,  size_t len,  JsonString &field,
       goto check_space;
   }
   else {
+    /* check for field: */
     const char * colon = (const char *) ::memchr( line, ':', len );
-    if ( colon == NULL )
+    if ( colon == NULL || colon == line ||
+         ( &colon[ 1 ] < &line[ len ] && colon[ 1 ] > ' ' ) )
       goto check_space;
     this->make_string( field, line, colon - line );
     data = colon + 1;
@@ -1381,10 +1383,211 @@ JsonObject::print( MDOutput *out ) noexcept
   return n + out->puts( "}" );
 }
 
+static const char *
+find_escape_chars( const char *s,  size_t len )
+{
+  for ( size_t i = 0; i < len; i++ ) {
+    switch ( s[ i ] ) {
+      case '\"':
+      case '\\': return &s[ i ];
+      default: break;
+    }
+  }
+  return NULL;
+}
+
 int
 JsonString::print( MDOutput *out ) noexcept
 {
-  return out->printf( "\"%.*s\"", (int) this->length, this->val );
+  const char *v = this->val,
+             *s = find_escape_chars( v, this->length );
+  int n = 0;
+  if ( s == NULL )
+    n += out->printf( "\"%*s\"", (int) this->length, v );
+  else {
+    const char *e = &this->val[ this->length ];
+    n += out->printf( "\"%.*s", (int) ( s - v ), v );
+    do {
+      if ( *s == '\\' )
+        n += out->puts( "\\\\" );
+      else
+        n += out->puts( "\\\"" );
+      v = &s[ 1 ];
+      s = find_escape_chars( v, e - v );
+      if ( s == NULL ) s = e;
+      n += out->printf( "%.*s", (int) ( s - v ), v );
+    } while ( s < e );
+    n += out->puts( "\"" );
+  }
+  return n;
+}
+
+int
+JsonValue::print_json( MDOutput *out ) noexcept
+{
+  int n = this->print_json( 0, out );
+  n += out->puts( "\n" );
+  return n;
+}
+
+int
+JsonValue::print_json( int indent,  MDOutput *out ) noexcept
+{
+  int n = 0; /*out->indent( indent );*/
+  switch ( this->type ) {
+    default:
+    case JSON_NULL:    n += out->puts( "null" ); break;
+    case JSON_NUMBER:  n += ((JsonNumber *) this)->print( out ); break;
+    case JSON_STRING:  n += ((JsonString *) this)->print( out ); break;
+    case JSON_BOOLEAN: n += ((JsonBoolean *) this)->print( out ); break;
+
+    case JSON_OBJECT: {
+      JsonObject * o = (JsonObject *) this;
+      n += out->puts( "{\n" );
+      for ( size_t i = 0; i < o->length; i++ ) {
+        n += out->indent( indent + 2 );
+        n += o->val[ i ].name.print( out );
+        n += out->puts( ": " );
+        o->val[ i ].val->print_json( indent + 2, out );
+        if ( i + 1 == o->length )
+          n += out->puts( "\n" );
+        else
+          n += out->puts( ",\n" );
+      }
+      n += out->indent( indent );
+      n += out->puts( "}" );
+      break;
+    }
+    case JSON_ARRAY: {
+      JsonArray * a = (JsonArray *) this;
+      n += out->puts( "[\n" );
+      for ( size_t i = 0; i < a->length; i++ ) {
+        n += out->indent( indent + 2 );
+        n += a->val[ i ]->print_json( indent + 2, out );
+        if ( i + 1 == a->length )
+          n += out->puts( "\n" );
+        else
+          n += out->puts( ",\n" );
+      }
+      n += out->indent( indent );
+      n += out->puts( "]" );
+      break;
+    }
+  }
+  return n;
+}
+
+int
+JsonValue::print_yaml( MDOutput *out ) noexcept
+{
+  int n = this->print_yaml( 0, out );
+  n += out->puts( "\n" );
+  return n;
+}
+
+int
+JsonString::print_yaml( MDOutput *out ) noexcept
+{
+  bool quote = ( this->length == 0 );
+  if ( ! quote && this->length == 1 ) {
+    switch ( this->val[ 0 ] ) {
+      case 'Y': case 'y': case 'N': case 'n':
+      /*case '0': case '1': case '2': case '3':
+      case '4': case '5': case '6': case '7':
+      case '8': case '9':*/
+        quote = true;
+        break;
+    }
+  }
+  if ( ! quote ) {
+    if ( ispunct( this->val[ 0 ] ) ) {
+      switch ( this->val[ 0 ] ) {
+        case '^': case '(': case ')': case '<': case '.': case ';':
+          break;
+        default:
+          quote = true;
+          break;
+      }
+    }
+    if ( ! quote ) {
+      if ( ::memchr( this->val, '\'', this->length ) != NULL ||
+           ::memchr( this->val, '\"', this->length ) != NULL ||
+           ::memchr( this->val, '\\', this->length ) != NULL )
+        quote = true;
+      /*else if ( ! isalpha( this->val[ 0 ] ) ) {
+        char *end = (char *) this->val;
+        ::strtod( this->val, &end );
+        if ( end == &this->val[ this->length ] )
+          quote = true;
+      }*/
+      else if ( ( this->length == 4 &&
+                  ::strncasecmp( this->val, "true", 4 ) == 0 ) ||
+                ( this->length == 4 &&
+                  ::strncasecmp( this->val, "null", 4 ) == 0 ) ||
+                ( this->length == 5 &&
+                  ::strncasecmp( this->val, "false", 5 ) == 0 ) )
+        quote = true;
+      else {
+        for ( size_t i = this->length; ; ) {
+          if ( this->val[ --i ] == ':' )
+            quote = true;
+          if ( this->val[ i ] != ' ' )
+            break;
+          if ( i == 0 )
+            break;
+        }
+      }
+    }
+  }
+  if ( quote )
+    return this->print( out );
+  return out->printf( "%*s", (int) this->length, this->val );
+}
+
+int
+JsonValue::print_yaml( int indent,  MDOutput *out ) noexcept
+{
+  int n = 0; /*out->indent( indent );*/
+  switch ( this->type ) {
+    default:
+    case JSON_NULL:    n += out->puts( "null" ); break;
+    case JSON_NUMBER:  n += ((JsonNumber *) this)->print( out ); break;
+    case JSON_STRING:  n += ((JsonString *) this)->print_yaml( out ); break;
+    case JSON_BOOLEAN: n += ((JsonBoolean *) this)->print( out ); break;
+
+    case JSON_OBJECT: {
+      JsonObject * o = (JsonObject *) this;
+      for ( size_t i = 0; i < o->length; i++ ) {
+        n += o->val[ i ].name.print_yaml( out );
+        if ( o->val[ i ].val->type == JSON_OBJECT ||
+             o->val[ i ].val->type == JSON_ARRAY ) {
+          n += out->puts( ":\n" );
+          n += out->indent( indent + 2 );
+        }
+        else
+          n += out->puts( ": " );
+        o->val[ i ].val->print_yaml( indent + 2, out );
+        if ( i + 1 < o->length ) {
+          n += out->puts( "\n" );
+          n += out->indent( indent );
+        }
+      }
+      break;
+    }
+    case JSON_ARRAY: {
+      JsonArray * a = (JsonArray *) this;
+      for ( size_t i = 0; i < a->length; i++ ) {
+        n += out->puts( "- " );
+        n += a->val[ i ]->print_yaml( indent + 2, out );
+        if ( i + 1 < a->length ) {
+          n += out->puts( "\n" );
+          n += out->indent( indent );
+        }
+      }
+      break;
+    }
+  }
+  return n;
 }
 
 }
