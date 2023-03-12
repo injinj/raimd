@@ -820,8 +820,11 @@ MDOutput::printf( const char *fmt, ... ) noexcept
 int
 MDOutput::puts( const char *s ) noexcept
 {
-  if ( s != NULL )
-    return fputs( s, stdout );
+  if ( s != NULL ) {
+    int n = fputs( s, stdout );
+    if ( n > 0 )
+      return (int) ::strlen( s );
+  }
   return 0;
 }
 

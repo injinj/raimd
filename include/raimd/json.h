@@ -47,6 +47,10 @@ struct JsonArray;
 struct JsonValue {
   JsonType type;
   int print( MDOutput *out ) noexcept;
+  int print_json( MDOutput *out ) noexcept;
+  int print_json( int indent, MDOutput *out ) noexcept;
+  int print_yaml( MDOutput *out ) noexcept;
+  int print_yaml( int indent, MDOutput *out ) noexcept;
   JsonBoolean *to_bool( void ) const;
   JsonNumber *to_num( void ) const;
   JsonString *to_str( void ) const;
@@ -88,6 +92,7 @@ struct JsonString : public JsonValue {
   void * operator new( size_t, void *ptr ) { return ptr; }
   JsonString() : JsonValue( JSON_STRING ), val( 0 ), length( 0 ) {}
   int print( MDOutput *out ) noexcept;
+  int print_yaml( MDOutput *out ) noexcept;
 };
 
 struct JsonObject : public JsonValue {
