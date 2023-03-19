@@ -246,6 +246,12 @@ MDMsg::geo_to_string( MDReference &,  char *&,  size_t & ) noexcept
   return Err::INVALID_MSG;
 }
 
+#if __GNUC__ >= 12
+/* gcc doesn't like:
+ * error: error: storing the address of local variable 'tmp' in 'this_45(D)->mem' [-Werror=dangling-pointer=]  */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdangling-pointer"
+#endif
 int
 MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
 {
@@ -292,6 +298,9 @@ MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
   this->mem = sav;
   return this->concat_array_to_string( str, k, num_entries, j, buf, len );
 }
+#if __GNUC__ >= 12
+#pragma GCC diagnostic pop
+#endif
 
 int
 MDMsg::list_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
