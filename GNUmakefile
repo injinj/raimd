@@ -265,16 +265,25 @@ basic_msg_lnk   := $(raimd_dlnk)
 
 $(bind)/basic_msg: $(basic_msg_objs) $(basic_msg_libs)
 
+pretty_js_files := pretty_js
+pretty_js_cfile := $(addprefix test/, $(addsuffix .cpp, $(pretty_js_files)))
+pretty_js_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(pretty_js_files)))
+pretty_js_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(pretty_js_files)))
+pretty_js_libs  := $(raimd_dlib)
+pretty_js_lnk   := $(raimd_dlnk)
+
+$(bind)/pretty_js: $(pretty_js_objs) $(pretty_js_libs)
+
 all_exes    += $(bind)/test_mddec $(bind)/test_json $(bind)/test_msg \
                $(bind)/test_mddict $(bind)/read_msg $(bind)/write_msg \
 	       $(bind)/test_list $(bind)/test_hash $(bind)/test_set \
 	       $(bind)/test_zset $(bind)/test_geo $(bind)/test_hll \
-	       $(bind)/test_stream $(bind)/basic_msg
+	       $(bind)/test_stream $(bind)/basic_msg $(bind)/pretty_js
 all_depends += $(test_mddec_deps) $(test_json_deps) $(test_msg_deps) \
                $(test_mddict_deps) $(read_msg_deps) $(write_msg_deps) \
 	       $(test_list_deps) $(test_hash_deps) $(test_set_deps) \
 	       $(test_zset_deps) $(test_geo_deps) $(test_hll_deps) \
-	       $(test_stream_deps) $(basic_msg_deps)
+	       $(test_stream_deps) $(basic_msg_deps) $(pretty_js_deps)
 
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 
@@ -335,6 +344,7 @@ CMakeLists.txt: .copr/Makefile
 	add_executable (read_msg $(read_msg_cfile))
 	add_executable (write_msg $(write_msg_cfile))
 	add_executable (basic_msg $(basic_msg_cfile))
+	add_executable (pretty_js $(pretty_js_cfile))
 	EOF
 
 

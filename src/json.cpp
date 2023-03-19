@@ -2,8 +2,13 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
-/*#include <unistd.h>*/
-
+#ifdef _MSC_VER
+#pragma warning( disable : 4291 4996 )
+#include <windows.h>
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 #include <raimd/json.h>
 #include <raimd/md_msg.h>
 
@@ -126,7 +131,11 @@ struct JsonOne : public JsonContext {
 size_t
 JsonStreamInput::read( uint8_t *buf,  size_t len ) noexcept
 {
-  return ::fread( buf, 1, len, stdin );
+#ifdef _MSC_VER
+  return _read( this->fd, buf, len );
+#else
+  return ::read( this->fd, buf, len );
+#endif
 }
 
 bool

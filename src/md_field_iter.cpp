@@ -256,6 +256,7 @@ MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
   char     ** str;
   size_t      i, j = 0,
             * k;
+  int         status;
 
   size_t num_entries = mref.fsize;
   if ( mref.fentrysz > 0 )
@@ -275,14 +276,16 @@ MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
     aref.fendian = mref.fendian;
     for ( i = 0; i < num_entries; i++ ) {
       aref.fptr = &mref.fptr[ i * (size_t) mref.fentrysz ];
-      this->get_quoted_string( aref, str[ i ], k[ i ] );
+      if ( (status = this->get_quoted_string( aref, str[ i ], k[ i ] )) != 0 )
+        return status;
       j += k[ i ];
     }
   }
   else {
     for ( i = 0; i < num_entries; i++ ) {
-      this->get_array_ref( mref, i, aref );
-      this->get_quoted_string( aref, str[ i ], k[ i ] );
+      if ( (status = this->get_array_ref( mref, i, aref )) != 0 ||
+           (status = this->get_quoted_string( aref, str[ i ], k[ i ] )) != 0 )
+        return status;
       j += k[ i ];
     }
   }
@@ -300,6 +303,7 @@ MDMsg::list_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
   size_t      i, j = 0,
             * k;
   ListData    ldata( mref.fptr, mref.fsize );
+  int         status;
 
   ldata.open( mref.fptr, mref.fsize );
   size_t num_entries = ldata.count();
@@ -325,7 +329,8 @@ MDMsg::list_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
         lv.copy_out( aref.fptr, 0, aref.fsize );
       }
     }
-    this->get_quoted_string( aref, str[ i ], k[ i ] );
+    if ( (status = this->get_quoted_string( aref, str[ i ], k[ i ] )) != 0 )
+      return status;
     j += k[ i ];
   }
   this->mem = sav;
@@ -342,6 +347,7 @@ MDMsg::set_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
   size_t      i, j = 0,
             * k;
   SetData     sdata( mref.fptr, mref.fsize );
+  int         status;
 
   sdata.open( mref.fptr, mref.fsize );
   size_t num_entries = sdata.hcount();
@@ -367,7 +373,8 @@ MDMsg::set_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
         lv.copy_out( aref.fptr, 0, aref.fsize );
       }
     }
-    this->get_quoted_string( aref, str[ i ], k[ i ] );
+    if ( (status = this->get_quoted_string( aref, str[ i ], k[ i ] )) != 0 )
+      return status;
     j += k[ i ];
   }
   this->mem = sav;
@@ -417,14 +424,14 @@ int
 MDMsg::stream_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
   /* TODO */
-  return 0;
+  return Err::INVALID_MSG;
 }
 
 int
 MDMsg::time_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
   /* TODO */
-  return 0;
+  return Err::INVALID_MSG;
 }
 
 static char   nul_string[]   = "null";

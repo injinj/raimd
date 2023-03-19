@@ -131,6 +131,38 @@ JsonMsgCtx::parse( void *bb,  size_t off,  size_t end,  MDDict *d,
   return status;
 }
 
+int
+JsonMsgCtx::parse_fd( int fd,  MDDict *d,  MDMsgMem *m,  bool is_yaml ) noexcept
+{
+  void * ptr;
+  int    status;
+
+  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
+    m->ref_cnt++;
+  this->release();
+  this->mem = m;
+
+  m->alloc( sizeof( JsonMsg ), &ptr );
+  this->msg = new ( ptr ) JsonMsg( NULL, 0, 0, d, m );
+  m->alloc( sizeof( JsonParser ), &ptr );
+  this->parser = new ( ptr ) JsonParser( *m );
+
+  m->alloc( sizeof( JsonStreamInput ), &ptr );
+  this->stream = new ( ptr ) JsonStreamInput( fd );
+  if ( is_yaml )
+    status = this->parser->parse_yaml( *this->stream );
+  else
+    status = this->parser->parse( *this->stream );
+  if ( status == 0 ) {
+    if ( this->parser->value != NULL ) {
+      this->msg->js = this->parser->value;
+      return 0;
+    }
+    return Err::NOT_FOUND;
+  }
+  return status;
+}
+
 void
 JsonMsg::init_auto_unpack( void ) noexcept
 {
