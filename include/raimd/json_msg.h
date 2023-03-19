@@ -41,14 +41,16 @@ struct JsonMsg : public MDMsg {
 };
 
 struct JsonMsgCtx {
-  JsonMsg      * msg;
-  JsonParser   * parser;
-  JsonBufInput * input;
-  MDMsgMem     * mem;
-  JsonMsgCtx() : msg( 0 ), parser( 0 ), input( 0 ), mem( 0 ) {}
+  JsonMsg         * msg;
+  JsonParser      * parser;
+  JsonBufInput    * input;
+  JsonStreamInput * stream;
+  MDMsgMem        * mem;
+  JsonMsgCtx() : msg( 0 ), parser( 0 ), input( 0 ), stream( 0 ), mem( 0 ) {}
   ~JsonMsgCtx() noexcept;
   int parse( void *bb,  size_t off,  size_t end,  MDDict *d,
              MDMsgMem *m,  bool is_yaml ) noexcept;
+  int parse_fd( int fd,  MDDict *d,  MDMsgMem *m,  bool is_yaml ) noexcept;
   void release( void ) noexcept;
 };
 

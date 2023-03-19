@@ -132,6 +132,7 @@ struct JsonStreamInput {
          line_count,
          buf_len;
   bool   is_eof;
+  int    fd;
 
   virtual size_t read( uint8_t *buf,  size_t len ) noexcept;
   bool fill_buf( void ) noexcept;
@@ -160,7 +161,7 @@ struct JsonStreamInput {
   void skip_BOM( void ) noexcept;
 
   void * operator new( size_t, void *ptr ) { return ptr; }
-  JsonStreamInput() : json( this->buf ) {
+  JsonStreamInput( int fildes = 0 ) : json( this->buf ), fd( fildes ) {
     this->init();
   }
   virtual ~JsonStreamInput() {
