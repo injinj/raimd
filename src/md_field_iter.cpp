@@ -267,8 +267,8 @@ MDMsg::array_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
     return 0;
   }
   this->mem = &tmp;
-  this->mem->alloc( num_entries * sizeof( str[ 0 ] ), &str );
-  this->mem->alloc( num_entries * sizeof( k[ 0 ] ), &k );
+  tmp.alloc( num_entries * sizeof( str[ 0 ] ), &str );
+  tmp.alloc( num_entries * sizeof( k[ 0 ] ), &k );
   if ( mref.fentrysz != 0 ) {
     aref.zero();
     aref.ftype   = mref.fentrytp;
@@ -317,8 +317,8 @@ MDMsg::list_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
     return 0;
   }
   this->mem = &tmp;
-  this->mem->alloc( num_entries * sizeof( str[ 0 ] ), &str );
-  this->mem->alloc( num_entries * sizeof( k[ 0 ] ), &k );
+  tmp.alloc( num_entries * sizeof( str[ 0 ] ), &str );
+  tmp.alloc( num_entries * sizeof( k[ 0 ] ), &k );
   for ( i = 0; i < num_entries; i++ ) {
     MDReference aref;
     ListVal lv;
@@ -329,12 +329,14 @@ MDMsg::list_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
       aref.fsize = lv.sz;
       if ( lv.sz2 != 0 ) {
         aref.fsize += lv.sz2;
-        this->mem->alloc( aref.fsize, &aref.fptr );
+        tmp.alloc( aref.fsize, &aref.fptr );
         lv.copy_out( aref.fptr, 0, aref.fsize );
       }
     }
-    if ( (status = this->get_quoted_string( aref, str[ i ], k[ i ] )) != 0 )
+    if ( (status = this->get_quoted_string( aref, str[ i ], k[ i ] )) != 0 ) {
+      this->mem = sav;
       return status;
+    }
     j += k[ i ];
   }
   this->mem = sav;
@@ -361,8 +363,8 @@ MDMsg::set_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
     return 0;
   }
   this->mem = &tmp;
-  this->mem->alloc( num_entries * sizeof( str[ 0 ] ), &str );
-  this->mem->alloc( num_entries * sizeof( k[ 0 ] ), &k );
+  tmp.alloc( num_entries * sizeof( str[ 0 ] ), &str );
+  tmp.alloc( num_entries * sizeof( k[ 0 ] ), &k );
   for ( i = 0; i < num_entries; i++ ) {
     MDReference aref;
     ListVal lv;
@@ -373,12 +375,14 @@ MDMsg::set_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
       aref.fsize = lv.sz;
       if ( lv.sz2 != 0 ) {
         aref.fsize += lv.sz2;
-        this->mem->alloc( aref.fsize, &aref.fptr );
+        tmp.alloc( aref.fsize, &aref.fptr );
         lv.copy_out( aref.fptr, 0, aref.fsize );
       }
     }
-    if ( (status = this->get_quoted_string( aref, str[ i ], k[ i ] )) != 0 )
+    if ( (status = this->get_quoted_string( aref, str[ i ], k[ i ] )) != 0 ) {
+      this->mem = sav;
       return status;
+    }
     j += k[ i ];
   }
   this->mem = sav;
