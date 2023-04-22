@@ -6,26 +6,26 @@
 #include <intrin.h>
 /* disable delete() constructor (4291), fopen deprecated (4996) */
 #pragma warning( disable : 4291 4996 )
-inline uint8_t
+inline uint32_t
 md_ctzl( uint64_t val )
 {
   unsigned long z;
   if ( _BitScanForward64( &z, val ) )
-    return (uint8_t) z;
+    return (uint32_t) z;
   return 64;
 }
-inline uint8_t
+inline uint32_t
 md_clzl( uint64_t val )
 {
   unsigned long z;
   if ( _BitScanReverse64( &z, val ) )
-    return (uint8_t) ( 63 - z );
+    return (uint32_t) ( 63 - z );
   return 64;
 }
 typedef ptrdiff_t ssize_t;
 #else
-inline uint8_t md_ctzl( uint64_t val ) { return __builtin_ctzl( val ); }
-inline uint8_t md_clzl( uint64_t val ) { return __builtin_clzl( val ); }
+inline uint32_t md_ctzl( uint64_t val ) { return __builtin_ctzll( val ); }
+inline uint32_t md_clzl( uint64_t val ) { return __builtin_clzll( val ); }
 #endif
 
 namespace rai {

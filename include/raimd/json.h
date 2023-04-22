@@ -25,6 +25,7 @@ struct JsonParser {
   MDMsgMem  & mem;
   JsonValue * value;
   void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
 
   JsonParser( MDMsgMem &m ) : mem( m ) {}
   /* result contains the offset of json[] consumed as well as the memory
@@ -59,12 +60,14 @@ struct JsonValue {
   int to_double( double &v ) const noexcept; /* return double */
   int to_int( int64_t &v ) const noexcept;  /* return int */
   void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
   JsonValue( JsonType t = JSON_NULL ) : type( t ) {}
 };
 
 struct JsonBoolean : public JsonValue {
   bool val;
   void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
   JsonBoolean(  bool v = false ) : JsonValue( JSON_BOOLEAN ), val( v ) {}
   int print( MDOutput *out ) noexcept;
 };
@@ -72,6 +75,7 @@ struct JsonBoolean : public JsonValue {
 struct JsonNumber : public JsonValue {
   MDDecimal val;
   void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
   JsonNumber( void ) : JsonValue( JSON_NUMBER ) { this->val.zero(); }
   int print( MDOutput *out ) noexcept;
 };
@@ -90,6 +94,7 @@ struct JsonString : public JsonValue {
     this->length = 0;
   }
   void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
   JsonString() : JsonValue( JSON_STRING ), val( 0 ), length( 0 ) {}
   int print( MDOutput *out ) noexcept;
   int print_yaml( MDOutput *out ) noexcept;
@@ -103,6 +108,7 @@ struct JsonObject : public JsonValue {
   size_t length;
   JsonValue *find( const char *name ) const noexcept;
   void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
   JsonObject() : JsonValue( JSON_OBJECT ), val( 0 ), length( 0 ) {}
   int print( MDOutput *out ) noexcept;
 };
@@ -111,6 +117,7 @@ struct JsonArray : public JsonValue {
   JsonValue ** val;
   size_t       length;
   void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
   JsonArray() : JsonValue( JSON_ARRAY ), val( 0 ), length( 0 ) {}
   int print( MDOutput *out ) noexcept;
 };
@@ -161,6 +168,7 @@ struct JsonStreamInput {
   void skip_BOM( void ) noexcept;
 
   void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
   JsonStreamInput( int fildes = 0 ) : json( this->buf ), fd( fildes ) {
     this->init();
   }
@@ -219,6 +227,7 @@ struct JsonBufInput {
   void skip_BOM( void ) noexcept;
 
   void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
   JsonBufInput( const char *js = NULL,  size_t off = 0,
                 size_t len = 0 ) {
     this->init( js, off, len );

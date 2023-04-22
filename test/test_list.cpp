@@ -37,8 +37,13 @@ main( int argc, char **argv )
 
   size_t count    = 16,
          data_len = 128,
-         asz      = ListData::alloc_size( count, data_len );
+         asz;
 
+  asz = ListData::alloc_size( count, data_len );
+  if ( asz > sizeof( buf ) ) {
+    fprintf( stderr, "too big\n" );
+    return 1;
+  }
   printf( "alloc size: %" PRIu64 "\n", asz );
   ::memset( buf, 0, asz );
   ListData list( buf, asz );
@@ -88,6 +93,10 @@ main( int argc, char **argv )
   char buf2[ 1024 ];
 
   bsz = list.used_size( count, data_len );
+  if ( bsz > sizeof( buf2 ) ) {
+    fprintf( stderr, "too big\n" );
+    return 1;
+  }
   ::memset( buf2, 0, bsz );
   ListData list2( buf2, bsz );
   list2.init( count, data_len );

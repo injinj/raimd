@@ -41,6 +41,10 @@ main( int argc, char **argv )
          data_len = 128,
          asz      = ZSetData::alloc_size( count, data_len );
 
+  if ( asz > sizeof( buf ) ) {
+    fprintf( stderr, "too big\n" );
+    return 1;
+  }
   printf( "alloc size: %" PRIu64 "\n", asz );
   ::memset( buf, 0, asz );
   ZSetData zset( buf, asz );
@@ -78,6 +82,10 @@ main( int argc, char **argv )
   char buf2[ 1024 ];
 
   bsz = zset.used_size( count, data_len );
+  if ( bsz > sizeof( buf2 ) ) {
+    fprintf( stderr, "too big\n" );
+    return 1;
+  }
   ::memset( buf2, 0, bsz );
   ZSetData zset2( buf2, bsz );
   zset2.init( count, data_len );
