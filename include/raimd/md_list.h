@@ -283,6 +283,7 @@ static const uint8_t mt_list[] = {0xe4,0xf7,3,3,0,0,0,0,0,0,0,0,0,0,0,0};
 #if __GNUC__ >= 12
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
+#pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 template <class UIntSig, class UIntType>
 struct ListStorage {
