@@ -805,7 +805,7 @@ struct ListData : public ListHeader {
   /* power of 2 larger or equal to sz */
   static size_t pow2size( size_t sz ) {
     if ( ( sz & ( sz - 1 ) ) != 0 )
-      sz = (size_t) 1 << ( 64 - md_clzl( sz ) );
+      sz = ( (size_t) 1 ) << ( 64 - md_clzl( sz ) );
     return sz;
   }
   /* calc word size appropriate for count idx of data size items */

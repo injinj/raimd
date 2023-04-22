@@ -2026,7 +2026,7 @@ MDStamp::get_string( char *str,  size_t len ) const noexcept
   return d.get_string( str, len, false );
 }
 
-#ifdef _MSC_VER
+#if defined( _MSC_VER ) || defined( __MINGW32__ )
 static inline void md_localtime( time_t t, struct tm &tmbuf ) {
   ::localtime_s( &tmbuf, &t );
 }

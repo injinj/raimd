@@ -1,9 +1,10 @@
+# raimd makefile
 lsb_dist     := $(shell if [ -f /etc/os-release ] ; then \
-		  grep '^NAME=' /etc/os-release | sed 's/.*=\"//' | sed 's/ .*//' ; \
+                  grep '^NAME=' /etc/os-release | sed 's/.*=[\"]*//' | sed 's/[ \"].*//' ; \
                   elif [ -x /usr/bin/lsb_release ] ; then \
                   lsb_release -is ; else echo Linux ; fi)
 lsb_dist_ver := $(shell if [ -f /etc/os-release ] ; then \
-		  grep '^VERSION=' /etc/os-release | sed 's/.*=\"//' | sed 's/ .*//' | sed 's/\"//' ; \
+		  grep '^VERSION=' /etc/os-release | sed 's/.*=[\"]*//' | sed 's/[ \"].*//' ; \
                   elif [ -x /usr/bin/lsb_release ] ; then \
                   lsb_release -rs | sed 's/[.].*//' ; else uname -r | sed 's/[-].*//' ; fi)
 #lsb_dist     := $(shell if [ -x /usr/bin/lsb_release ] ; then lsb_release -is ; else uname -s ; fi)
@@ -33,24 +34,39 @@ endif
 ifeq (-a,$(findstring -a,$(port_extra)))
   default_cflags := -fsanitize=address -ggdb -O3
 endif
-
-CC          ?= gcc
-CXX         ?= $(CC) -x c++
-cc          := $(CC)
-cpp         := $(CXX)
-# if not linking libstdc++
-ifdef NO_STL
-cppflags    := -std=c++11 -fno-rtti -fno-exceptions
-cpplink     := $(CC)
-else
-cppflags    := -std=c++11
-cpplink     := $(CXX)
+ifeq (-mingw,$(findstring -mingw,$(port_extra)))
+  CC    := /usr/bin/x86_64-w64-mingw32-gcc
+  CXX   := /usr/bin/x86_64-w64-mingw32-g++
+  mingw := true
 endif
+# msys2 using ucrt64
+ifeq (MSYS2,$(lsb_dist))
+  mingw := true
+endif
+CC          ?= gcc
+CXX         ?= g++
+cc          := $(CC) -std=c11
+cpp         := $(CXX)
 arch_cflags := -fno-omit-frame-pointer -mavx
-gcc_wflags  := -Wall -Werror -Wextra
-fpicflags   := -fPIC
-soflag      := -shared
+gcc_wflags  := -Wall -Wextra -Werror
 
+# if windows cross compile
+ifeq (true,$(mingw))
+dll       := dll
+exe       := .exe
+soflag    := -shared -Wl,--subsystem,windows
+fpicflags := -fPIC -DMD_SHARED
+NO_STL    := 1
+else
+dll       := so
+exe       :=
+soflag    := -shared
+fpicflags := -fPIC
+endif
+# make apple shared lib
+ifeq (Darwin,$(lsb_dist))
+dll       := dylib
+endif
 # rpmbuild uses RPM_OPT_FLAGS
 ifeq ($(RPM_OPT_FLAGS),)
 CFLAGS ?= $(default_cflags)
@@ -64,39 +80,52 @@ DEFINES    ?=
 includes   := $(INCLUDES)
 defines    := $(DEFINES)
 
-#cppflags   := -fno-rtti -fno-exceptions
-#cppflags  := -fno-rtti -fno-exceptions -fsanitize=address
-#cpplink   := $(CC) -lasan
-#cpplink    := $(CXX)
+# if not linking libstdc++
+ifdef NO_STL
+cppflags    := -std=c++11 -fno-rtti -fno-exceptions
+cpplink     := $(CC)
+else
+cppflags    := -std=c++11
+cpplink     := $(CXX)
+endif
 
-have_dec_submodule := $(shell if [ -d ./libdecnumber ]; then echo yes; else echo no; fi )
+# test submodules exist (they don't exist for dist_rpm, dist_dpkg targets)
+test_makefile = $(shell if [ -f ./$(1)/GNUmakefile ] ; then echo ./$(1) ; \
+                        elif [ -f ../$(1)/GNUmakefile ] ; then echo ../$(1) ; fi)
 
-cpp_lnk    :=
-lnk_lib    :=
+dec_home    := $(call test_makefile,libdecnumber)
 
-ifeq (yes,$(have_dec_submodule))
-dec_lib     := libdecnumber/$(libd)/libdecnumber.a
-dec_dll     := libdecnumber/$(libd)/libdecnumber.so
+ifneq (,$(dec_home))
+dec_lib     := $(dec_home)/$(libd)/libdecnumber.a
+dec_dll     := $(dec_home)/$(libd)/libdecnumber.$(dll)
 lnk_lib     += $(dec_lib)
-dlnk_lib    += -Llibdecnumber/$(libd) -ldecnumber
-rpath3       = ,-rpath,$(pwd)/libdecnumber/$(libd)
+lnk_dep     += $(dec_lib)
+dlnk_lib    += -L$(dec_home)/$(libd) -ldecnumber
+dlnk_dep    += $(dec_dll)
+rpath1       = ,-rpath,$(pwd)/$(dec_home)/$(libd)
+decimal_includes += -I$(dec_home)/include
 else
 lnk_lib     += -ldecnumber
 dlnk_lib    += -ldecnumber
 endif
 
-rpath      := -Wl,-rpath,$(pwd)/$(libd)$(rpath3)
-math_lib   := -lm
+rpath := -Wl,-rpath,$(pwd)/$(libd)$(rpath1)
 
 .PHONY: everything
-everything: $(dec_lib) $(dec_dll) all
+everything: $(dec_lib) all
 
-ifeq (yes,$(have_dec_submodule))
+clean_subs :=
+# build submodules if have them
+ifneq (,$(dec_home))
 $(dec_lib) $(dec_dll):
-	$(MAKE) -C libdecnumber
-update_submod:
-	git update-index --cacheinfo 160000 `cd ./libdecnumber && git rev-parse HEAD` libdecnumber
+	$(MAKE) -C $(dec_home)
+.PHONY: clean_dec
+clean_dec:
+	$(MAKE) -C $(dec_home) clean
+clean_subs += clean_dec
 endif
+
+math_lib := -lm
 
 # copr/fedora build (with version env vars)
 # copr uses this to generate a source rpm with the srpm target
@@ -110,8 +139,6 @@ all_exes    :=
 all_libs    :=
 all_dlls    :=
 all_depends :=
-
-decimal_includes := -Ilibdecnumber/include
 
 md_msg_defines := -DMD_VER=$(ver_build)
 $(objd)/md_msg.o : .copr/Makefile
@@ -130,13 +157,13 @@ libraimd_spec  := $(ver_build)_$(git_hash)
 libraimd_ver   := $(major_num).$(minor_num)
 
 $(libd)/libraimd.a: $(libraimd_objs)
-$(libd)/libraimd.so: $(libraimd_dbjs) $(dec_dll)
+$(libd)/libraimd.$(dll): $(libraimd_dbjs) $(dec_dll)
 
-raimd_dlib := $(libd)/libraimd.so
-raimd_dlnk := -L$(libd) -lraimd $(dlnk_lib)
+raimd_dlib := $(libd)/libraimd.$(dll)
+raimd_dlnk := -lraimd $(dlnk_lib)
 
 all_libs    += $(libd)/libraimd.a
-all_dlls    += $(libd)/libraimd.so
+all_dlls    += $(libd)/libraimd.$(dll)
 all_depends += $(libraimd_deps)
 
 test_mddec_files := test_mddec
@@ -146,7 +173,9 @@ test_mddec_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_mddec_files)
 test_mddec_libs  := $(raimd_dlib)
 test_mddec_lnk   := $(raimd_dlnk)
 
-$(bind)/test_mddec: $(test_mddec_objs) $(test_mddec_libs)
+$(bind)/test_mddec$(exe): $(test_mddec_objs) $(test_mddec_libs)
+all_exes += $(bind)/test_mddec$(exe)
+all_depends +=  $(test_mddec_deps)
 
 test_json_files := test_json
 test_json_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_json_files)))
@@ -155,7 +184,9 @@ test_json_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_json_files)))
 test_json_libs  := $(raimd_dlib)
 test_json_lnk   := $(raimd_dlnk)
 
-$(bind)/test_json: $(test_json_objs) $(test_json_libs)
+$(bind)/test_json$(exe): $(test_json_objs) $(test_json_libs)
+all_exes += $(bind)/test_json$(exe)
+all_depends +=  $(test_json_deps)
 
 test_msg_files := test_msg
 test_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_msg_files)))
@@ -164,7 +195,9 @@ test_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_msg_files)))
 test_msg_libs  := $(raimd_dlib)
 test_msg_lnk   := $(raimd_dlnk)
 
-$(bind)/test_msg: $(test_msg_objs) $(test_msg_libs)
+$(bind)/test_msg$(exe): $(test_msg_objs) $(test_msg_libs)
+all_exes += $(bind)/test_msg$(exe)
+all_depends +=  $(test_msg_deps)
 
 test_list_files := test_list
 test_list_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_list_files)))
@@ -173,7 +206,9 @@ test_list_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_list_files)))
 test_list_libs  := $(raimd_dlib)
 test_list_lnk   := $(raimd_dlnk)
 
-$(bind)/test_list: $(test_list_objs) $(test_list_libs)
+$(bind)/test_list$(exe): $(test_list_objs) $(test_list_libs)
+all_exes += $(bind)/test_list$(exe)
+all_depends +=  $(test_list_deps)
 
 test_hash_files := test_hash
 test_hash_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_hash_files)))
@@ -182,7 +217,9 @@ test_hash_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_hash_files)))
 test_hash_libs  := $(raimd_dlib)
 test_hash_lnk   := $(raimd_dlnk)
 
-$(bind)/test_hash: $(test_hash_objs) $(test_hash_libs)
+$(bind)/test_hash$(exe): $(test_hash_objs) $(test_hash_libs)
+all_exes += $(bind)/test_hash$(exe)
+all_depends +=  $(test_hash_deps)
 
 test_set_files := test_set
 test_set_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_set_files)))
@@ -191,7 +228,9 @@ test_set_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_set_files)))
 test_set_libs  := $(raimd_dlib)
 test_set_lnk   := $(raimd_dlnk)
 
-$(bind)/test_set: $(test_set_objs) $(test_set_libs)
+$(bind)/test_set$(exe): $(test_set_objs) $(test_set_libs)
+all_exes += $(bind)/test_set$(exe)
+all_depends +=  $(test_set_deps)
 
 test_zset_files := test_zset
 test_zset_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_zset_files)))
@@ -200,7 +239,9 @@ test_zset_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_zset_files)))
 test_zset_libs  := $(raimd_dlib)
 test_zset_lnk   := $(raimd_dlnk)
 
-$(bind)/test_zset: $(test_zset_objs) $(test_zset_libs)
+$(bind)/test_zset$(exe): $(test_zset_objs) $(test_zset_libs)
+all_exes += $(bind)/test_zset$(exe)
+all_depends +=  $(test_zset_deps)
 
 test_geo_files := test_geo
 test_geo_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_geo_files)))
@@ -209,7 +250,9 @@ test_geo_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_geo_files)))
 test_geo_libs  := $(raimd_dlib)
 test_geo_lnk   := $(raimd_dlnk)
 
-$(bind)/test_geo: $(test_geo_objs) $(test_geo_libs)
+$(bind)/test_geo$(exe): $(test_geo_objs) $(test_geo_libs)
+all_exes += $(bind)/test_geo$(exe)
+all_depends +=  $(test_geo_deps)
 
 test_hll_files := test_hll
 test_hll_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_hll_files)))
@@ -218,7 +261,9 @@ test_hll_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_hll_files)))
 test_hll_libs  := $(raimd_dlib)
 test_hll_lnk   := $(raimd_dlnk)
 
-$(bind)/test_hll: $(test_hll_objs) $(test_hll_libs)
+$(bind)/test_hll$(exe): $(test_hll_objs) $(test_hll_libs)
+all_exes += $(bind)/test_hll$(exe)
+all_depends +=  $(test_hll_deps)
 
 test_stream_files := test_stream
 test_stream_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_stream_files)))
@@ -227,7 +272,9 @@ test_stream_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_stream_file
 test_stream_libs  := $(raimd_dlib)
 test_stream_lnk   := $(raimd_dlnk)
 
-$(bind)/test_stream: $(test_stream_objs) $(test_stream_libs)
+$(bind)/test_stream$(exe): $(test_stream_objs) $(test_stream_libs)
+all_exes += $(bind)/test_stream$(exe)
+all_depends +=  $(test_stream_deps)
 
 test_mddict_files := test_dict
 test_mddict_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_mddict_files)))
@@ -236,7 +283,9 @@ test_mddict_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_mddict_file
 test_mddict_libs  := $(raimd_dlib)
 test_mddict_lnk   := $(raimd_dlnk)
 
-$(bind)/test_mddict: $(test_mddict_objs) $(test_mddict_libs)
+$(bind)/test_mddict$(exe): $(test_mddict_objs) $(test_mddict_libs)
+all_exes += $(bind)/test_mddict$(exe)
+all_depends +=  $(test_mddict_deps)
 
 read_msg_files := read_msg
 read_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(read_msg_files)))
@@ -245,7 +294,9 @@ read_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(read_msg_files)))
 read_msg_libs  := $(raimd_dlib)
 read_msg_lnk   := $(raimd_dlnk)
 
-$(bind)/read_msg: $(read_msg_objs) $(read_msg_libs)
+$(bind)/read_msg$(exe): $(read_msg_objs) $(read_msg_libs)
+all_exes += $(bind)/read_msg$(exe)
+all_depends +=  $(read_msg_deps)
 
 write_msg_files := write_msg
 write_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(write_msg_files)))
@@ -254,7 +305,9 @@ write_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(write_msg_files)))
 write_msg_libs  := $(raimd_dlib)
 write_msg_lnk   := $(raimd_dlnk)
 
-$(bind)/write_msg: $(write_msg_objs) $(write_msg_libs)
+$(bind)/write_msg$(exe): $(write_msg_objs) $(write_msg_libs)
+all_exes += $(bind)/write_msg$(exe)
+all_depends +=  $(write_msg_deps)
 
 basic_msg_files := basic_msg
 basic_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(basic_msg_files)))
@@ -263,7 +316,9 @@ basic_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(basic_msg_files)))
 basic_msg_libs  := $(raimd_dlib)
 basic_msg_lnk   := $(raimd_dlnk)
 
-$(bind)/basic_msg: $(basic_msg_objs) $(basic_msg_libs)
+$(bind)/basic_msg$(exe): $(basic_msg_objs) $(basic_msg_libs)
+all_exes += $(bind)/basic_msg$(exe)
+all_depends +=  $(basic_msg_deps)
 
 pretty_js_files := pretty_js
 pretty_js_cfile := $(addprefix test/, $(addsuffix .cpp, $(pretty_js_files)))
@@ -272,27 +327,11 @@ pretty_js_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(pretty_js_files)))
 pretty_js_libs  := $(raimd_dlib)
 pretty_js_lnk   := $(raimd_dlnk)
 
-$(bind)/pretty_js: $(pretty_js_objs) $(pretty_js_libs)
-
-all_exes    += $(bind)/test_mddec $(bind)/test_json $(bind)/test_msg \
-               $(bind)/test_mddict $(bind)/read_msg $(bind)/write_msg \
-	       $(bind)/test_list $(bind)/test_hash $(bind)/test_set \
-	       $(bind)/test_zset $(bind)/test_geo $(bind)/test_hll \
-	       $(bind)/test_stream $(bind)/basic_msg $(bind)/pretty_js
-all_depends += $(test_mddec_deps) $(test_json_deps) $(test_msg_deps) \
-               $(test_mddict_deps) $(read_msg_deps) $(write_msg_deps) \
-	       $(test_list_deps) $(test_hash_deps) $(test_set_deps) \
-	       $(test_zset_deps) $(test_geo_deps) $(test_hll_deps) \
-	       $(test_stream_deps) $(basic_msg_deps) $(pretty_js_deps)
+$(bind)/pretty_js$(exe): $(pretty_js_objs) $(pretty_js_libs)
+all_exes += $(bind)/pretty_js$(exe)
+all_depends +=  $(pretty_js_deps)
 
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
-
-#README.md: $(bind)/print_keys doc/readme.md
-#	cat doc/readme.md > README.md
-#	$(bind)/print_keys >> README.md
-
-#src/hashaction.c: $(bind)/print_keys include/raimd/keycook.h
-#	$(bind)/print_keys hash > src/hashaction.c
 
 all: $(all_libs) $(all_dlls) $(all_exes) cmake
 
@@ -376,9 +415,9 @@ remove_rpath = chrpath -d
 endif
 # target used by rpmbuild, dpkgbuild
 .PHONY: dist_bins
-dist_bins: $(all_libs) $(all_dlls) $(bind)/test_mddict
-	$(remove_rpath) $(bind)/test_mddict
-	$(remove_rpath) $(libd)/libraimd.so
+dist_bins: $(all_libs) $(all_dlls) $(bind)/test_mddict$(exe)
+	$(remove_rpath) $(bind)/test_mddict$(exe)
+	$(remove_rpath) $(libd)/libraimd.$(dll)
 
 # target for building installable rpm
 .PHONY: dist_rpm
@@ -435,11 +474,17 @@ $(objd)/%.o: test/%.c
 $(libd)/%.a:
 	ar rc $@ $($(*)_objs)
 
-$(libd)/%.so:
-	$(cpplink) $(soflag) $(rpath) $(cflags) -o $@.$($(*)_spec) -Wl,-soname=$(@F).$($(*)_ver) $($(*)_dbjs) $($(*)_dlnk) $(cpp_dll_lnk) $(sock_lib) $(math_lib) $(thread_lib) $(malloc_lib) $(dynlink_lib) && \
+ifeq (Darwin,$(lsb_dist))
+$(libd)/%.dylib:
+	$(cpplink) -dynamiclib $(cflags) -o $@.$($(*)_dylib).dylib -current_version $($(*)_dylib) -compatibility_version $($(*)_ver) $($(*)_dbjs) $($(*)_dlnk) $(sock_lib) $(math_lib) $(thread_lib) $(malloc_lib) $(dynlink_lib) && \
+	cd $(libd) && ln -f -s $(@F).$($(*)_dylib).dylib $(@F).$($(*)_ver).dylib && ln -f -s $(@F).$($(*)_ver).dylib $(@F)
+else
+$(libd)/%.$(dll):
+	$(cpplink) $(soflag) $(rpath) $(cflags) -o $@.$($(*)_spec) -Wl,-soname=$(@F).$($(*)_ver) $($(*)_dbjs) $($(*)_dlnk) $(sock_lib) $(math_lib) $(thread_lib) $(malloc_lib) $(dynlink_lib) && \
 	cd $(libd) && ln -f -s $(@F).$($(*)_spec) $(@F).$($(*)_ver) && ln -f -s $(@F).$($(*)_ver) $(@F)
+endif
 
-$(bind)/%:
+$(bind)/%$(exe):
 	$(cpplink) $(cflags) $(rpath) -o $@ $($(*)_objs) -L$(libd) $($(*)_lnk) $(cpp_lnk) $(sock_lib) $(math_lib) $(thread_lib) $(malloc_lib) $(dynlink_lib)
 
 $(dependd)/%.d: src/%.cpp

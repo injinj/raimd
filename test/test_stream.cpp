@@ -2,7 +2,7 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 #include <time.h>
-#ifdef _MSC_VER
+#if defined( _MSC_VER ) || defined( __MINGW32__ )
 #define NOMINMAX
 #include <windows.h>
 #else
@@ -29,7 +29,7 @@ xprint( void *buf,  size_t asz ) noexcept
   }
 }
 
-#ifdef _MSC_VER
+#if defined( _MSC_VER ) || defined( __MINGW32__ )
 static const uint64_t DELTA_EPOCH = 116444736ULL *
                                     1000000000ULL;
 static void
@@ -98,7 +98,7 @@ main( int argc, char **argv )
 
   MDOutput         mout;
   MDMsgMem         tmp;
-  char             buf[ 1024 ];
+  char           * buf;
   StreamId         id;
   StreamGeom       geom;
   StreamArgs       sa;
@@ -110,8 +110,13 @@ main( int argc, char **argv )
   size_t asz = geom.asize();
 
   printf( "alloc size: %" PRIu64 "\n", asz );
+  buf = (char *) ::malloc( asz );
   ::memset( buf, 0, asz );
   geom.print();
+  if ( geom.stream.asize + geom.group.asize + geom.pending.asize > asz ) {
+    fprintf( stderr, "too big\n" );
+    return 1;
+  }
   StreamData strm(
            buf, geom.stream.asize,
            &buf[ geom.stream.asize ], geom.group.asize,
