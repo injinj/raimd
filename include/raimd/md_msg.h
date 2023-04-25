@@ -12,10 +12,12 @@ namespace rai {
 namespace md {
 
 struct MDMsgMem {
+  static const size_t   MEM_CNT = 256 - 4;
+  uint32_t mem_off; /* offset in mem[] where next is allocated */
+#ifdef MD_REF_COUNT
   static const uint32_t NO_REF_COUNT = 0x7fffffffU;
-  static const size_t   MEM_CNT      = 256 - 4;
-  uint32_t mem_off, /* offset in mem[] where next is allocated */
-           ref_cnt; /* incremented when attached to a MDMsg */
+  uint32_t ref_cnt; /* incremented when attached to a MDMsg */
+#endif
   struct MemBlock {
     MemBlock * next;
     size_t     size;
@@ -23,11 +25,13 @@ struct MDMsgMem {
   };
   MemBlock blk, * blk_ptr;
 
+#ifdef MD_REF_COUNT
   void * operator new( size_t, void *ptr ) { return ptr; }
   void operator delete( void *ptr ) { ::free( ptr ); }
+#endif
   /* ref count should be set when created dynamically,
    * this default is set to not release memory based on refs */
-  MDMsgMem() : ref_cnt( NO_REF_COUNT ) {
+  MDMsgMem() {
     this->blk_ptr  = &this->blk;
     this->blk.next = &this->blk;
     this->blk.size = MEM_CNT;
@@ -211,12 +215,14 @@ struct MDMsg {
                                uint32_t h ) noexcept;
   /* dereference msg mem */
   void release( void ) {
+#ifdef MD_REF_COUNT
     if ( this->mem != NULL && this->mem->ref_cnt != MDMsgMem::NO_REF_COUNT ) {
       MDMsgMem *m = this->mem;
       this->mem = NULL; /* prevent multiple derefs */
       if ( --m->ref_cnt == 0 )
         delete m;
     }
+#endif
   }
   /* Print message in 'TIB' format to output stream */
   void print( MDOutput *out ) {

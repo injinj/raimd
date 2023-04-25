@@ -94,9 +94,10 @@ TibMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
     return NULL;
   if ( off + msg_size + 9 > end )
     return NULL;
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
-
+#endif
   void * ptr;
   m->alloc( sizeof( TibMsg ), &ptr );
   return new ( ptr ) TibMsg( bb, off, off + msg_size + 9, d, m );

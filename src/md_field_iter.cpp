@@ -70,6 +70,8 @@ MDDecimal::get_decimal( const MDReference &mref ) noexcept
         return 0;
       } /* FALLTHRU */
     default:
+      this->ival = 0;
+      this->hint = MD_DEC_NULL;
       return Err::BAD_DECIMAL;
 
     case MD_INT:
@@ -103,15 +105,20 @@ MDTime::get_time( const MDReference &mref ) noexcept
       return 0;
     }
     else if ( mref.fsize == sizeof( this->hour ) + sizeof( this->minute ) ) {
-      this->hour   = mref.fptr[ 0 ];
-      this->minute = mref.fptr[ 1 ];
+      this->hour       = mref.fptr[ 0 ];
+      this->minute     = mref.fptr[ 1 ];
+      this->sec        = 0;
+      this->fraction   = 0;
+      this->resolution = MD_RES_MINUTES;
       return 0;
     }
     else if ( mref.fsize == sizeof( this->hour ) + sizeof( this->minute ) +
                             sizeof( this->sec ) ) {
-      this->hour   = mref.fptr[ 0 ];
-      this->minute = mref.fptr[ 1 ];
-      this->sec    = mref.fptr[ 1 ];
+      this->hour       = mref.fptr[ 0 ];
+      this->minute     = mref.fptr[ 1 ];
+      this->sec        = mref.fptr[ 2 ];
+      this->fraction   = 0;
+      this->resolution = MD_RES_SECONDS;
       return 0;
     }
   }

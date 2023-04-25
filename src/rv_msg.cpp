@@ -85,8 +85,10 @@ RvMsg::unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
   void * ptr;
   if ( end2 > end )
     return NULL;
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
+#endif
   m->alloc( sizeof( RvMsg ), &ptr );
   return new ( ptr ) RvMsg( bb, off, end2, d, m );
 }
@@ -107,8 +109,10 @@ RvMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
          end2 = off + msg_size;
   if ( end2 > end )
     return NULL;
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
+#endif
   MDMsg *msg = RvMsg::opaque_extract( (uint8_t *) bb, off2, end2, d, m );
   if ( msg == NULL ) {
     void * ptr;

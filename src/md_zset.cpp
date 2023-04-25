@@ -50,8 +50,10 @@ ZSetMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
 {
   if ( ! is_zset( bb, off, end ) )
     return NULL;
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
+#endif
   /* check if another message is the first opaque field of the ZSetMsg */
   void * ptr;
   m->alloc( sizeof( ZSetMsg ), &ptr );

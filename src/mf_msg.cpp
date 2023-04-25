@@ -241,10 +241,10 @@ MktfdMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
        ((uint8_t *) bb)[ off ] != FS_ ||
        ((uint8_t *) bb)[ end - 1 ] != FS_ )
     return NULL;
-
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
-
+#endif
   void * ptr;
   m->alloc( sizeof( MktfdMsg ), &ptr );
   for ( ; d != NULL; d = d->next )

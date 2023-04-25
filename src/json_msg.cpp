@@ -57,9 +57,10 @@ JsonMsg *
 JsonMsg::unpack_any( void *bb,  size_t off,  size_t end,  uint32_t,
                      MDDict *d,  MDMsgMem *m ) noexcept
 {
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
-
+#endif
   void * ptr;
   m->alloc( sizeof( JsonMsg ), &ptr );
 
@@ -79,11 +80,13 @@ JsonMsg::unpack_any( void *bb,  size_t off,  size_t end,  uint32_t,
 void
 JsonMsgCtx::release( void ) noexcept
 {
+#ifdef MD_REF_COUNT
   if ( this->mem != NULL ) {
     if ( this->mem->ref_cnt != MDMsgMem::NO_REF_COUNT )
       if ( --this->mem->ref_cnt == 0 )
           delete this->mem;
   }
+#endif
   this->msg    = NULL;
   this->parser = NULL;
   this->input  = NULL;
@@ -101,9 +104,10 @@ JsonMsgCtx::parse( void *bb,  size_t off,  size_t end,  MDDict *d,
 {
   void * ptr;
   int    status;
-
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
+#endif
   this->release();
   this->mem = m;
 
@@ -136,9 +140,10 @@ JsonMsgCtx::parse_fd( int fd,  MDDict *d,  MDMsgMem *m,  bool is_yaml ) noexcept
 {
   void * ptr;
   int    status;
-
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
+#endif
   this->release();
   this->mem = m;
 
