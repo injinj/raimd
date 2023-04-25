@@ -108,9 +108,10 @@ TibSassMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
     return NULL;
   if ( off + msg_size + 8 > end )
     return NULL;
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
-
+#endif
   void * ptr;
   m->alloc( sizeof( TibSassMsg ), &ptr );
   for ( ; d != NULL; d = d->next )

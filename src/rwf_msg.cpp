@@ -100,9 +100,10 @@ RwfMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
   if ( RwfMsg::parse_header( &((uint8_t *) bb)[ off ],  end - off,
                              hdr ) != 0 )
     return NULL;
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
-
+#endif
   void * ptr;
   m->alloc( sizeof( RwfMsg ), &ptr );
   for ( ; d != NULL; d = d->next )

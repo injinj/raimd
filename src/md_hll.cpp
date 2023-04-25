@@ -62,8 +62,10 @@ HLLMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
 {
   if ( ! is_hllmsg( bb, off, end, h ) )
     return NULL;
+#ifdef MD_REF_COUNT
   if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
     m->ref_cnt++;
+#endif
   /* check if another message is the first opaque field of the HLLMsg */
   void * ptr;
   m->alloc( sizeof( HLLMsg ), &ptr );
