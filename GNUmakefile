@@ -100,6 +100,12 @@ test_makefile = $(shell if [ -f ./$(1)/GNUmakefile ] ; then echo ./$(1) ; \
 
 dec_home    := $(call test_makefile,libdecnumber)
 
+lnk_lib     := -Wl,--push-state -Wl,-Bstatic
+lnk_lib     += $(libd)/libraimd.a
+dlnk_lib    :=
+lnk_dep     := $(libd)/libraimd.a
+dlnk_dep    :=
+
 ifneq (,$(dec_home))
 dec_lib     := $(dec_home)/$(libd)/libdecnumber.a
 dec_dll     := $(dec_home)/$(libd)/libdecnumber.$(dll)
@@ -114,6 +120,7 @@ lnk_lib     += -ldecnumber
 dlnk_lib    += -ldecnumber
 endif
 
+lnk_lib += -Wl,--pop-state
 rpath := -Wl,-rpath,$(pwd)/$(libd)$(rpath1)
 
 .PHONY: everything
@@ -162,8 +169,9 @@ libraimd_spec  := $(ver_build)_$(git_hash)
 libraimd_ver   := $(major_num).$(minor_num)
 
 $(libd)/libraimd.a: $(libraimd_objs)
-$(libd)/libraimd.$(dll): $(libraimd_dbjs) $(dec_dll)
+$(libd)/libraimd.$(dll): $(libraimd_dbjs) $(dlnk_dep)
 
+raimd_lib  := $(libd)/libraimd.a
 raimd_dlib := $(libd)/libraimd.$(dll)
 raimd_dlnk := -lraimd $(dlnk_lib)
 
@@ -281,27 +289,27 @@ $(bind)/test_stream$(exe): $(test_stream_objs) $(test_stream_libs)
 all_exes += $(bind)/test_stream$(exe)
 all_depends +=  $(test_stream_deps)
 
-test_mddict_files := test_dict
-test_mddict_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_mddict_files)))
-test_mddict_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_mddict_files)))
-test_mddict_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_mddict_files)))
-test_mddict_libs  := $(raimd_dlib)
-test_mddict_lnk   := $(raimd_dlnk)
+md_test_dict_files := test_dict
+md_test_dict_cfile := $(addprefix test/, $(addsuffix .cpp, $(md_test_dict_files)))
+md_test_dict_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(md_test_dict_files)))
+md_test_dict_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(md_test_dict_files)))
+md_test_dict_libs  := $(raimd_lib)
+md_test_dict_lnk   := $(lnk_lib)
 
-$(bind)/test_mddict$(exe): $(test_mddict_objs) $(test_mddict_libs)
-all_exes += $(bind)/test_mddict$(exe)
-all_depends +=  $(test_mddict_deps)
+$(bind)/md_test_dict$(exe): $(md_test_dict_objs) $(md_test_dict_libs)
+all_exes += $(bind)/md_test_dict$(exe)
+all_depends +=  $(md_test_dict_deps)
 
-read_msg_files := read_msg
-read_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(read_msg_files)))
-read_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(read_msg_files)))
-read_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(read_msg_files)))
-read_msg_libs  := $(raimd_dlib)
-read_msg_lnk   := $(raimd_dlnk)
+md_read_msg_files := read_msg
+md_read_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(md_read_msg_files)))
+md_read_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(md_read_msg_files)))
+md_read_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(md_read_msg_files)))
+md_read_msg_libs  := $(raimd_lib)
+md_read_msg_lnk   := $(lnk_lib)
 
-$(bind)/read_msg$(exe): $(read_msg_objs) $(read_msg_libs)
-all_exes += $(bind)/read_msg$(exe)
-all_depends +=  $(read_msg_deps)
+$(bind)/md_read_msg$(exe): $(md_read_msg_objs) $(md_read_msg_libs) $(lnk_dep)
+all_exes += $(bind)/md_read_msg$(exe)
+all_depends +=  $(md_read_msg_deps)
 
 write_msg_files := write_msg
 write_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(write_msg_files)))
@@ -384,8 +392,8 @@ CMakeLists.txt: .copr/Makefile
 	add_executable (test_geo $(test_geo_cfile))
 	add_executable (test_hll $(test_hll_cfile))
 	add_executable (test_stream $(test_stream_cfile))
-	add_executable (test_mddict $(test_mddict_cfile))
-	add_executable (read_msg $(read_msg_cfile))
+	add_executable (md_test_dict $(md_test_dict_cfile))
+	add_executable (md_read_msg $(md_read_msg_cfile))
 	add_executable (write_msg $(write_msg_cfile))
 	add_executable (basic_msg $(basic_msg_cfile))
 	add_executable (pretty_js $(pretty_js_cfile))
@@ -420,8 +428,9 @@ remove_rpath = chrpath -d
 endif
 # target used by rpmbuild, dpkgbuild
 .PHONY: dist_bins
-dist_bins: $(all_libs) $(all_dlls) $(bind)/test_mddict$(exe)
-	$(remove_rpath) $(bind)/test_mddict$(exe)
+dist_bins: $(all_libs) $(all_dlls) $(bind)/md_test_dict$(exe) $(bind)/md_read_msg$(exe)
+	$(remove_rpath) $(bind)/md_test_dict$(exe)
+	$(remove_rpath) $(bind)/md_read_msg$(exe)
 	$(remove_rpath) $(libd)/libraimd.$(dll)
 
 # target for building installable rpm

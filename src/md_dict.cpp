@@ -680,7 +680,8 @@ DictParser::fillbuf( void ) noexcept
           return false;
         }
         if ( ( this->debug_flags & MD_DICT_PRINT_FILES ) != 0 ) {
-          printf( "Loading %s: \"%s\"\n", this->dict_kind, this->fname );
+          fprintf( stderr, "Loading %s: \"%s\"\n", this->dict_kind,
+                   this->fname );
         }
       }
       y = ::fread( &this->buf[ x ], 1, sizeof( buf ) - x, this->fp );

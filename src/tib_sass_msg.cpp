@@ -849,3 +849,39 @@ TibSassMsgWriter::append_date( const char *fname,  size_t fname_len,
   return this->append_date( fid, ftype, fsize, date );
 }
 
+int
+TibSassMsgWriter::append_iter( MDFieldIter *iter ) noexcept
+{
+  size_t len = iter->field_end - iter->field_start;
+  if ( ! this->has_space( len ) )
+    return Err::NO_SPACE;
+  uint8_t * ptr = &this->buf[ this->off + 8 ];
+  ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
+  this->off += len;
+  return 0;
+}
+
+int
+TibSassMsgWriter::convert_msg( MDMsg &msg ) noexcept
+{
+  MDFieldIter *iter;
+  int status;
+  if ( (status = msg.get_field_iter( iter )) == 0 ) {
+    if ( (status = iter->first()) == 0 ) {
+      do {
+        MDName      n;
+        MDReference mref, href;
+        if ( (status = iter->get_name( n )) == 0 &&
+             (status = iter->get_reference( mref )) == 0 ) {
+          iter->get_hint_reference( href );
+          status = this->append_ref( n.fname, n.fnamelen, mref, href );
+        }
+        if ( status != 0 )
+          break;
+      } while ( (status = iter->next()) == 0 );
+    }
+  }
+  if ( status != Err::NOT_FOUND )
+    return 0;
+  return status;
+}

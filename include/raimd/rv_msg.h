@@ -64,6 +64,10 @@ struct RvMsgWriter {
     this->off = 8;
   }
   int append_ref( const char *fname,  size_t fname_len,
+                  MDReference &mref,  MDReference & ) {
+    return this->append_ref( fname, fname_len, mref );
+  }
+  int append_ref( const char *fname,  size_t fname_len,
                   MDReference &mref ) noexcept;
   bool has_space( size_t len ) const {
     return this->off + len <= this->buflen;
@@ -151,6 +155,7 @@ struct RvMsgWriter {
                    MDDate &date ) noexcept;
   int append_string_array( const char *fname,  size_t fname_len,  char **ar,
                            size_t array_size,  size_t fsize ) noexcept;
+  int append_iter( MDFieldIter *iter ) noexcept;
   int convert_msg( MDMsg &jmsg ) noexcept;
 };
 
