@@ -831,10 +831,11 @@ bad_subject:;
 int
 MDOutput::printf( const char *fmt, ... ) noexcept
 {
+  FILE * fp = ( this->filep == NULL ? stdout : (FILE *) this->filep );
   va_list ap;
   int n;
   va_start( ap, fmt );
-  n = vprintf( fmt, ap );
+  n = vfprintf( fp, fmt, ap );
   va_end( ap );
   return n;
 }
@@ -842,10 +843,40 @@ MDOutput::printf( const char *fmt, ... ) noexcept
 int
 MDOutput::puts( const char *s ) noexcept
 {
+  FILE * fp = ( this->filep == NULL ? stdout : (FILE *) this->filep );
   if ( s != NULL ) {
-    int n = fputs( s, stdout );
+    int n = fputs( s, fp );
     if ( n > 0 )
       return (int) ::strlen( s );
+  }
+  return 0;
+}
+
+size_t
+MDOutput::write( const void *buf,  size_t buflen ) noexcept
+{
+  FILE * fp = ( this->filep == NULL ? stdout : (FILE *) this->filep );
+  return fwrite( buf, 1, buflen, fp );
+}
+
+int
+MDOutput::open( const char *path,  const char *mode ) noexcept
+{
+  FILE * fp = fopen( path, mode );
+  if ( fp != NULL ) {
+    this->filep = (void *) fp;
+    return 0;
+  }
+  return -1;
+}
+
+int
+MDOutput::close( void ) noexcept
+{
+  FILE * fp = ( this->filep == NULL ? stdout : (FILE *) this->filep );
+  if ( fp != NULL ) {
+    this->filep = NULL;
+    return fclose( fp );
   }
   return 0;
 }
@@ -2684,7 +2715,7 @@ MDDate::get_string( char *str,  size_t len,  MDDateFormat fmt ) const noexcept
     sep2 = 0;
   if ( ( t1 | t2 ) == 0 ) {
     for ( size_t i = 0; ; i++ ) {
-      if ( i == len - 1 || i == 12 ) {
+      if ( i == len - 1 || i == 11 ) {
         str[ i ] = '\0';
         return i;
       }

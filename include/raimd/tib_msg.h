@@ -74,6 +74,8 @@ struct TibMsgWriter {
   }
   int append_ref( const char *fname,  size_t fname_len,
                   MDReference &mref ) noexcept;
+  int append_ref( const char *fname,  size_t fname_len,
+                  MDReference &mref,  MDReference &href ) noexcept;
   bool has_space( size_t len ) const {
     return this->off + 9 + len <= this->buflen;
   }
@@ -130,6 +132,8 @@ struct TibMsgWriter {
                    MDTime &time ) noexcept;
   int append_date( const char *fname,  size_t fname_len,
                    MDDate &date ) noexcept;
+  int append_iter( MDFieldIter *iter ) noexcept;
+  int convert_msg( MDMsg &msg ) noexcept;
 };
 
 }

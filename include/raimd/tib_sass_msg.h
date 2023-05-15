@@ -93,6 +93,10 @@ struct TibSassMsgWriter {
   }
   int append_ref( MDFid fid,  MDReference &mref ) noexcept;
   int append_ref( const char *fname,  size_t fname_len,
+                  MDReference &mref,  MDReference & ) {
+    return this->append_ref( fname, fname_len, mref );
+  }
+  int append_ref( const char *fname,  size_t fname_len,
                   MDReference &mref ) noexcept;
   int append_ref( MDFid fid, MDType ftype, uint32_t fsize, uint8_t flags,
                   MDReference &mref ) noexcept;
@@ -195,6 +199,8 @@ struct TibSassMsgWriter {
                    MDTime &time ) noexcept;
   int append_date( const char *fname,  size_t fname_len,
                    MDDate &date ) noexcept;
+  int append_iter( MDFieldIter *iter ) noexcept;
+  int convert_msg( MDMsg &msg ) noexcept;
 };
 
 }

@@ -28,8 +28,11 @@ enum MDOutputHint {
   MD_OUTPUT_OPAQUE_TO_B64 = 2
 };
 struct MDOutput {
+  void * filep;
   int output_hints;
-  MDOutput( int hints = 0 ) : output_hints( hints ) {}
+  MDOutput( int hints = 0 ) : filep( 0 ), output_hints( hints ) {}
+  ~MDOutput() { if ( this->filep != NULL ) this->close(); }
+  virtual size_t write( const void *buf,  size_t buflen ) noexcept;
   virtual int puts( const char *s ) noexcept; /* funcs send output to stdout */
   virtual int printf( const char *fmt, ... ) noexcept
     __attribute__((format(printf,2,3)));
@@ -40,6 +43,8 @@ struct MDOutput {
       return this->printf( "%*s", i, "" );
     return 0;
   }
+  virtual int open( const char *path,  const char *mode ) noexcept;
+  virtual int close( void ) noexcept;
 };
 
 enum MDType { /* field types */
@@ -320,6 +325,16 @@ struct MDReference {
     this->fendian  = end;
     this->fentrytp = MD_NODATA;
     this->fentrysz = 0;
+  }
+
+  bool equals( const MDReference &mref ) const {
+    return this->ftype == mref.ftype &&
+           this->fsize == mref.fsize &&
+           this->fendian == mref.fendian &&
+           this->fentrytp == mref.fentrytp &&
+           this->fentrysz == mref.fentrysz &&
+           ( this->fsize == 0 ||
+             ::memcmp( this->fptr, mref.fptr, this->fsize ) == 0 );
   }
 };
 

@@ -1080,3 +1080,15 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
   return 0;
 }
 
+int
+RvMsgWriter::append_iter( MDFieldIter *iter ) noexcept
+{
+  size_t len = iter->field_end - iter->field_start;
+  if ( ! this->has_space( len ) )
+    return Err::NO_SPACE;
+  uint8_t * ptr = &this->buf[ this->off ];
+  ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
+  this->off += len;
+  return 0;
+}
+

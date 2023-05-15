@@ -464,6 +464,41 @@ int
 TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
                           MDReference &mref ) noexcept
 {
+  MDReference href;
+  href.zero();
+  return this->append_ref( fname, fname_len, mref, href );
+}
+
+int
+TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
+                          MDReference &mref,  MDReference &href ) noexcept
+{
+  int status;
+  if ( mref.ftype == MD_DECIMAL ) {
+    MDDecimal dec;
+    if ( (status = dec.get_decimal( mref )) != 0 )
+      return status;
+    return this->append_decimal( fname, fname_len, dec );
+  }
+  else if ( mref.ftype == MD_DATE ) {
+    MDDate date;
+    if ( (status = date.get_date( mref )) != 0 )
+      return status;
+    return this->append_date( fname, fname_len, date );
+  }
+  else if ( mref.ftype == MD_TIME ) {
+    MDTime time;
+    if ( (status = time.get_time( mref )) != 0 )
+      return status;
+    if ( href.ftype == MD_UINT || href.ftype == MD_INT ) {
+      uint16_t res = get_uint<uint16_t>( href );
+      if ( res == TIB_HINT_MF_TIME_SECONDS /* 260 */ )
+        time.resolution = ( time.resolution & MD_RES_NULL ) | MD_RES_SECONDS;
+      if ( res == TIB_HINT_MF_TIME_TYPE /* 259 */ )
+        time.resolution = ( time.resolution & MD_RES_NULL ) | MD_RES_MINUTES;
+    }
+    return this->append_time( fname, fname_len, time );
+  }
   uint8_t * ptr = &this->buf[ this->off + 9 ];
   size_t    len = 1 + fname_len + 1 + ( mref.fsize <= 0xffU ? 1 : 4 ) +
                   mref.fsize;
@@ -477,6 +512,8 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
   ptr = &ptr[ fname_len + 1 ];
   ptr[ 0 ] = (uint8_t) ( mref.ftype & 0xfU ) | /* one byte size */
              (uint8_t) ( mref.fsize <= 0xffU ? 0 : 0x80U ); /* 4 byte size */
+  if ( href.ftype != MD_NODATA || mref.ftype == MD_PARTIAL )
+    ptr[ 0 ] |= 0x40;
   if ( mref.fsize <= 0xffU ) {
     ptr[ 1 ] = (uint8_t) mref.fsize;
     ptr = &ptr[ 2 ];
@@ -517,19 +554,19 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
     /* need hint data */
     if ( ! this->has_space( 2 ) )
       return Err::NO_SPACE;
-    this->buf[ this->off + 9 + fname_len + 1 ] |= 0x40;
     ptr = &ptr[ mref.fsize ];
     ptr[ 0 ] = MD_UINT;
     ptr[ 1 ] = (uint8_t) mref.fentrysz;
-    /*else {
-      ptr[ 0 ] = MD_UINT | 0x80;
-      ptr[ 1 ] = (uint8_t) ( ( mref.fentrysz >> 24 ) & 0xffU );
-      ptr[ 2 ] = (uint8_t) ( ( mref.fentrysz >> 16 ) & 0xffU );
-      ptr[ 3 ] = (uint8_t) ( ( mref.fentrysz >> 8 ) & 0xffU );
-      ptr[ 4 ] = (uint8_t) ( mref.fentrysz & 0xffU );
-    }*/
     this->off += 2;
-
+  }
+  else if ( href.ftype != MD_NODATA ) {
+    if ( ! this->has_space( href.fsize + 2 ) )
+      return Err::NO_SPACE;
+    ptr = &ptr[ mref.fsize ];
+    ptr[ 0 ] = href.ftype;
+    ptr[ 1 ] = (uint8_t) href.fsize;
+    ::memcpy( &ptr[ 2 ], href.fptr, href.fsize );
+    this->off += href.fsize + 2;
   }
   return 0;
 }
@@ -622,7 +659,7 @@ TibMsgWriter::append_time( const char *fname,  size_t fname_len,
   ptr[ 0 ] = (uint8_t) MD_UINT;
   ptr[ 1 ] = 2; /* uint size */
   ptr[ 2 ] = 1;
-  if ( time.resolution >= MD_RES_MINUTES )
+  if ( ( time.resolution & ~MD_RES_NULL ) >= MD_RES_MINUTES )
     ptr[ 3 ] = 3; /* hint time */
   else
     ptr[ 3 ] = 4; /* hint time seconds */
@@ -661,5 +698,42 @@ TibMsgWriter::append_date( const char *fname,  size_t fname_len,
   this->off += len;
 
   return 0;
+}
+
+int
+TibMsgWriter::append_iter( MDFieldIter *iter ) noexcept
+{
+  size_t len = iter->field_end - iter->field_start;
+  if ( ! this->has_space( len ) )
+    return Err::NO_SPACE;
+  uint8_t * ptr = &this->buf[ this->off + 9 ];
+  ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
+  this->off += len;
+  return 0;
+}
+
+int
+TibMsgWriter::convert_msg( MDMsg &msg ) noexcept
+{
+  MDFieldIter *iter;
+  int status;
+  if ( (status = msg.get_field_iter( iter )) == 0 ) {
+    if ( (status = iter->first()) == 0 ) {
+      do {
+        MDName      n;
+        MDReference mref, href;
+        if ( (status = iter->get_name( n )) == 0 &&
+             (status = iter->get_reference( mref )) == 0 ) {
+          iter->get_hint_reference( href );
+          status = this->append_ref( n.fname, n.fnamelen, mref, href );
+        }
+        if ( status != 0 )
+          break;
+      } while ( (status = iter->next()) == 0 );
+    }
+  }
+  if ( status != Err::NOT_FOUND )
+    return 0;
+  return status;
 }
 
