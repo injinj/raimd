@@ -90,8 +90,8 @@ struct RvMsgWriter {
    * len = msg.update_hdr( submsg ); */
   int append_msg( const char *fname,  size_t fname_len,
                   RvMsgWriter &submsg ) noexcept;
-  size_t update_hdr( RvMsgWriter &submsg ) {
-    this->off += submsg.update_hdr();
+  size_t update_hdr( RvMsgWriter &submsg,  uint32_t suf_len = 0 ) {
+    this->off += submsg.update_hdr() + suf_len;
     return this->update_hdr();
   }
 
