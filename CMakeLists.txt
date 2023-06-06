@@ -25,7 +25,7 @@ set_property (TARGET decnumber PROPERTY IMPORTED_LOCATION ../libdecnumber/build/
 endif ()
 endif ()
 link_libraries (raimd decnumber)
-add_definitions (-DMD_VER=1.15.0-38)
+add_definitions (-DMD_VER=1.16.0-39)
 add_executable (test_mddec test/test_mddec.cpp)
 add_executable (test_json test/test_json.cpp)
 add_executable (test_msg test/test_msg.cpp)
