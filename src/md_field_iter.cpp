@@ -841,6 +841,27 @@ MDOutput::printf( const char *fmt, ... ) noexcept
 }
 
 int
+MDOutput::printe( const char *fmt, ... ) noexcept
+{
+  FILE * fp = ( this->filep == NULL ? stderr : (FILE *) this->filep );
+  va_list ap;
+  int n;
+  va_start( ap, fmt );
+  n = vfprintf( fp, fmt, ap );
+  va_end( ap );
+  if ( this->filep == NULL )
+    fflush( stderr );
+  return n;
+}
+
+int
+MDOutput::flush( void ) noexcept
+{
+  FILE * fp = ( this->filep == NULL ? stdout : (FILE *) this->filep );
+  return fflush( fp );
+}
+
+int
 MDOutput::puts( const char *s ) noexcept
 {
   FILE * fp = ( this->filep == NULL ? stdout : (FILE *) this->filep );
@@ -959,6 +980,18 @@ rai::md::md_type_str( MDType type,  size_t size ) noexcept
     case MD_STREAM:    return "stream";
   }
   return "invalid";
+}
+
+const char *
+rai::md::md_sass_msg_type_str( uint16_t msg_type,  char *tmp_buf ) noexcept
+{
+  return sass_msg_type_string( msg_type, tmp_buf );
+}
+
+const char *
+rai::md::md_sass_rec_status_str( uint16_t rec_status,  char *tmp_buf ) noexcept
+{
+  return sass_rec_status_string( rec_status, tmp_buf );
 }
 
 size_t
