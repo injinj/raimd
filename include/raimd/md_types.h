@@ -36,6 +36,8 @@ struct MDOutput {
   virtual int puts( const char *s ) noexcept; /* funcs send output to stdout */
   virtual int printf( const char *fmt, ... ) noexcept
     __attribute__((format(printf,2,3)));
+  virtual int printe( const char *fmt, ... ) noexcept
+    __attribute__((format(printf,2,3)));
   int print_hex( const void *buf,  size_t buflen ) noexcept;
   int print_hex( const MDMsg *m ) noexcept; /* print hex buf */
   int indent( int i ) { /* message data indented */
@@ -45,6 +47,7 @@ struct MDOutput {
   }
   virtual int open( const char *path,  const char *mode ) noexcept;
   virtual int close( void ) noexcept;
+  virtual int flush( void ) noexcept;
 };
 
 enum MDType { /* field types */
@@ -356,6 +359,8 @@ union MDValue { /* used for setting fptr temporary above w/string msg formats */
 bool string_is_true( const char *s ) noexcept; /* string to boolean */
 
 const char *md_type_str( MDType type,  size_t size = 0 ) noexcept;
+const char *md_sass_msg_type_str( uint16_t msg_type,  char *buf ) noexcept;
+const char *md_sass_rec_status_str( uint16_t msg_type,  char *buf ) noexcept;
 
 MDType md_str_type( const char *str,  size_t &size ) noexcept; /* str to type */
 
