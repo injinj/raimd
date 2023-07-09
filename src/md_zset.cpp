@@ -46,17 +46,14 @@ ZSetMsg::is_zsetmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 
 MDMsg *
 ZSetMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                 MDMsgMem *m ) noexcept
+                 MDMsgMem &m ) noexcept
 {
   if ( ! is_zset( bb, off, end ) )
     return NULL;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
   /* check if another message is the first opaque field of the ZSetMsg */
   void * ptr;
-  m->alloc( sizeof( ZSetMsg ), &ptr );
+  m.incr_ref();
+  m.alloc( sizeof( ZSetMsg ), &ptr );
   return new ( ptr ) ZSetMsg( bb, off, end, d, m );
 }
 

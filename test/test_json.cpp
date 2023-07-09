@@ -120,7 +120,7 @@ main( int argc, char **argv )
     JsonMsgCtx   ctx;
     jmem.reuse();
     printf( "parsing:  %s\n", minput );
-    n = ctx.parse( minput, 0, ::strlen( minput ), NULL, &jmem, false );
+    n = ctx.parse( minput, 0, ::strlen( minput ), NULL, jmem, false );
     if ( n == 0 ) {
       printf( "printing:\n" ); ctx.msg->print( &jout );
 
@@ -131,7 +131,7 @@ main( int argc, char **argv )
         printf( "converting to rv:\n" );
         rvmsg.update_hdr();
         RvMsg * msg = RvMsg::unpack_rv( rvmsg.buf, 0, rvmsg.off, 0, NULL,
-                                        &jmem );
+                                        jmem );
         msg->print( &jout );
       }
       else {

@@ -316,12 +316,15 @@ struct MDReference {
   MDType    fentrytp; /* if array, the element type */
   uint8_t   fentrysz; /* the size of each element, fsize is the entire array */
 
+  MDReference() {}
+  MDReference( void *fp,  size_t sz,  MDType ft, MDEndian end = md_endian ) {
+    this->set( fp, sz, ft, end );
+  }
   void zero() {
     this->set();
   }
-
   void set( void *fp = NULL,  size_t sz = 0,  MDType ft = MD_NODATA,
-            MDEndian end = MD_LITTLE ) {
+            MDEndian end = md_endian ) {
     this->fptr     = (uint8_t *) fp;
     this->fsize    = sz;
     this->ftype    = ft;
@@ -329,7 +332,20 @@ struct MDReference {
     this->fentrytp = MD_NODATA;
     this->fentrysz = 0;
   }
-
+  template<class T>
+  void set_uint( T &uval ) {
+    this->set( &uval, sizeof( T ), MD_UINT );
+  }
+  template<class T>
+  void set_int( T &ival ) {
+    this->set( &ival, sizeof( T ), MD_INT );
+  }
+  void set_string( const char *p,  size_t len ) {
+    this->set( (void *) p, len, MD_STRING );
+  }
+  void set_string( const char *p ) { 
+    this->set_string( p, ::strlen( p ) );
+  }
   bool equals( const MDReference &mref ) const {
     return this->ftype == mref.ftype &&
            this->fsize == mref.fsize &&

@@ -20,7 +20,7 @@ xprint( void *buf,  size_t asz ) noexcept
   MDMsg  * m;
   MDOutput mout;
 
-  m = MDMsg::unpack( buf, 0, asz, 0, NULL, &mem );
+  m = MDMsg::unpack( buf, 0, asz, 0, NULL, mem );
   if ( m != NULL ) {
     m->print( &mout );
   }

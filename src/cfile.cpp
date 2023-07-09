@@ -504,7 +504,7 @@ CFile::unpack_sass( MDDictBuild &dict_build,  MDMsg *m ) noexcept
     fprintf( stderr, "Unable to find FIDS in dictionary: %d\n", status );
     return status;
   }
-  status = m->get_sub_msg( mref, fids_msg );
+  status = m->get_sub_msg( mref, fids_msg, iter );
   if ( status != 0 ) {
     fprintf( stderr, "FIDS field is not a message: %d\n", status );
     return status;

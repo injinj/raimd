@@ -26,7 +26,7 @@ main( int argc, char **argv )
     else if ( ::strcmp( argv[ n ], "-m" ) == 0 )
       do_md = true;
   }
-  n = ctx.parse_fd( 0, NULL, &jmem, true );
+  n = ctx.parse_fd( 0, NULL, jmem, true );
   if ( n == 0 ) {
     if ( do_yaml )
       ctx.msg->js->print_yaml( &jout );

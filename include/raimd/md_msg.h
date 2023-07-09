@@ -17,6 +17,12 @@ struct MDMsgMem {
 #ifdef MD_REF_COUNT
   static const uint32_t NO_REF_COUNT = 0x7fffffffU;
   uint32_t ref_cnt; /* incremented when attached to a MDMsg */
+  void incr_ref( void ) {
+    if ( this->ref_cnt != NO_REF_COUNT )
+      this->ref_cnt++;
+  }
+#else
+  void incr_ref( void ) {}
 #endif
   struct MemBlock {
     MemBlock * next;
@@ -121,7 +127,7 @@ struct MDMsg;
 typedef bool (*md_is_msg_type_f)( void *bb,  size_t off,  size_t end,
                                   uint32_t h );
 typedef MDMsg *(*md_msg_unpack_f)( void *bb,  size_t off,  size_t end,
-                                   uint32_t h,  MDDict *d,  MDMsgMem *m );
+                                   uint32_t h,  MDDict *d,  MDMsgMem &m );
 
 struct MDMatch { /* match msg features in the header */
   uint8_t  off,       /* offset of feature */
@@ -154,7 +160,7 @@ struct MDMatchGroup {
   void add_match( MDMatch &ma ) noexcept;
   /* check that if msg has a magic, that the char at offset matches the magic */
   MDMsg * match( void *bb,  size_t off,  size_t end,  uint32_t h,
-                 MDDict *d,  MDMsgMem *m ) {
+                 MDDict *d,  MDMsgMem &m ) {
     uint16_t i;
     /* if char matches, i > 0 */
     if ( this->haslen ) {
@@ -171,7 +177,7 @@ struct MDMatchGroup {
     return this->match2( bb, off, end, h, d, m, i );
   }
   MDMsg * match2( void *bb,  size_t off,  size_t end,  uint32_t h,
-                  MDDict *d,  MDMsgMem *m,  uint16_t i ) noexcept;
+                  MDDict *d,  MDMsgMem &m,  uint16_t i ) noexcept;
   MDMatch * is_msg_type( void *bb,  size_t off,  size_t end,
                          uint32_t h ) {
     uint16_t i;
@@ -203,14 +209,14 @@ struct MDMsg {
   void * operator new( size_t, void *ptr ) { return ptr; }
   void operator delete( void * ) { /*::free( ptr );*/ } /* do nothing */
 
-  MDMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
-    : msg_buf( bb ), msg_off( off ), msg_end( end ), dict( d ), mem( m ) {}
+  MDMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem &m )
+    : msg_buf( bb ), msg_off( off ), msg_end( end ), dict( d ), mem( &m ) {}
   ~MDMsg() { this->release(); }
 
   static void add_match( MDMatch &ma ) noexcept;
   /* Unpack message and make available for extracting field values */
-  static MDMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h = 0,
-                        MDDict *d = NULL, MDMsgMem *m = NULL ) noexcept;
+  static MDMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                        MDDict *d,  MDMsgMem &m ) noexcept;
   static uint32_t is_msg_type( void *b,  size_t off,  size_t end,
                                uint32_t h ) noexcept;
   /* dereference msg mem */
@@ -238,7 +244,8 @@ struct MDMsg {
   /* Used by field iterators to creae a sub message */
   virtual const char *get_proto_string( void ) noexcept;
   virtual uint32_t get_type_id( void ) noexcept;
-  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept;
+  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg,
+                           MDFieldIter *iter ) noexcept;
   virtual int get_reference( MDReference &mref ) noexcept;
   virtual int get_field_iter( MDFieldIter *&iter ) noexcept;
   virtual int get_array_ref( MDReference &mref, size_t i,

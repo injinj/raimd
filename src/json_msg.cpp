@@ -46,7 +46,7 @@ JsonMsg::is_jsonmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 
 JsonMsg *
 JsonMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                 MDDict *d,  MDMsgMem *m ) noexcept
+                 MDDict *d,  MDMsgMem &m ) noexcept
 {
   if ( ! JsonMsg::is_jsonmsg( bb, off, end, h ) )
     return NULL;
@@ -55,17 +55,14 @@ JsonMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
 
 JsonMsg *
 JsonMsg::unpack_any( void *bb,  size_t off,  size_t end,  uint32_t,
-                     MDDict *d,  MDMsgMem *m ) noexcept
+                     MDDict *d,  MDMsgMem &m ) noexcept
 {
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
   void * ptr;
-  m->alloc( sizeof( JsonMsg ), &ptr );
+  m.incr_ref();
+  m.alloc( sizeof( JsonMsg ), &ptr );
 
   JsonMsg * msg = new ( ptr ) JsonMsg( bb, off, end, d, m );
-  JsonParser parser( *m );
+  JsonParser parser( m );
 
   const uint8_t * buf = (const uint8_t *) bb;
   JsonBufInput bin( &((const char *) buf)[ off ], 0, (uint32_t) ( end - off ) );
@@ -100,24 +97,22 @@ JsonMsgCtx::~JsonMsgCtx() noexcept
 
 int
 JsonMsgCtx::parse( void *bb,  size_t off,  size_t end,  MDDict *d,
-                   MDMsgMem *m,  bool is_yaml ) noexcept
+                   MDMsgMem &m,  bool is_yaml ) noexcept
 {
   void * ptr;
   int    status;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
-  this->release();
-  this->mem = m;
 
-  m->alloc( sizeof( JsonMsg ), &ptr );
+  m.incr_ref();
+  this->release();
+  this->mem = &m;
+
+  m.alloc( sizeof( JsonMsg ), &ptr );
   this->msg = new ( ptr ) JsonMsg( bb, off, end, d, m );
-  m->alloc( sizeof( JsonParser ), &ptr );
-  this->parser = new ( ptr ) JsonParser( *m );
+  m.alloc( sizeof( JsonParser ), &ptr );
+  this->parser = new ( ptr ) JsonParser( m );
 
   const uint8_t * buf = (const uint8_t *) bb;
-  m->alloc( sizeof( JsonBufInput ), &ptr );
+  m.alloc( sizeof( JsonBufInput ), &ptr );
   this->input = new ( ptr )
     JsonBufInput( &((const char *) buf)[ off ], 0, end - off );
   if ( is_yaml )
@@ -136,23 +131,21 @@ JsonMsgCtx::parse( void *bb,  size_t off,  size_t end,  MDDict *d,
 }
 
 int
-JsonMsgCtx::parse_fd( int fd,  MDDict *d,  MDMsgMem *m,  bool is_yaml ) noexcept
+JsonMsgCtx::parse_fd( int fd,  MDDict *d,  MDMsgMem &m,  bool is_yaml ) noexcept
 {
   void * ptr;
   int    status;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
+
+  m.incr_ref();
   this->release();
-  this->mem = m;
+  this->mem = &m;
 
-  m->alloc( sizeof( JsonMsg ), &ptr );
+  m.alloc( sizeof( JsonMsg ), &ptr );
   this->msg = new ( ptr ) JsonMsg( NULL, 0, 0, d, m );
-  m->alloc( sizeof( JsonParser ), &ptr );
-  this->parser = new ( ptr ) JsonParser( *m );
+  m.alloc( sizeof( JsonParser ), &ptr );
+  this->parser = new ( ptr ) JsonParser( m );
 
-  m->alloc( sizeof( JsonStreamInput ), &ptr );
+  m.alloc( sizeof( JsonStreamInput ), &ptr );
   this->stream = new ( ptr ) JsonStreamInput( fd );
   if ( is_yaml )
     status = this->parser->parse_yaml( *this->stream );
@@ -194,7 +187,8 @@ JsonMsg::get_reference( MDReference &mref ) noexcept
 }
 
 int
-JsonMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg ) noexcept
+JsonMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg,
+                      MDFieldIter * ) noexcept
 {
   JsonMsg * jmsg;
   void    * ptr;
@@ -203,7 +197,7 @@ JsonMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg ) noexcept
     return Err::BAD_SUB_MSG;
   }
   this->mem->alloc( sizeof( JsonMsg ), &ptr );
-  jmsg = new ( ptr ) JsonMsg( NULL, 0, 0, this->dict, this->mem );
+  jmsg = new ( ptr ) JsonMsg( NULL, 0, 0, this->dict, *this->mem );
   jmsg->js = (JsonObject *) (void *) mref.fptr;
   msg = jmsg;
   return 0;
@@ -543,7 +537,7 @@ JsonMsgWriter::convert_msg( MDMsg &msg ) noexcept
             MDMsg * msg2 = NULL;
             status = this->append_msg( name.fname, name.fnamelen, submsg );
             if ( status == 0 )
-              status = msg.get_sub_msg( mref, msg2 );
+              status = msg.get_sub_msg( mref, msg2, iter );
             if ( status == 0 ) {
               status = submsg.convert_msg( *msg2 );
               if ( status == 0 && ! submsg.finish() )

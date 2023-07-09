@@ -32,7 +32,7 @@ main( int argc, char **argv )
   for ( size_t i = 0; i < sizeof( sinput ) / sizeof( sinput[ 0 ] ); i++ ) {
     JsonMsg * m = JsonMsg::unpack_any( (void *) sinput[ i ], 0,
                                        ::strlen( sinput[ i ] ), 0,
-                                       NULL, &mem );
+                                       NULL, mem );
     printf( "sinput[%" PRIu64 "] = \n", i );
     if ( m != NULL ) {
       m->print( &mout );

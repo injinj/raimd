@@ -14,12 +14,13 @@ struct TibMsg : public MDMsg {
   /* used by unpack() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }
 
-  TibMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
+  TibMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem &m )
     : MDMsg( bb, off, len, d, m ), is_submsg( false ) {}
 
   virtual const char *get_proto_string( void ) noexcept final;
   virtual uint32_t get_type_id( void ) noexcept final;
-  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept final;
+  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg,
+                           MDFieldIter *iter ) noexcept final;
   virtual int get_array_ref( MDReference &mref, size_t i,
                              MDReference &aref ) noexcept final;
   virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
@@ -29,7 +30,7 @@ struct TibMsg : public MDMsg {
   static bool is_tibmsg( void *bb,  size_t off,  size_t len,
                          uint32_t h ) noexcept;
   static TibMsg *unpack( void *bb,  size_t off,  size_t len,  uint32_t h,
-                         MDDict *d,  MDMsgMem *m ) noexcept;
+                         MDDict *d,  MDMsgMem &m ) noexcept;
   static void init_auto_unpack( void ) noexcept;
 };
 

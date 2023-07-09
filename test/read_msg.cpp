@@ -161,7 +161,7 @@ cmp_msg( MDOutput &mout,  MDMsg *m,  MDDict *dict,  void *msg,
     mout.printf( "msg:\n" );
     mout.print_hex( msg, msg_sz );
   }
-  MDMsg * m2 = MDMsg::unpack( msg, 0, msg_sz, 0, dict, &mem );
+  MDMsg * m2 = MDMsg::unpack( msg, 0, msg_sz, 0, dict, mem );
   MDFieldIter *iter, *iter2;
   if ( m2 != NULL ) {
     if ( (status = m->get_field_iter( iter )) == 0 &&
@@ -376,7 +376,7 @@ main( int argc, char **argv )
     if ( 2 < argc && ::strstr( subj, argv[ 2 ] ) == NULL )
       continue; */
     /* try to unpack it */
-    MDMsg * m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
+    MDMsg * m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
     void * msg = NULL;
     size_t msg_sz = 0;
     int fldcnt = 0;
@@ -410,7 +410,7 @@ main( int argc, char **argv )
         err_cnt++;
       }
       else if ( ! quiet ) {
-        MDMsg * m2 = MDMsg::unpack( msg, 0, msg_sz, 0, dict, &mem );
+        MDMsg * m2 = MDMsg::unpack( msg, 0, msg_sz, 0, dict, mem );
         m2->print( &mout );
       }
     }

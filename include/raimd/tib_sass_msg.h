@@ -13,7 +13,7 @@ struct TibSassMsg : public MDMsg {
   /* used by UnPack() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }
 
-  TibSassMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
+  TibSassMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem &m )
     : MDMsg( bb, off, end, d, m ) {}
 
   virtual const char *get_proto_string( void ) noexcept;
@@ -24,7 +24,7 @@ struct TibSassMsg : public MDMsg {
   static bool is_tibsassmsg( void *bb,  size_t off,  size_t end,
                              uint32_t h ) noexcept;
   static TibSassMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                             MDDict *d,  MDMsgMem *m ) noexcept;
+                             MDDict *d,  MDMsgMem &m ) noexcept;
   static void init_auto_unpack( void ) noexcept;
 };
 

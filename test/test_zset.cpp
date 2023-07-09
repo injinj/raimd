@@ -15,7 +15,7 @@ zprint( void *buf,  size_t asz )
   MDMsg  * m;
 
   printf( "zset:\n" );
-  m = MDMsg::unpack( buf, 0, asz, 0, NULL, &mem );
+  m = MDMsg::unpack( buf, 0, asz, 0, NULL, mem );
   if ( m != NULL ) {
     m->print( &mout );
   }

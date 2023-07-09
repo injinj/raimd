@@ -714,7 +714,7 @@ struct ZSetData : public HashData {
 struct ZSetMsg : public MDMsg {
   void * operator new( size_t, void *ptr ) { return ptr; }
 
-  ZSetMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
+  ZSetMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem &m )
     : MDMsg( bb, off, len, d, m ) {}
 
   virtual const char *get_proto_string( void ) noexcept final;
@@ -724,7 +724,7 @@ struct ZSetMsg : public MDMsg {
   static bool is_zsetmsg( void *bb,  size_t off,  size_t len,
                           uint32_t h ) noexcept;
   static MDMsg *unpack( void *bb,  size_t off,  size_t len,  uint32_t h,
-                        MDDict *d,  MDMsgMem *m ) noexcept;
+                        MDDict *d,  MDMsgMem &m ) noexcept;
   static void init_auto_unpack( void ) noexcept;
 };
 

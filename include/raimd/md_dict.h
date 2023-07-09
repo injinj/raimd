@@ -49,6 +49,19 @@ namespace md {
  *         A sparse map 
  *           [ 0, 4, 8, 12 ], [ "   ", "AFA", "ALL", "DZD" ] where 4 = "AFA"
  */
+struct MDLookup {
+  const char * fname;
+  uint8_t      fname_len,
+               flags;
+  MDType       ftype;
+  MDFid        fid;
+  uint32_t     fsize;
+
+  MDLookup( MDFid f ) : fid( f ) {}
+  MDLookup( const char *fn,  size_t fn_len )
+    : fname( fn ), fname_len( fn_len ) {}
+};
+
 struct MDDict {
   /*
    * [ type table (uint32 elem) ]  = offset 0 (sizeof(MDDict))
@@ -78,17 +91,18 @@ struct MDDict {
            pad[ 3 ];    /* pad to an int32 size */
 
   /* used by get() below */
-  static uint32_t dict_hash( const void *key,  size_t len,
-                             uint32_t seed ) noexcept;
+  static uint32_t dict_hash( const char *key,  size_t len ) noexcept;
+  /* equals allow nul termination in the fnames */
+  static bool     dict_equals( const char *fname,  size_t len,
+                               const char *fname2,  size_t len2 ) noexcept;
   /* lookup fid, return {type, size, name/len} if found */
-  bool lookup( MDFid fid,  MDType &ftype,  uint32_t &fsize,
-               uint8_t &flags,  uint8_t &fnamelen,  const char *&fname ) const {
-    if ( fid < this->min_fid || fid > this->max_fid )
+  bool lookup( MDLookup &by ) const {
+    if ( by.fid < this->min_fid || by.fid > this->max_fid )
       return false;
 
     uint32_t bits = this->tab_bits, /* fname offset + type bits */
              mask = ( 1U << bits ) - 1,
-             i    = ( (uint32_t) fid - (uint32_t) this->min_fid ) * bits,
+             i    = ( (uint32_t) by.fid - (uint32_t) this->min_fid ) * bits,
              off  = i / 8,  /* byte offset for fid entry */
              shft = i % 8,  /* shift from byte offset */
              fname_bits = ( this->fname_shft - this->fname_algn ),
@@ -110,29 +124,28 @@ struct MDDict {
     type_idx  = type_idx >> fname_bits;
     /* get the type/size using the type_idx from the type table */
     const uint32_t * ttab = (const uint32_t *) (void *) &this[ 1 ];
-    ftype     = (MDType) ( ttab[ type_idx ] & 0x1f );
-    flags     = ( ttab[ type_idx ] >> 5 ) & 0x3;
-    fsize     = ttab[ type_idx ] >> 7;
+    by.ftype = (MDType) ( ttab[ type_idx ] & 0x1f );
+    by.flags = ( ttab[ type_idx ] >> 5 ) & 0x3;
+    by.fsize = ttab[ type_idx ] >> 7;
     /* get the field name */
     const uint8_t * fntab =
       &((const uint8_t *) (void *) this)[ this->fname_off ];
-    fnamelen  = fntab[ fname_idx ];
-    fname     = (const char *) &fntab[ fname_idx + 1 ];
+    by.fname_len = fntab[ fname_idx ];
+    by.fname     = (const char *) &fntab[ fname_idx + 1 ];
     return true;
   }
 
   /* get a field by name, return {fid, type, size} if found */
-  bool get( const char *fname,  uint8_t fnamelen,  MDFid &fid,  MDType &ftype,
-            uint32_t &fsize,  uint8_t &flags ) const {
-    uint32_t h = dict_hash( fname, fnamelen, 0 ) & ( this->ht_size - 1 );
+  bool get( MDLookup &by ) const {
+    const char * fname     = by.fname;
+    uint8_t      fname_len = by.fname_len;
+    uint32_t h = dict_hash( fname, fname_len ) & ( this->ht_size - 1 );
 
     uint32_t bits = this->fid_bits, /* size in bits of each hash entry */
              mask = ( 1U << bits ) - 1, /* mask for bits */
              val;
     /* the hash table */
     const uint8_t * tab = &((const uint8_t *) (void *) this)[ this->ht_off ];
-    const char * fn; /* field name */
-    uint8_t len;     /* field name length */
     /* scan the linear hash table until found or zero (not found) */
     for ( ; ; h = ( h + 1 ) & ( this->ht_size - 1 ) ) {
       uint32_t i    = h * bits,
@@ -146,11 +159,13 @@ struct MDDict {
         return false;
       val = val + this->min_fid - 1;
       /* val is the fid contained at this position */
-      if ( this->lookup( val, ftype, fsize, flags, len, fn ) ) {
-        if ( len == fnamelen && ::memcmp( fn, fname, len ) == 0 ) {
-          fid = val;
+      by.fid = val;
+      if ( this->lookup( by ) ) {
+        if ( dict_equals( fname, fname_len, by.fname, by.fname_len ) )
           return true;
-        }
+/*        if ( fname_len == by.fname_len &&
+             ::memcmp( fname, by.fname, fname_len ) == 0 )
+          return true;*/
       }
     }
   }

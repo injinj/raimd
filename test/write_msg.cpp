@@ -29,6 +29,8 @@ test_write( Writer &writer )
               ask[]        = "ASK",
               timact[]     = "TIMACT",
               trade_date[] = "TRADE_DATE",
+              trdtim_ms[]  = "TRDTIM_MS",
+              sent_words[] = "SENT_WORDS",
               row64_1[]    = "ROW64_1";
   MDDecimal dec;
   MDTime time;
@@ -46,7 +48,7 @@ test_write( Writer &writer )
   dec.hint = MD_DEC_LOGn10_3; /* / 1000 */
   writer.append_decimal( bid, sizeof( bid ), dec );
 
-  dec.ival = 17750;
+  dec.ival = -17750;
   dec.hint = MD_DEC_LOGn10_3; /* / 1000 */
   writer.append_decimal( ask, sizeof( ask ), dec );
 
@@ -61,6 +63,9 @@ test_write( Writer &writer )
   date.mon  = 4;
   date.day  = 9;
   writer.append_date( trade_date, sizeof( trade_date ), date );
+
+  writer.append_int( trdtim_ms, sizeof( trdtim_ms ), 1687808832990ULL );
+  writer.append_int( sent_words, sizeof( sent_words ), (int64_t) -123456789012LL );
 
   static char head[] = "*WORLD HEADLINE";
   MDReference mref;
@@ -120,7 +125,7 @@ test_json( void )
                  "  NAN  : -nan\n"
                  "}" );
   size_t len = ::strlen( buf );
-  m = MDMsg::unpack( buf, 0, len, 0, NULL, &mem );
+  m = MDMsg::unpack( buf, 0, len, 0, NULL, mem );
   if ( m != NULL ) {
     MDOutput mout;
     printf( "json mem %" PRIu64 "\n", mem.mem_off * sizeof( void * ) );
@@ -169,7 +174,7 @@ test_variable( void )
 
   MDMsgMem mem;
   MDMsg  * m;
-  m = MDMsg::unpack( buf, 0, sz, 0, str_dict, &mem );
+  m = MDMsg::unpack( buf, 0, sz, 0, str_dict, mem );
   if ( m != NULL ) {
     MDOutput mout;
     printf( "var msg test\n" );
@@ -206,7 +211,7 @@ main( int argc, char **argv )
   mout.print_hex( buf, sz );
   printf( "tibmsg sz %" PRIu64 "\n", sz );
 
-  m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
+  m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
   if ( m != NULL )
     m->print( &mout );
   mem.reuse();
@@ -217,7 +222,7 @@ main( int argc, char **argv )
   mout.print_hex( buf, sz );
   printf( "rvmsg sz %" PRIu64 "\n", sz );
 
-  m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
+  m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
   if ( m != NULL )
     m->print( &mout );
   mem.reuse();
@@ -240,7 +245,7 @@ main( int argc, char **argv )
   mout.print_hex( buf, sz );
   printf( "rvmsg2 sz %" PRIu64 "\n", sz );
 
-  m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
+  m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
   if ( m != NULL )
     m->print( &mout );
   mem.reuse();
@@ -252,18 +257,18 @@ main( int argc, char **argv )
     mout.print_hex( buf, sz );
     printf( "tibsassmsg sz %" PRIu64 "\n", sz );
 
-    m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
+    m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
     if ( m != NULL )
       m->print( &mout );
     mem.reuse();
 
-    RwfMsgWriter rwfmsg( dict, buf, sizeof( buf ) );
-    sz = test_write<RwfMsgWriter>( rwfmsg );
+    RwfFieldListWriter rwfmsg( mem, dict, buf, sizeof( buf ) );
+    sz = test_write<RwfFieldListWriter>( rwfmsg );
     printf( "RwfMsg test:\n" );
     mout.print_hex( buf, sz );
     printf( "rwfmsg sz %" PRIu64 "\n", sz );
 
-    m = MDMsg::unpack( buf, 0, sz, 0, dict, &mem );
+    m = MDMsg::unpack( buf, 0, sz, RWF_FIELD_LIST_TYPE_ID, dict, mem );
     if ( m != NULL )
       m->print( &mout );
     mem.reuse();

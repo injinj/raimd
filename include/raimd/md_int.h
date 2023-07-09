@@ -47,6 +47,13 @@ static inline uint16_t get_u16( const void *val ) {
 }
 
 template<MDEndian end>
+static inline void set_u16( void *val,  uint16_t i ) {
+  if ( end == MD_BIG )
+    i = get_u16<MD_BIG>( &i );
+  ::memcpy( val, &i, sizeof( i ) );
+}
+
+template<MDEndian end>
 static inline int16_t get_i16( const void *val ) {
   return (int16_t) get_u16<end>( val );
 }
@@ -59,6 +66,13 @@ static inline uint32_t get_u32( const void *val ) {
       ( (uint32_t) u[ 1 ] << 8 )  |   (uint32_t) u[ 0 ] ) :
     ( ( (uint32_t) u[ 0 ] << 24 ) | ( (uint32_t) u[ 1 ] << 16 ) |
       ( (uint32_t) u[ 2 ] << 8 )  |   (uint32_t) u[ 3 ] );
+}
+
+template<MDEndian end>
+static inline void set_u32( void *val,  uint32_t i ) {
+  if ( end == MD_BIG )
+    i = get_u32<MD_BIG>( &i );
+  ::memcpy( val, &i, sizeof( i ) );
 }
 
 template<MDEndian end>
@@ -85,6 +99,13 @@ static inline uint64_t get_u64( const void *val ) {
       ( (uint64_t) u[ 2 ] << 40 ) | ( (uint64_t) u[ 3 ] << 32 ) |
       ( (uint64_t) u[ 4 ] << 24 ) | ( (uint64_t) u[ 5 ] << 16 ) |
       ( (uint64_t) u[ 6 ] << 8 )  |   (uint64_t) u[ 7 ] );
+}
+
+template<MDEndian end>
+static inline void set_u64( void *val,  uint64_t i ) {
+  if ( end == MD_BIG )
+    i = get_u64<MD_BIG>( &i );
+  ::memcpy( val, &i, sizeof( i ) );
 }
 
 template<MDEndian end>
@@ -356,7 +377,7 @@ static inline size_t float_str( double f,  char *buf ) {
     decimal--;
   }
 
-  off = uint_str( integral_ival, buf );
+  off += uint_str( integral_ival, &buf[ off ] );
   /* convert the decimal to 1ddddd, the 1 is replaced with a '.' below */
   decimal_ival = (uint64_t) decimal;
 
@@ -446,6 +467,149 @@ static inline int to_string( const MDReference &mref, char *sbuf,
     default:
       return Err::BAD_CVT_STRING;
   }
+}
+/* 0 -> 0xfd : 1 byte, 0xfe <short> : 3 bytes, 0xff <int> : 5 bytes */
+template <class Int>
+static inline size_t
+get_fe_prefix( const uint8_t *buf,  const uint8_t *end,  Int &sz )
+{
+  if ( &buf[ 1 ] <= end ) {
+    sz = *buf++;
+    if ( sz < 0xfe )
+      return 1;
+    if ( sz == 0xfe ) { /* size == 2 bytes */
+      if ( &buf[ 2 ] <= end ) {
+        sz = get_u16<MD_BIG>( buf );
+        return 3;
+      }
+    }
+    else if ( &buf[ 4 ] <= end ) { /* size == 4 bytes */
+      sz = get_u32<MD_BIG>( buf );
+      return 5;
+    }
+  }
+  return 0;
+}
+template <class Int>
+static inline size_t
+get_fe_prefix_len( Int sz )
+{
+  if ( sz < (Int) 0xfeU )    /* . */
+    return 1;
+  if ( sz <= (Int) 0xffffU ) /* fe.. */
+    return 3;
+  return 5;            /* ff.... */
+}
+template <class Int>
+static inline size_t
+set_fe_prefix( uint8_t *buf,  Int sz )
+{
+  if ( sz < (Int) 0xfeU ) {
+    buf[ 0 ] = (uint8_t) sz;
+    return 1;
+  }
+  if ( sz <= (Int) 0xffffU ) {
+    buf[ 0 ] = 0xfeU;
+    set_u16<MD_BIG>( &buf[ 1 ], (uint16_t) sz );
+    return 3;
+  }
+  buf[ 0 ] = 0xffU;
+  set_u32<MD_BIG>( &buf[ 1 ], (uint32_t) sz );
+  return 5;
+}
+/* 0 -> 0x3f : 1 byte, 0x8000 | <short> : 2 byte, 0x400000 | <int24> : 3 byte
+ * 0xC0000000 | <int32> : 4 bytes */
+template <class Int>
+static inline size_t
+get_u30_prefix( const uint8_t *buf,  const uint8_t *end,  Int &sz )
+{
+  if ( &buf[ 1 ] <= end ) {
+    sz = (Int) *buf++;
+    if ( sz <= 0x3f )
+      return 1;
+    uint8_t i = ( sz & 0xc0 );
+    if ( &buf[ 1 ] <= end ) {
+      sz = ( ( sz & ~0xc0 ) << 8 ) | (Int) *buf++;
+      if ( i == 0x80 )
+        return 2;
+      if ( &buf[ 1 ] <= end ) {
+        sz = ( sz << 8 ) | (Int) *buf++;
+        if ( i == 0x40 )
+          return 3;
+        if ( &buf[ 1 ] <= end ) {
+          sz = ( sz << 8 ) | (Int) *buf;
+          return 4;
+        }
+      }
+    }
+  }
+  return 0;
+}
+template <class Int>
+static inline size_t
+get_u15_prefix_len( Int sz )
+{
+  if ( sz < (Int) 0x80U )    /* . */
+    return 1;
+  return 2;            /* ff.... */
+}
+/* 0 -> 0x7f : 1, 0x8000 | short : 2 */
+template <class Int>
+static inline size_t
+get_u15_prefix( const uint8_t *buf,  const uint8_t *end,  Int &sz )
+{
+  if ( &buf[ 1 ] <= end ) {
+    sz = (Int) *buf++;
+    if ( sz <= 0x7f )
+      return 1;
+    if ( &buf[ 1 ] <= end ) {
+      sz = ( ( sz & ~0x80 ) << 8 ) | (Int) *buf;
+      return 2;
+    }
+  }
+  return 0;
+}
+template <class Int>
+static inline size_t
+set_u15_prefix( uint8_t *buf,  Int sz )
+{
+  if ( sz <= 0x7f ) {
+    buf[ 0 ] = (uint8_t) sz;
+    return 1;
+  }
+  buf[ 0 ] = 0x80 | (uint8_t) ( sz >> 8 );
+  buf[ 1 ] = (uint8_t) ( sz & 0xff );
+  return 2;
+}
+/* 0 : 1 byte, 1 : 2 bytes, 2 ... 8 : n+1 bytes */
+template <class Int>
+static inline size_t
+get_u64_prefix( const uint8_t *buf,  const uint8_t *end,  Int &sz )
+{
+  if ( &buf[ 1 ] <= end ) {
+    size_t i = *buf++;
+    if ( &buf[ i ] <= end ) {
+      if ( i == 0 )
+        sz = (Int) i;
+      if ( i == 1 )
+        sz = (Int) *buf;
+      else if ( i <= 3 ) {
+        sz = (Int) get_u16<MD_BIG>( buf );
+        if ( i == 3 )
+          sz = ( sz << 8 ) | (Int) buf[ 2 ];
+      }
+      else if ( i <= 7 ) {
+        sz = (Int) get_u32<MD_BIG>( buf );
+        end = &buf[ i ];
+        for ( buf += 4; buf < end; )
+          sz = ( sz << 8 ) | (Int) *buf++;
+      }
+      else
+        sz = (Int) get_u64<MD_BIG>( buf );
+      return i + 1;
+    }
+  }
+  return 0;
 }
 
 }

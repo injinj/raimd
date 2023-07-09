@@ -235,18 +235,15 @@ MktfdMsg::parse_header( void ) noexcept
 
 MktfdMsg *
 MktfdMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
-                  MDDict *d,  MDMsgMem *m ) noexcept
+                  MDDict *d,  MDMsgMem &m ) noexcept
 {
   if ( off + 2 > end ||
        ((uint8_t *) bb)[ off ] != FS_ ||
        ((uint8_t *) bb)[ end - 1 ] != FS_ )
     return NULL;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
   void * ptr;
-  m->alloc( sizeof( MktfdMsg ), &ptr );
+  m.incr_ref();
+  m.alloc( sizeof( MktfdMsg ), &ptr );
   for ( ; d != NULL; d = d->next )
     if ( d->dict_type[ 0 ] == 'a' ) /* need app_a type */
       break;
@@ -269,10 +266,15 @@ inline void
 MktfdFieldIter::lookup_fid( void ) noexcept
 {
   if ( this->ftype == MD_NODATA ) {
-    uint8_t flags;
-    if ( this->iter_msg.dict != NULL )
-      this->iter_msg.dict->lookup( this->fid, this->ftype, this->fsize,
-                                   flags, this->fnamelen, this->fname );
+    if ( this->iter_msg.dict != NULL ) {
+      MDLookup by( this->fid );
+      if ( this->iter_msg.dict->lookup( by ) ) {
+        this->ftype    = by.ftype;
+        this->fsize    = by.fsize;
+        this->fnamelen = by.fname_len;
+        this->fname    = by.fname;
+      }
+    }
     if ( this->ftype == MD_NODATA ) { /* undefined fid or no dictionary */
       this->ftype    = MD_STRING;
       this->fname    = NULL;
@@ -531,15 +533,11 @@ MktfdFieldIter::find( const char *name,  size_t name_len,
 
   int status = Err::NOT_FOUND;
   if ( name_len > 0 ) {
-    MDFid    fid;
-    MDType   ftype;
-    uint32_t fsize;
-    uint8_t  flags;
-    if ( this->iter_msg.dict->get( name, (uint8_t) name_len, fid, ftype, fsize,
-                                   flags ) ) {
+    MDLookup by( name, name_len );
+    if ( this->iter_msg.dict->get( by ) ) {
       if ( (status = this->first()) == 0 ) {
         do {
-          if ( this->fid == fid )
+          if ( this->fid == by.fid )
             return this->get_reference( mref );
         } while ( (status = this->next()) == 0 );
       }

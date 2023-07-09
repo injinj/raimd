@@ -37,7 +37,7 @@ StreamMsg::is_streammsg( void *bb,  size_t off,  size_t end,
 }
 
 StreamMsg::StreamMsg( void *bb,  size_t off,  size_t end,  MDDict *d,
-                      MDMsgMem *m ) noexcept : MDMsg( bb, off, end, d, m )
+                      MDMsgMem &m ) noexcept : MDMsg( bb, off, end, d, m )
 {
   uint8_t * buf = &((uint8_t *) bb)[ off ];
   size_t    len = end - off;
@@ -47,17 +47,14 @@ StreamMsg::StreamMsg( void *bb,  size_t off,  size_t end,  MDDict *d,
 
 MDMsg *
 StreamMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-                   MDMsgMem *m ) noexcept
+                   MDMsgMem &m ) noexcept
 {
   if ( ! is_streammsg( bb, off, end, h ) )
     return NULL;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
   /* check if another message is the first opaque field of the StreamMsg */
   void * ptr;
-  m->alloc( sizeof( StreamMsg ), &ptr );
+  m.incr_ref();
+  m.alloc( sizeof( StreamMsg ), &ptr );
   return new ( ptr ) StreamMsg( bb, off, end, d, m );
 }
 

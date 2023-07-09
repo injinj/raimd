@@ -1,0 +1,583 @@
+OMM/RWF Structures
+==================
+:toc: left
+
+Variable integer encoding
+-------------------------
+
+There are several ways integers are encoded for lengths, fids, dictionaries.
+These are used in the other sections below to indicate how an integer is
+encoded as a value or as a length.
+
+- u4 : An unsigned 4 bit int, these are combined with a map action or a filter
+  action
+- u8 : An unsigned 8 bit int, uses 1 byte.  Used for flags and types.
+- u16 : An unsigned 16 bit int, uses 2 bytes.  Used for list item counts.
+- u15 : An unsigned 15 bit, uses 1 or 2 bytes.  One byte range 0 -> 0x7f, and
+  two bytes have the leading 0x8000 bit set, range 0x80 -> 0x7fff.  Often used
+  for small buffer lengths.
+- i16 : A signed 16 bit int, uses 2 bytes.  Used for fids.
+- i15 : A signed 15 bit int, uses 1 or 2 bytes.  One byte range -0x40 -> 0x3f,
+  and two bytes have the leading 0x8000 bit set, range -0x4000 -> 0x3fff.  Used
+  for dictionary ids.
+- z16 : An unsigned 16 bit, one byte range 0 -> 0xfd, three byte range 0 ->
+  0xffff.  If three bytes, then the size is prefixed with 0xfe.  Used for field
+  list data lengths.
+- z32 : Like a z16, except that the prefix 0xff expands to 5 bytes, so
+  0xfd = one byte, 0xfe ffff = 2 bytes, 0xff ffffffff = 5 bytes.  Used
+  for large buffer lengths, like container data lengths.
+- u30 : An unsigned 30 bit which uses at most 4 bytes, the first 2 bits
+  indicate the number of bytes used, so it expands as 0x3f = 1 byte, 0x8 3ff
+  = 2 bytes, 0x4 3fffff = 3 bytes, 0xc 3fffffff = 4 bytes.  Used for hint
+  counters.
+
+Field list
+----------
+
+The main data structure, used for Level 1 market data.
+
+Field list header
+^^^^^^^^^^^^^^^^^
+
+----
+flags:u8 [list-info(1)] [set-id:u15(4)] [set-defns:u15(2)] [standard-data(8) field-list-entries]
+----
+
+The flag bits indicate what follows:
+
+- 1 : Has list info, dicionary and flist.
+- 2 : Has set definitions.
+- 4 : Has set-id.
+- 8 : Has the field list data.
+
+List info
+^^^^^^^^^
+
+----
+list-info-size:u8 dictionary:i15 field-list-id:i16
+----
+
+- Dictionary is encoded as 14 bits with a sign bit, range -16384 to 16383
+  0x80 set extends to two bytees, 0x40 is the sign bit, so 0x40 = -64,
+  0xc000 is -16384, 0x3f is 63, and 0x8040 is 64.
+- Field-list-id is a 16 bit integer, it always uses 2 bytes.  This is not an
+  fid, an flist is used to identify a configured list of fields that will
+  probably be used for this instrument.
+
+The list-info-size is the length of the dictionary and flist combined.
+
+Set definitions and set id
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The optional set definitions allow encoding of fixed length fields such as
+int, uint, float, double, date, time, and datetime.  No string data can be
+encoded.
+
+----
+[set-id:u15] [set-defns:u15]
+----
+
+- Set id is encoded unsigned 15 bits, 0x80 set extends to 2 bytes, range 0 to
+  32767.
+- When standard-data is not present, then set-defns uses the rest of the buffer,
+  otherwise it encodes a 15 bit length followed by the data, then the
+  standard-data is encoded.
+
+The set definitions are fid, data-type pairs:
+
+----
+set-id:u15 count:u8 [fid:i16, data-type:u8 ...]
+----
+
+Standard data
+^^^^^^^^^^^^^
+
+The standard-data encodes a count and the field list entries follow that to
+the end of the buffer.
+
+----
+item-count:u16 field-list-entries
+----
+
+- Item count is always 2 bytes, so 65535 fields can be encoded.
+- The field list starts after the count and does not encode a length.
+
+Field list entries
+^^^^^^^^^^^^^^^^^^
+
+Each entry of a field list is encoded with a fid and size when there is no set
+data to help decoding:
+
+----
+fid:i16 field-data-size:z16 field-data-buffer
+----
+
+- Fid always uses two bytes.
+- Size uses one byte when less than 0xfe otherwise thee bytes, 0xfe and a
+  uint16.
+- Data uses size bytes, the fid references the dictionary to decode the
+  bytes.
+
+If a set-id is present and the number of fields is within the bounds of the set
+data definition, then fid and size are omitted and the set data type is used to
+decode the field data.  The set data types are fixed size, so the decoder knows
+the number of bytes in a field.  A set entry might be fid:4001, type:int_2,
+indicating the data encoded has a 2 byte integer.
+
+Primitive data types
+^^^^^^^^^^^^^^^^^^^^
+
+The primitive data types are numbers and buffers that encode fields.  In a
+FIELD_LIST container type, these are derived from the dictionary.  In other
+containers, such as an ELEMENT_LIST container, these are encoded into the field
+data.
+
+[options="header",cols="1,1,3"]
+|===========================================
+| Type     | Value  | Coding
+| INT      | 3      | length:u8 value (0->8 bytes)
+| UINT     | 4      | length:u8 value (0->8 bytes)
+| FLOAT    | 5      | length:4 value 4 bytes
+| DOUBLE   | 6      | length:8 value 8 bytes
+| REAL     | 8      | length:u8 hint:u8 value (0-> 8 bytes)
+| DATE     | 9      | length:u8 day:u8 month:u8 year:u16
+| TIME     | 10     | length:u8 hour:u8 minute:u8 [second:u8 [fraction:u16]]
+| DATETIME | 11     | length:u8 day:u8 month:u8 year:u16 hour:u8 minute:u8 [second:u8 [fraction:u16]]
+| QOS      | 12     | length:u8 bits:u8 [time:u16 rate:u16]
+| ENUM     | 14     | length:u8 value (0->2 bytes)
+| ARRAY    | 15     | length:u8 type:u8 values
+| BUFFER   | 16     | length:z16 value
+| ASCII    | 17     | length:z16 value
+| UTF8     | 18     | length:z16 value
+| RMTES    | 19     | length:z16 value
+|===========================================
+
+Map
+---
+
+The main structure for Level 2 market data.
+
+----
+flags:u8 key-type:u8 container-type:u8 [key-fid:u8(16)] [set-defns:u15(1)]
+[summary-data:u15(2)] [hint-count:u30(8)] item-count:u16 map-entries
+----
+
+The flag bits indicate what follows:
+
+- 1 : Has set definitions.
+- 2 : Has a summary container.
+- 4 : Has per entry perm-data.
+- 8 : Has a hint-count.
+- 16 : Has a key-fid.
+
+The key-type is a primitive type that is used identify the map entry.  The
+container-type is usually a FIELD_LIST type (132).  It is encoded by
+subtracting 128, so 132 would be encoded as 4.  The item-count indicates how
+many map-enties are encoded.
+
+Set definitions
+^^^^^^^^^^^^^^^
+
+The optional set definions can be reused for each map entry decoded so a lot
+of repeated type and size info can be saved as long as the the entries are
+composed of fixed length type primitives.
+
+----
+set-defns-len:u15 set-id:u15 count:u8 [fid:i16, data-type:u8 ...]
+----
+
+The length of set-defns are encoded one byte as 0 -> 0x7f, two bytes as 0x8000
+ored with the length.
+
+The set-id identifies the set, count is the number of elements, and each fid,
+data-type pair is an element.  The fid derives a dictionary entry and the
+data type is an enumated primitive and size pair: INT_1 = 64, UINT_1 = 65 ...
+TIME_7 = 83, TIME_8 = 84.
+
+Summary data
+^^^^^^^^^^^^
+
+Optional data that uses container-type to encode a structure which is the
+same as the map-entry containers.  This is often a FIELD_LIST (132).
+
+Hint count
+^^^^^^^^^^
+
+----
+hint-count:u30
+----
+
+An optional 30 bit integer count, may indicate depth of book.
+
+Map entries
+^^^^^^^^^^^
+
+Each map entry has an action (add, update, delete), a key, and a container
+structure which is often a FIELD_LIST.  The set-defns defined in the map header
+are used within the field list by indicating a (local) set-id there.
+
+----
+action:u4 flags:u4 [perm-data:u15] key:u15 [container-data:z16]
+----
+
+Action is
+
+- 1 : add
+- 2 : update
+- 3 : delete
+
+Flag bits are
+
+- 1 : has perm data
+
+Other values are invalid.  Flags with can indicate whether perm-data is
+present.  If either this flags has bit 4 set or if the map header flags has bit
+4 set, then perm-data is present.
+
+Key and container-data have types specified in the map header, key-type
+specifies a primitive type and container-type likely a FIELD_LIST.  When
+action is delete(3), then the container-data is not present.
+
+Element list
+------------
+
+This is a field value pair structure, like a field list except that the
+field names and field types are included for each entry, instead of using
+dictionary fids.
+
+----
+flags:u8 [list-info(1)] [set-defn(2)] [set-id:u15(4)] [standard-data(8)]
+----
+
+The flag bits indicate:
+
+- 1 : Has list info.
+- 2 : Has set definitions.
+- 4 : Has a set-id.
+- 8 : Has the element list data.
+
+List info
+^^^^^^^^^
+
+----
+list-num:u16
+----
+
+Not sure what this is used for.
+
+Set definitions and set id
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The optional set definitions allow encoding of fixed length fields such as
+int, uint, float, double, date, time, and datetime.  No string data can be
+encoded.  An element set definition includes a name instead of an fid as
+in the field list definition.
+
+----
+[set-id:u15] [set-defns-len:u15 set-defns-data]
+----
+
+- Set id is encoded unsigned 15 bits, 0x80 set extends to 2 bytes, range 0 to
+  32767.
+- When standard-data is not present, then set-defns uses the rest of the buffer,
+  otherwise it encodes a 15 bit length followed by the data, then the
+  standard-data is encoded.
+
+The set definitions data are field name, data-type pairs:
+
+----
+set-id:u15 count:u8 [fname-data:u15, data-type:u8] ...
+----
+
+Standard data
+^^^^^^^^^^^^^
+
+The standard-data encodes a count and the element entries follow that to
+the end of the buffer.
+
+----
+item-cnt:u15 element-list-entries
+----
+
+- Item count is always 2 bytes, so 65535 fields can be encoded.
+- The element list starts after the count and does not encode a length.
+
+Element list entries
+^^^^^^^^^^^^^^^^^^^^
+
+Each entry of a element list is encoded with a name, a type, and data.
+
+----
+name-len:u15 name-buffer type:u8 data-size:z16 data-buffer
+----
+
+- The name of the field may use up to 15 bits.
+- The type is always a primitive type, no containers.
+- Size uses one byte when less than 0xfe otherwise thee bytes, 0xfe and a
+  uint16.
+- Data uses size bytes and is encoded using the type, using the primitive
+  type rules of the field list.
+
+Filter list
+-----------
+
+A filter list is similar to a map, except that it has update, set, clear
+operators (compared to the map operators: update, add, delete).
+
+----
+flags:u8 container-type:u8 [hint-count:u8(2)] item-count:u8 filter-list-elements
+----
+
+The flag bits indicate:
+
+- 1 : Has per entry perm-data.
+- 2 : Has a hint-count.
+
+This container always encodes the data body which has the count of elements and
+the list of ids, operators, and containers that follow.
+
+The container-type is usually a FIELD_LIST type (132).  It is encoded by
+subtracting 128, so 132 would be encoded as 4.  Each of the list elements may
+also may specify a container type to override this one.
+
+The hint-count may specify the expected total number of elements in the list
+after it is assembled.
+
+Filter list elements
+^^^^^^^^^^^^^^^^^^^^
+
+Like a map entry, each filter list entry has an action (update, set clear),
+a list id and a container type.
+
+----
+action:u4 flags:u4 list-id:u8 [container-type:u8] [perm-data:u15] [container-data:z16]
+----
+
+Action is
+
+- 1 : update
+- 2 : set
+- 3 : clear
+
+Flag bits are
+
+- 1 : has perm data
+- 2 : has container type
+
+Other values are invalid.  Flags with can indicate whether perm-data is
+present.  If either this flags has bit 1 set or if the filter list header flags
+has bit 1 set, then perm-data is present.
+
+The list-id is an integer index.  The container-type, if not present is
+specified in the filter list header.  When action is clear(3), then the
+container-data is not present.
+
+Series
+------
+
+A series is a list of containers without actions or keys as with a map
+container, otherwise it is similar, since it has a summary and a elements that
+are all containers.
+
+----
+flags:u8 container-type:u8 [set-defn:u15(1)] [summary-data:u15(2)] [hint-count:u30(4)] item-count:u16 series-elements
+----
+
+The flag bits indicate:
+
+- 1 : Has set definitions.
+- 2 : Has a summary container.
+- 4 : Has a hint-count.
+
+The container-type is offset by 128, like the others and applies to the
+summary and all of the series element containers.
+
+Since the series may contain a field list, the set definitions can define a
+common format for these.
+
+The hint-count may be the total number of elements.
+
+Series elements
+^^^^^^^^^^^^^^^
+
+----
+container-data:z16
+----
+
+A container with a container-type specified in the series header.
+
+Vector
+------
+
+----
+flags:u8 container-type:u8 [set-defn:u15(1)] [summary-data:u15(2)] [hint-count:u30(8)] item-count:u16 vector-elements
+----
+
+The flag bits indicate:
+
+- 1 : Has set definitions.
+- 2 : Has a summary container.
+- 4 : Has a per entry perm data.
+- 8 : Has a hint-count.
+- 16 : Supports sorting.
+
+The container-type is offset by 128, like the others and applies to the summary
+and all of the vector element containers.
+
+Since the vector may contain a field list, the set definitions can define a
+common format for these.
+
+The hint-count may be the total number of elements.
+
+Vector elements
+^^^^^^^^^^^^^^^
+
+----
+action:u4 flags:u4 index:u30 [perm-data:u15] [container-data:z16]
+----
+
+The flags may specify that perm data is present.  If either the perm data flag
+is set in the header or in the entry, then perm data is present.
+
+Action is
+
+- 1 : update
+- 2 : set
+- 3 : clear
+- 4 : insert
+- 5 : delete
+
+Flag bits are
+
+- 1 : has perm data
+
+When action is clear(3) or delete(5), then the container-data is not present.
+
+Message
+-------
+
+The message structure encapsulates the data containers into eight classes.
+These are used for all pubsub interactions between two endpoints.  All of
+these can have one of the data containers above.  The message header has
+4 or more required fields and about 20 optional fields.
+
+Message classes
+^^^^^^^^^^^^^^^
+
+- REQUEST : Subscribe to a key with a stream id.
+- REFRESH : The initial message data.
+- STATUS : Indicate status of the stream.
+- UPDATE : An update message.
+- CLOSE  : Close a stream.
+- ACK : An acknowledgment of a POST or a CLOSE.
+- GENERIC : A message without cache semantics.
+- POST : Publish a message.
+
+Message header fields
+^^^^^^^^^^^^^^^^^^^^^
+
+This table notes the required and optional fields for each class.  The ordering
+these fields is required to be the same, since the only way to determine
+whether a field is encoded is either because the flags field has a bit set or
+the field is required.
+
+A "e" indicates a field is always encoded, a hex digit means it is present only
+when this msg_flags bit is set.  There are 15 bits in the msg_flags, some of
+which are boolean true/false indicators that do not encode data in the header.
+For example the 0x4 bit set in a REQUEST message indicates that this is a
+STREAMING request that wants UPDATE messages to be forwarded to the stream.
+
+[options="header",cols="2,2,1,1,1,1,1,1,1,1"]
+|===========================================
+| Field          | Coding      |REQ|RFR  |STA |UPD |CLS|ACK|GEN|POS
+| header_size    | u16         | e | e   | e  | e  | e | e | e | e 
+| msg_class      | u8          | e | e   | e  | e  | e | e | e | e 
+| domain_type    | u8          | e | e   | e  | e  | e | e | e | e 
+| stream_id      | u32         | e | e   | e  | e  | e | e | e | e 
+| msg_flags      | u15         | e | e   | e  | e  | e | e | e | e 
+| container_type | u8          | e | e   | e  | e  | e | e | e | e 
+| update_type    | u8          |   |     |    | e  |   |   |   |   
+| nak_code       | u8          |   |     |    |    |   |x20|   |   
+| text           | buffer:u15  |   |     |    |    |   |x02|   |   
+| seq_num        | u32         |   |x10  |    |x10 |   |x08|x08|x08
+| second_seq_num | u32         |   |     |    |    |   |   |x20|   
+| post_id        | u32         |   |     |    |    |   |   |   |x02
+| ack_id         | u32         |   |     |    |    |   | e |   |   
+| state          | state       |   | e   |x20 |    |   |   |   |   
+| group_id       | buffer:u8   |   | e   |x10 |    |   |   |   |   
+| conflate_info  | u15 u16     |   |     |    |x20 |   |   |   |   
+| priority       | u8 z16      |x02|     |    |    |   |   |   |   
+| perm           | buffer:u15  |   |x02  |x02 |x02 |   |   |x02|x80
+| qos            | qos         |x40|x80  |    |    |   |   |   |   
+| worst_qos      | qos         |x80|     |    |    |   |   |   |   
+| msg_key        | msg_key     | e |x08  |x08 |x08 |   |x10|x04|x04
+| extended       | buffer:u8   |x01|x01  |x01 |x01 |x01|x01|x01|x01
+| post_user      | u32 u32     |   |x800 |x100|x200|   |   |   | e 
+| req_msg_key    | msg_key     |   |x2000|x200|    |   |   |x80|   
+| part_num       | u15         |   |x1000|    |    |   |   |x40|x100
+| post_rights    | u15         |   |     |    |    |   |   |   |x200
+|===========================================
+
+If the container_type is not NO_DATA (128), one of the containers, such as the
+FIELD_LIST (132) for Level 1 data, follows the header of the message.
+These are listed mostly in the order that they are encoded, but the POST
+message class reorders the post_user from the REQUEST and REFRESH message
+classes.
+
+Message header field ordering
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The header fields are required to be ordered.  In general, the message header
+for required fields is:
+
+----
+header_size:u16 msg-class:u8 domain-type:u8 stream-id:u32 msg-flags:u15 container-type:u8 ...
+----
+
+The other fields depend on the msg-flags settings or whether it's always encoded.
+
+This order of the fields encoded for each class.  If they are optional, then
+no data is encoded except a zero bit in the msg_flags field.
+
+[options="header",cols="1,1,1,1,1,1,1,1"]
+|===========================================
+| REQUEST     | REFRESH     | STATUS      | UPDATE      | CLOSE       | ACK         | GENERIC     | POST
+| msg_class   | msg_class   | msg_class   | msg_class   | msg_class   | msg_class   | msg_class   | msg_class
+| domain_type | domain_type | domain_type | domain_type | domain_type | domain_type | domain_type | domain_type
+| stream_id   | stream_id   | stream_id   | stream_id   | stream_id   | stream_id   | stream_id   | stream_id
+| msg_flags   | msg_flags   | msg_flags   | msg_flags   | msg_flags   | msg_flags   | msg_flags   | msg_flags
+| cont_type   | cont_type   | cont_type   | cont_type   | cont_type   | cont_type   | cont_type   | cont_type
+| priority    | seq_num     | state       | update_type | extended    | ack_id      | seq_num     | post_user
+| qos         | state       | group_id    | seq_num     |             | nak_code    | second_seq_num | seq_num
+| worst_qos   | group_id    | perm        | conflate_info |           | text        | perm        | post_id
+| msg_key     | perm        | msg_key     | perm        |             | seq_num     | msg_key     | perm
+| extended    | qos         | extended    | msg_key     |             | msg_key     | extended    | msg_key
+|             | msg_key     | post_user   | extended    |             | extended    | part_num    | extended
+|             | extended    | req_msg_key | post_user   |             |             | req_msg_key | part_num
+|             | post_user   |             |             |             |             |             | post_rights
+|             | part_num    |             |             |             |             |             |
+|             | req_msg_key |             |             |             |             |             |
+|===========================================
+
+Message key
+^^^^^^^^^^^
+
+----
+key_size:u15 key-flags:u15 [service-id:z16] [name-len:u8 name-buffer] [name-type:u8] [filter:u32] [identifier:u32] [attrib-type:u8 attrib-len:u15 attrib-buffer]
+----
+
+The key-size is the length of all of the fields after they are encoded.
+
+Key flags bits indicate:
+
+- 1 : service-id present
+- 2 : name present
+- 4 : name-type present
+- 8 : filter present
+- 16 : identifier present
+- 32 : attrib present
+
+The name is the main key component.  The attribute-type is a container encoding that is offset by 128, it is often
+an element list which has name value pairs.  In the case of a login, this would contain login parameters for the
+user stored in the key, such as a password.
+

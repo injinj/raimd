@@ -23,24 +23,77 @@ enum MF_type {
 };
 
 enum RWF_type {
+  /* primitives */
   RWF_NONE         = 0,
+  RWF_RSVD_1       = 1,
+  RWF_RSVD_2       = 2,
   RWF_INT          = 3, /* int64, int32 (rare) */
   RWF_UINT         = 4, /* uint64 */
+  RWF_FLOAT        = 5, /* float */
+  RWF_DOUBLE       = 6, /* double */
   RWF_REAL         = 8, /* real64 */
-  RWF_DATE         = 9,
-  RWF_TIME         = 10,
-  RWF_ENUM         = 14,
-  RWF_ARRAY        = 15,
-  RWF_BUFFER       = 16,
+  RWF_DATE         = 9, /* y/m/d */
+  RWF_TIME         = 10, /* h:m:s */
+  RWF_DATETIME     = 11, /* date + time */
+  RWF_QOS          = 12, /* qos bits */
+  RWF_ENUM         = 14, /* uint16 enum */
+  RWF_ARRAY        = 15, /* primitive type array */
+  RWF_BUFFER       = 16, /* len + opaque */
   RWF_ASCII_STRING = 17,
-  RWF_RMTES_STRING = 19, /* Reuters Multilingual Text Enc */
+  RWF_UTF8_STRING  = 18,
+  RWF_RMTES_STRING = 19, /* need rsslRMTESToUTF8 */
+
+  /* sets */
+  RWF_INT_1        = 64,
+  RWF_UINT_1       = 65,
+  RWF_INT_2        = 66,
+  RWF_UINT_2       = 67,
+  RWF_INT_4        = 68,
+  RWF_UINT_4       = 69,
+  RWF_INT_8        = 70,
+  RWF_UINT_8       = 71,
+  RWF_FLOAT_4      = 72,
+  RWF_DOUBLE_8     = 73,
+  RWF_REAL_4RB     = 74,
+  RWF_REAL_8RB     = 75,
+  RWF_DATE_4       = 76,
+  RWF_TIME_3       = 77,
+  RWF_TIME_5       = 78,
+  RWF_DATETIME_7   = 79,
+  RWF_DATETIME_9   = 80,
+  RWF_DATETIME_11  = 81,
+  RWF_DATETIME_12  = 82,
+  RWF_TIME_7       = 83,
+  RWF_TIME_8       = 84,
+
+  /* containers */
+  RWF_NO_DATA      = 128,
+  RWF_MSG_KEY      = 129,
+  RWF_OPAQUE       = 130,
+  RWF_XML          = 131,
   RWF_FIELD_LIST   = 132,
   RWF_ELEMENT_LIST = 133,
+  RWF_ANSI_PAGE    = 134,
   RWF_FILTER_LIST  = 135,
   RWF_VECTOR       = 136,
   RWF_MAP          = 137,
-  RWF_SERIES       = 138
+  RWF_SERIES       = 138,
+  RWF_RSVD_139     = 139,
+  RWF_RSVD_140     = 140,
+  RWF_MSG          = 141,
+  RWF_JSON         = 142
 };
+
+static inline int is_rwf_primitive( RWF_type t ) {
+  return t >= RWF_INT && t <= RWF_RMTES_STRING;
+}
+static inline int is_rwf_set_primitive( RWF_type t ) {
+  return t >= RWF_INT_1 && t <= RWF_TIME_8;
+}
+static inline int is_rwf_container( RWF_type t ) {
+  return t >= RWF_NO_DATA  && t <= RWF_JSON &&
+         t != RWF_RSVD_139 && t != RWF_RSVD_140;
+}
 
 enum AppATok {
   ATK_ERROR        = -2,

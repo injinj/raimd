@@ -1,6 +1,8 @@
+#include <stdio.h>
 #include <raimd/rv_msg.h>
 #include <raimd/tib_msg.h>
 #include <raimd/tib_sass_msg.h>
+#include <raimd/md_dict.h>
 
 using namespace rai;
 using namespace md;
@@ -74,7 +76,7 @@ RvMsg::is_rvmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 
 RvMsg *
 RvMsg::unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                  MDMsgMem *m ) noexcept
+                  MDMsgMem &m ) noexcept
 {
   uint32_t magic    = get_u32<MD_BIG>( &((uint8_t *) bb)[ off + 4 ] );
   size_t   msg_size = get_u32<MD_BIG>( &((uint8_t *) bb)[ off ] );
@@ -85,17 +87,14 @@ RvMsg::unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
   void * ptr;
   if ( end2 > end )
     return NULL;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
-  m->alloc( sizeof( RvMsg ), &ptr );
+  m.incr_ref();
+  m.alloc( sizeof( RvMsg ), &ptr );
   return new ( ptr ) RvMsg( bb, off, end2, d, m );
 }
 
 MDMsg *
 RvMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-               MDMsgMem *m ) noexcept
+               MDMsgMem &m ) noexcept
 {
   if ( off + 8 > end )
     return NULL;
@@ -109,14 +108,11 @@ RvMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
          end2 = off + msg_size;
   if ( end2 > end )
     return NULL;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
   MDMsg *msg = RvMsg::opaque_extract( (uint8_t *) bb, off2, end2, d, m );
   if ( msg == NULL ) {
     void * ptr;
-    m->alloc( sizeof( RvMsg ), &ptr );
+    m.incr_ref();
+    m.alloc( sizeof( RvMsg ), &ptr );
     msg = new ( ptr ) RvMsg( bb, off, end2, d, m );
   }
   return msg;
@@ -133,7 +129,7 @@ cmp_field( uint8_t *x,  size_t off,  uint8_t *y,  size_t ylen )
 
 MDMsg *
 RvMsg::opaque_extract( uint8_t *bb,  size_t off,  size_t end,  MDDict *d,
-                       MDMsgMem *m ) noexcept
+                       MDMsgMem &m ) noexcept
 {
   /* quick filter of below fields */
   if ( off+19 > end || bb[ off ] < 7 || bb[ off ] > 8 || bb[ off + 1 ] != '_' )
@@ -242,7 +238,8 @@ static const int rv_type_to_md_type[ 64 ] = {
 
 
 int
-RvMsg::get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept
+RvMsg::get_sub_msg( MDReference &mref, MDMsg *&msg,
+                    MDFieldIter * ) noexcept
 {
   uint8_t * bb    = (uint8_t *) this->msg_buf;
   size_t    start = (size_t) ( mref.fptr - bb );
@@ -250,7 +247,7 @@ RvMsg::get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept
 
   this->mem->alloc( sizeof( RvMsg ), &ptr );
   msg = new ( ptr ) RvMsg( bb, start, start + mref.fsize, this->dict,
-                           this->mem );
+                           *this->mem );
   return 0;
 }
 
@@ -375,10 +372,9 @@ RvFieldIter::find( const char *name,  size_t name_len,
   int status;
   if ( (status = this->first()) == 0 ) {
     do {
-      if ( (uint8_t) name_len == this->name_len ) {
-        if ( ::memcmp( &buf[ this->field_start + 1 ], name, name_len ) == 0 )
-          return this->get_reference( mref );
-      }
+      const char *fname = (char *) &buf[ this->field_start + 1 ];
+      if ( MDDict::dict_equals( name, name_len, fname, this->name_len ) )
+        return this->get_reference( mref );
     } while ( (status = this->next()) == 0 );
   }
   return status;
@@ -952,7 +948,7 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
             MDMsg * jmsg2 = NULL;
             status = this->append_msg( name.fname, name.fnamelen, submsg );
             if ( status == 0 )
-              status = jmsg.get_sub_msg( mref, jmsg2 );
+              status = jmsg.get_sub_msg( mref, jmsg2, iter );
             if ( status == 0 ) {
               status = submsg.convert_msg( *jmsg2 );
               if ( status == 0 )

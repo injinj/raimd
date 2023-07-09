@@ -46,17 +46,14 @@ GeoMsg::is_geomsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 
 MDMsg *
 GeoMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                 MDMsgMem *m ) noexcept
+                 MDMsgMem &m ) noexcept
 {
   if ( ! is_geo( bb, off, end ) )
     return NULL;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
   /* check if another message is the first opaque field of the GeoMsg */
   void * ptr;
-  m->alloc( sizeof( GeoMsg ), &ptr );
+  m.incr_ref();
+  m.alloc( sizeof( GeoMsg ), &ptr );
   return new ( ptr ) GeoMsg( bb, off, end, d, m );
 }
 
