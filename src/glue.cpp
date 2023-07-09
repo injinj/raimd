@@ -19,13 +19,13 @@ using namespace md;
 
 static bool is_basic( void *,  size_t,  size_t,  uint32_t ) { return false; }
 static MDMsg * unpack_basic( void *,  size_t,  size_t,  uint32_t,  MDDict *,
-                             MDMsgMem * ) { return NULL; }
+                             MDMsgMem & ) { return NULL; }
 
 struct BasicMsg : public MDMsg {
   void * operator new( size_t, void *ptr ) { return ptr; }
   MDType type;
   BasicMsg( void *bb,  size_t off,  size_t end,  MDDict *d,
-            MDMsgMem *m,  MDType t )
+            MDMsgMem &m,  MDType t )
     : MDMsg( bb, off, end, d, m ), type( t ) {}
   virtual int get_reference( MDReference &mref ) noexcept final {
     mref.fptr     = &((uint8_t *) this->msg_buf)[ this->msg_off ];
@@ -46,10 +46,10 @@ struct BasicMsg : public MDMsg {
 
 static MDMsg *
 make_basic_msg( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                MDMsgMem *m,  MDType type )
+                MDMsgMem &m,  MDType type )
 {
   void *p = NULL;
-  m->alloc( sizeof( BasicMsg ), &p );
+  m.alloc( sizeof( BasicMsg ), &p );
   if ( p == NULL )
     return NULL;
   return new ( p ) BasicMsg( bb, off, end, d, m, type );
@@ -59,7 +59,7 @@ static bool
 is_string( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_string( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-               MDMsgMem *m ) {
+               MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_STRING );
 }
 
@@ -67,7 +67,7 @@ static bool
 is_opaque( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_opaque( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-               MDMsgMem *m ) {
+               MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_OPAQUE );
 }
 
@@ -75,7 +75,7 @@ static bool
 is_boolean( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_boolean( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-                MDMsgMem *m ) {
+                MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_BOOLEAN );
 }
 
@@ -83,7 +83,7 @@ static bool
 is_int( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_int( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-            MDMsgMem *m ) {
+            MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_INT );
 }
 
@@ -91,7 +91,7 @@ static bool
 is_uint( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_uint( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-             MDMsgMem *m ) {
+             MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_UINT );
 }
 
@@ -99,7 +99,7 @@ static bool
 is_real( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_real( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-             MDMsgMem *m ) {
+             MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_REAL );
 }
 
@@ -107,7 +107,7 @@ static bool
 is_ipdata( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_ipdata( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-               MDMsgMem *m ) {
+               MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_IPDATA );
 }
 
@@ -115,7 +115,7 @@ static bool
 is_subject( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_subject( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-                MDMsgMem *m ) {
+                MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_SUBJECT );
 }
 
@@ -123,7 +123,7 @@ static bool
 is_enum( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_enum( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-             MDMsgMem *m ) {
+             MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_ENUM );
 }
 
@@ -131,7 +131,7 @@ static bool
 is_time( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_time( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-             MDMsgMem *m ) {
+             MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_TIME );
 }
 
@@ -139,7 +139,7 @@ static bool
 is_date( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_date( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-             MDMsgMem *m ) {
+             MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_DATE );
 }
 
@@ -147,7 +147,7 @@ static bool
 is_decimal( void *,  size_t,  size_t,  uint32_t ) { return true; }
 static MDMsg *
 unpack_decimal( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
-                MDMsgMem *m ) {
+                MDMsgMem &m ) {
   return make_basic_msg( bb, off, end, h, d, m, MD_DECIMAL );
 }
 

@@ -13,7 +13,7 @@ hprint( void *buf,  size_t asz )
   MDMsg  * m;
   MDOutput mout;
 
-  m = MDMsg::unpack( buf, 0, asz, 0, NULL, &mem );
+  m = MDMsg::unpack( buf, 0, asz, 0, NULL, mem );
   if ( m != NULL ) {
     printf( "hash:\n" );
     m->print( &mout );

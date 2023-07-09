@@ -744,7 +744,7 @@ struct StreamMsg : public MDMsg {
   size_t slen, glen, plen;
 
   StreamMsg( void *bb,  size_t off,  size_t len,  MDDict *d,
-             MDMsgMem *m ) noexcept;
+             MDMsgMem &m ) noexcept;
 
   virtual const char *get_proto_string( void ) noexcept final;
   virtual uint32_t get_type_id( void ) noexcept final;
@@ -753,7 +753,7 @@ struct StreamMsg : public MDMsg {
   static bool is_streammsg( void *bb,  size_t off,  size_t len,
                             uint32_t h ) noexcept;
   static MDMsg *unpack( void *bb,  size_t off,  size_t len,  uint32_t h,
-                        MDDict *d,  MDMsgMem *m ) noexcept;
+                        MDDict *d,  MDMsgMem &m ) noexcept;
   static void init_auto_unpack( void ) noexcept;
 };
 

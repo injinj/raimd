@@ -1,4 +1,6 @@
+#include <stdio.h>
 #include <raimd/tib_msg.h>
+#include <raimd/md_dict.h>
 
 using namespace rai;
 using namespace md;
@@ -83,7 +85,7 @@ TibMsg::is_tibmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 
 TibMsg *
 TibMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                MDMsgMem *m ) noexcept
+                MDMsgMem &m ) noexcept
 {
   if ( off + 9 > end )
     return NULL;
@@ -94,12 +96,9 @@ TibMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
     return NULL;
   if ( off + msg_size + 9 > end )
     return NULL;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
   void * ptr;
-  m->alloc( sizeof( TibMsg ), &ptr );
+  m.incr_ref();
+  m.alloc( sizeof( TibMsg ), &ptr );
   return new ( ptr ) TibMsg( bb, off, off + msg_size + 9, d, m );
 }
 
@@ -110,7 +109,8 @@ TibMsg::init_auto_unpack( void ) noexcept
 }
 
 int
-TibMsg::get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept
+TibMsg::get_sub_msg( MDReference &mref, MDMsg *&msg,
+                     MDFieldIter * ) noexcept
 {
   uint8_t * bb    = (uint8_t *) this->msg_buf;
   size_t    start = (size_t) ( mref.fptr - bb );
@@ -119,7 +119,7 @@ TibMsg::get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept
 
   this->mem->alloc( sizeof( TibMsg ), &ptr );
   tib_msg = new ( ptr ) TibMsg( bb, start, start + mref.fsize, this->dict,
-                                this->mem );
+                                *this->mem );
   tib_msg->is_submsg = true;
   msg = tib_msg;
   return 0;
@@ -232,10 +232,9 @@ TibFieldIter::find( const char *name,  size_t name_len,
   int status;
   if ( (status = this->first()) == 0 ) {
     do {
-      if ( (uint8_t) name_len == this->name_len ) {
-        if ( ::memcmp( &buf[ this->field_start + 1 ], name, name_len ) == 0 )
-          return this->get_reference( mref );
-      }
+      const char * fname = (char *) &buf[ this->field_start + 1 ];
+      if ( MDDict::dict_equals( name, name_len, fname, this->name_len ) )
+        return this->get_reference( mref );
     } while ( (status = this->next()) == 0 );
   }
   return status;

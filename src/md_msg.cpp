@@ -70,13 +70,14 @@ cmp_wd( MDMatch &ma,  void *y )
     case 2: return icmp<uint16_t>( ma.buf, y );
     case 4: return icmp<uint32_t>( (void *) ma.buf, y );
     case 8: return icmp<uint64_t>( (void *) ma.buf, y );
+    case 0xff: return false;
     default: return ::memcmp( ma.buf, y, ma.len ) == 0;
   }
 }
 
 MDMsg *
 MDMatchGroup::match2( void *bb,  size_t off,  size_t end,  uint32_t h,
-                      MDDict *d,  MDMsgMem *m,  uint16_t i ) noexcept
+                      MDDict *d,  MDMsgMem &m,  uint16_t i ) noexcept
 {
   /* start at offset which matches and go to end */
   for ( ; i <= this->count; i++ ) {
@@ -113,7 +114,7 @@ void
 MDMsg::add_match( MDMatch &ma ) noexcept /* add msg matcher to a match group */
 {
   MDMatchGroup * mg = NULL;
-  uint32_t i;
+  uint32_t i = 0;
   void   * p;
 
   if ( md_add_cnt == MAX_MSG_CLASS )
@@ -132,22 +133,24 @@ MDMsg::add_match( MDMatch &ma ) noexcept /* add msg matcher to a match group */
         break;
     }
   }
-  else { /* has a match length, find match group by offset */
+  else if ( ma.len != 0xff ) { /* has a match length, find match group by off */
     for ( i = 0; i < md_group_cnt; i++ ) {
       mg = md_match_group[ i ];
       if ( mg->haslen != 0 && mg->off == ma.off )
         break;
     }
   }
-  /* a match group at offset already exists */
-  if ( i < md_group_cnt )
-    mg->add_match( ma );
-  else { /* create a new match group for offset */
-    p  = ::malloc( sizeof( MDMatchGroup ) );
-    mg = new ( p ) MDMatchGroup();
-    mg->add_match( ma );
+  if ( ma.len != 0xff ) {
+    /* a match group at offset already exists */
+    if ( i < md_group_cnt )
+      mg->add_match( ma );
+    else { /* create a new match group for offset */
+      p  = ::malloc( sizeof( MDMatchGroup ) );
+      mg = new ( p ) MDMatchGroup();
+      mg->add_match( ma );
 
-    md_match_group[ md_group_cnt++ ] = mg;
+      md_match_group[ md_group_cnt++ ] = mg;
+    }
   }
   /* if msg class has a external type hash */
   if ( ma.hint_size > 0 ) {
@@ -163,7 +166,7 @@ MDMsg::add_match( MDMatch &ma ) noexcept /* add msg matcher to a match group */
 
 MDMsg *
 MDMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-               MDDict *d,  MDMsgMem *m ) noexcept
+               MDDict *d,  MDMsgMem &m ) noexcept
 {
   MDMatchGroup * mg;
   MDMsg        * msg;

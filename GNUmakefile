@@ -156,9 +156,9 @@ md_msg_defines := -DMD_VER=$(ver_build)
 $(objd)/md_msg.o : .copr/Makefile
 $(objd)/md_msg.fpic.o : .copr/Makefile
 libraimd_files := md_msg md_field_iter json json_msg rv_msg tib_msg \
-                  tib_sass_msg mf_msg rwf_msg md_dict cfile app_a enum_def \
-                  decimal md_list md_hash md_set md_zset md_geo md_hll \
-		  md_stream glue
+                  tib_sass_msg mf_msg rwf_msg rwf_writer md_dict cfile \
+		  app_a enum_def decimal md_list md_hash md_set md_zset \
+		  md_geo md_hll md_stream glue
 libraimd_cfile := $(addprefix src/, $(addsuffix .cpp, $(libraimd_files)))
 libraimd_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(libraimd_files)))
 libraimd_dbjs  := $(addprefix $(objd)/, $(addsuffix .fpic.o, $(libraimd_files)))
@@ -343,6 +343,17 @@ pretty_js_lnk   := $(raimd_dlnk)
 $(bind)/pretty_js$(exe): $(pretty_js_objs) $(pretty_js_libs)
 all_exes += $(bind)/pretty_js$(exe)
 all_depends +=  $(pretty_js_deps)
+
+test_rwf_files := test_rwf
+test_rwf_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_rwf_files)))
+test_rwf_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_rwf_files)))
+test_rwf_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_rwf_files)))
+test_rwf_libs  := $(raimd_dlib)
+test_rwf_lnk   := $(raimd_dlnk)
+
+$(bind)/test_rwf$(exe): $(test_rwf_objs) $(test_rwf_libs)
+all_exes += $(bind)/test_rwf$(exe)
+all_depends +=  $(test_rwf_deps)
 
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 

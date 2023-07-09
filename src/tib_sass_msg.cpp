@@ -97,7 +97,7 @@ TibSassMsg::is_tibsassmsg( void *bb,  size_t off,  size_t end,
 
 TibSassMsg *
 TibSassMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                    MDMsgMem *m ) noexcept
+                    MDMsgMem &m ) noexcept
 {
   if ( off + 8 > end )
     return NULL;
@@ -108,12 +108,9 @@ TibSassMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
     return NULL;
   if ( off + msg_size + 8 > end )
     return NULL;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
   void * ptr;
-  m->alloc( sizeof( TibSassMsg ), &ptr );
+  m.incr_ref();
+  m.alloc( sizeof( TibSassMsg ), &ptr );
   for ( ; d != NULL; d = d->next )
     if ( d->dict_type[ 0 ] == 'c' ) /* need cfile type */
       break;
@@ -325,15 +322,11 @@ TibSassFieldIter::find( const char *name,  size_t name_len,
 
   int status = Err::NOT_FOUND;
   if ( name != NULL ) {
-    MDFid    fid;
-    MDType   ftype;
-    uint32_t fsize;
-    uint8_t  flags;
-    if ( this->iter_msg.dict->get( name, (uint8_t) name_len, fid, ftype, fsize,
-                                   flags )) {
+    MDLookup by( name, name_len );
+    if ( this->iter_msg.dict->get( by ) ) {
       if ( (status = this->first()) == 0 ) {
         do {
-          if ( this->fid == fid )
+          if ( this->fid == by.fid )
             return this->get_reference( mref );
         } while ( (status = this->next()) == 0 );
       }
@@ -379,23 +372,28 @@ TibSassFieldIter::unpack( void ) noexcept
   size_t          i   = this->field_start;
 
   if ( i + 2 > this->field_end )
-    goto bad_bounds;
+    return Err::BAD_FIELD_BOUNDS;
 
   this->fid = get_u16<MD_BIG>( &buf[ i ] ) & 0x3fffU;
   if ( this->iter_msg.dict == NULL )
     return Err::NO_DICTIONARY;
-  if ( ! this->iter_msg.dict->lookup( this->fid, this->ftype, this->fsize,
-                                    this->flags, this->fnamelen, this->fname ) ) {
+  MDLookup by( this->fid );
+  if ( ! this->iter_msg.dict->lookup( by ) ) {
     if ( this->fid == 0 )
       return Err::NULL_FID;
     return Err::UNKNOWN_FID;
   }
+  this->ftype    = by.ftype;
+  this->fsize    = by.fsize;
+  this->flags    = by.flags;
+  this->fnamelen = by.fname_len;
+  this->fname    = by.fname;
   if ( this->ftype != MD_PARTIAL && ( this->flags & MD_FIXED ) != 0 ) {
     i += this->pack_size();
   }
   else if ( this->ftype == MD_PARTIAL ) {
     if ( i + 6 > this->field_end )
-      goto bad_bounds;
+      return Err::BAD_FIELD_BOUNDS;
     i += this->partial_pack_size( get_u16<MD_BIG>( &buf[ i + 4 ] ) );
   }
   else if ( this->fsize <= 0xffffU ) {
@@ -405,10 +403,8 @@ TibSassFieldIter::unpack( void ) noexcept
     i += this->variable_pack_size_4( get_u32<MD_BIG>( &buf[ i + 2 ] ) );
   }
 
-  if ( i > this->field_end ) {
-  bad_bounds:;
+  if ( i > this->field_end )
     return Err::BAD_FIELD_BOUNDS;
-  }
   this->field_end = i;
   return 0;
 }
@@ -427,30 +423,22 @@ TibSassMsgWriter::TibSassMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept
 int
 TibSassMsgWriter::append_ref( MDFid fid,  MDReference &mref ) noexcept
 {
-  const char * fname;
-  uint8_t      fname_len,
-               flags;
-  uint32_t     fsize;
-  MDType       ftype;
+  MDLookup by( fid );
 
-  if ( ! this->dict->lookup( fid, ftype, fsize, flags, fname_len, fname ) )
+  if ( ! this->dict->lookup( by ) )
     return Err::UNKNOWN_FID;
-  return this->append_ref( fid, ftype, fsize, flags, mref );
+  return this->append_ref( fid, by.ftype, by.fsize, by.flags, mref );
 }
 
 int
 TibSassMsgWriter::append_ref( const char *fname,  size_t fname_len,
                               MDReference &mref ) noexcept
 {
-  uint32_t fsize;
-  MDType   ftype;
-  MDFid    fid;
-  uint8_t  flags;
+  MDLookup by( fname, fname_len );
 
-  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
-                          flags ) )
+  if ( ! this->dict->get( by ) )
     return Err::UNKNOWN_FID;
-  return this->append_ref( fid, ftype, fsize, flags, mref );
+  return this->append_ref( by.fid, by.ftype, by.fsize, by.flags, mref );
 }
 
 int
@@ -765,88 +753,64 @@ TibSassMsgWriter::append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
 int
 TibSassMsgWriter::append_decimal( MDFid fid,  MDDecimal &dec ) noexcept
 {
-  const char * fname;
-  uint8_t      fname_len,
-               flags;
-  uint32_t     fsize;
-  MDType       ftype;
+  MDLookup by( fid );
 
-  if ( ! this->dict->lookup( fid, ftype, fsize, flags, fname_len, fname ) )
+  if ( ! this->dict->lookup( by ) )
     return Err::UNKNOWN_FID;
-  return this->append_decimal( fid, ftype, fsize, dec );
+  return this->append_decimal( fid, by.ftype, by.fsize, dec );
 }
 
 int
 TibSassMsgWriter::append_time( MDFid fid,  MDTime &time ) noexcept
 {
-  const char * fname;
-  uint8_t      fname_len,
-               flags;
-  uint32_t     fsize;
-  MDType       ftype;
+  MDLookup by( fid );
 
-  if ( ! this->dict->lookup( fid, ftype, fsize, flags, fname_len, fname ) )
+  if ( ! this->dict->lookup( by ) )
     return Err::UNKNOWN_FID;
-  return this->append_time( fid, ftype, fsize, time );
+  return this->append_time( fid, by.ftype, by.fsize, time );
 }
 
 int
 TibSassMsgWriter::append_date( MDFid fid,  MDDate &date ) noexcept
 {
-  const char * fname;
-  uint8_t      fname_len,
-               flags;
-  uint32_t     fsize;
-  MDType       ftype;
+  MDLookup by( fid );
 
-  if ( ! this->dict->lookup( fid, ftype, fsize, flags, fname_len, fname ) )
+  if ( ! this->dict->lookup( by ) )
     return Err::UNKNOWN_FID;
-  return this->append_date( fid, ftype, fsize, date );
+  return this->append_date( fid, by.ftype, by.fsize, date );
 }
 
 int
 TibSassMsgWriter::append_decimal( const char *fname,  size_t fname_len,
                                   MDDecimal &dec ) noexcept
 {
-  uint32_t fsize;
-  MDType   ftype;
-  MDFid    fid;
-  uint8_t  flags;
+  MDLookup by( fname, fname_len );
 
-  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
-                          flags ) )
+  if ( ! this->dict->get( by ) )
     return Err::UNKNOWN_FID;
-  return this->append_decimal( fid, ftype, fsize, dec );
+  return this->append_decimal( by.fid, by.ftype, by.fsize, dec );
 }
 
 int
 TibSassMsgWriter::append_time( const char *fname,  size_t fname_len,
                                MDTime &time ) noexcept
 {
-  uint32_t fsize;
-  MDType   ftype;
-  MDFid    fid;
-  uint8_t  flags;
+  MDLookup by( fname, fname_len );
 
-  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
-                          flags ) )
+  if ( ! this->dict->get( by ) )
     return Err::UNKNOWN_FID;
-  return this->append_time( fid, ftype, fsize, time );
+  return this->append_time( by.fid, by.ftype, by.fsize, time );
 }
 
 int
 TibSassMsgWriter::append_date( const char *fname,  size_t fname_len,
                                MDDate &date ) noexcept
 {
-  uint32_t fsize;
-  MDType   ftype;
-  MDFid    fid;
-  uint8_t  flags;
+  MDLookup by( fname, fname_len );
 
-  if ( ! this->dict->get( fname, (uint8_t) fname_len, fid, ftype, fsize,
-                          flags ) )
+  if ( ! this->dict->get( by ) )
     return Err::UNKNOWN_FID;
-  return this->append_date( fid, ftype, fsize, date );
+  return this->append_date( by.fid, by.ftype, by.fsize, date );
 }
 
 int

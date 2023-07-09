@@ -76,7 +76,7 @@ main( int argc, char **argv )
   MDMsg  * m;
   MDOutput mout;
 
-  m = MDMsg::unpack( &test1, 0, sizeof( test1 ), 0, NULL, &mem );
+  m = MDMsg::unpack( &test1, 0, sizeof( test1 ), 0, NULL, mem );
   if ( m != NULL ) {
     m->print( &mout );
   }

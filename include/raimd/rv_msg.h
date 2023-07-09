@@ -12,12 +12,13 @@ struct RvMsg : public MDMsg {
   /* used by UnPack() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }
 
-  RvMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
+  RvMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem &m )
     : MDMsg( bb, off, end, d, m ) {}
 
   virtual const char *get_proto_string( void ) noexcept final;
   virtual uint32_t get_type_id( void ) noexcept final;
-  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg ) noexcept final;
+  virtual int get_sub_msg( MDReference &mref, MDMsg *&msg,
+                           MDFieldIter *iter ) noexcept final;
   virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
   virtual int get_array_ref( MDReference &mref,  size_t i,
                              MDReference &aref ) noexcept;
@@ -25,12 +26,12 @@ struct RvMsg : public MDMsg {
   static bool is_rvmsg( void *bb,  size_t off,  size_t end,
                         uint32_t h ) noexcept;
   static RvMsg *unpack_rv( void *bb,  size_t off,  size_t end,  uint32_t h,
-                           MDDict *d,  MDMsgMem *m ) noexcept;
+                           MDDict *d,  MDMsgMem &m ) noexcept;
   static MDMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                        MDDict *d,  MDMsgMem *m ) noexcept;
+                        MDDict *d,  MDMsgMem &m ) noexcept;
   static void init_auto_unpack( void ) noexcept;
   static MDMsg *opaque_extract( uint8_t *bb,  size_t off,  size_t end,
-                                MDDict *d,  MDMsgMem *m ) noexcept;
+                                MDDict *d,  MDMsgMem &m ) noexcept;
 };
 
 struct RvFieldIter : public MDFieldIter {

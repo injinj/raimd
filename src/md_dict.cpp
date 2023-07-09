@@ -13,9 +13,23 @@ using namespace md;
 
 /* crc_c */
 uint32_t
-MDDict::dict_hash( const void *key,  size_t len,  uint32_t seed ) noexcept
+MDDict::dict_hash( const char *key,  size_t len ) noexcept
 {
-  return hash32( key, len, seed );
+  if ( len > 0 && key[ len - 1 ] == '\0' )
+    len--;
+  return hash32( key, len, 0 );
+}
+
+bool
+MDDict::dict_equals( const char *fname,  size_t len,
+                     const char *fname2,  size_t len2 ) noexcept
+{
+  /* allow fnames to include nul terminating char */
+  if ( len > 0 && fname[ len - 1 ] == '\0' )
+    len--;
+  if ( len2 > 0 && fname2[ len2 - 1 ] == '\0' )
+    len2--;
+  return len == len2 && ::memcmp( fname, fname2, len ) == 0;
 }
 
 uint32_t
@@ -93,7 +107,7 @@ MDDictIdx::check_dup( const char *fname,  uint8_t fnamelen,
 {
   if ( this->dup_hash == NULL )
     this->dup_hash = this->alloc<MDDupHash>( sizeof( MDDupHash ) );
-  uint32_t h = MDDict::dict_hash( fname, fnamelen, 0 );
+  uint32_t h = MDDict::dict_hash( fname, fnamelen );
   xdup = this->dup_hash->test_set( h );
   return h;
 }
@@ -493,16 +507,12 @@ bool
 MDDict::get_enum_text( MDFid fid,  uint16_t val,  const char *&disp,
                        size_t &disp_len ) noexcept
 {
-  const char * fname;
-  uint32_t     fsize;
-  MDType       ftype;
-  uint8_t      fnamelen,
-               flags;
-  if ( ! this->lookup( fid, ftype, fsize, flags, fnamelen, fname ) )
+  MDLookup by( fid );
+  if ( ! this->lookup( by ) )
     return false;
-  if ( ftype != MD_ENUM )
+  if ( by.ftype != MD_ENUM )
     return false;
-  return this->get_enum_map_text( fsize, val, disp, disp_len );
+  return this->get_enum_map_text( by.fsize, val, disp, disp_len );
 }
 
 bool
@@ -552,16 +562,12 @@ bool
 MDDict::get_enum_val( MDFid fid,  const char *disp,  size_t disp_len,
                       uint16_t &val ) noexcept
 {
-  const char * fname;
-  uint32_t     fsize;
-  MDType       ftype;
-  uint8_t      fnamelen,
-               flags;
-  if ( ! this->lookup( fid, ftype, fsize, flags, fnamelen, fname ) )
+  MDLookup by( fid );
+  if ( ! this->lookup( by ) )
     return false;
-  if ( ftype != MD_ENUM )
+  if ( by.ftype != MD_ENUM )
     return false;
-  return this->get_enum_map_val( fsize, disp, disp_len, val );
+  return this->get_enum_map_val( by.fsize, disp, disp_len, val );
 }
 
 bool

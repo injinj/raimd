@@ -105,12 +105,9 @@ const char *str =
 static void
 test_lookup( MDDictBuild &dict_build,  MDDict *dict )
 {
-  MDType ftype, ftype2;
-  uint32_t fsize, fsize2, fidcnt;
-  uint8_t fnamelen;
-  MDFid fid, fid2;
-  const char *fname;
-  uint8_t shft, algn, flags, flags2;
+  uint32_t fidcnt;
+  MDFid fid;
+  uint8_t shft, algn;
 #if 0
   for ( uint16_t fid = 0; fid < 0x4000; fid++ ) {
     if ( dict->lookup( fid, ftype, fsize, fnamelen, fname ) ) {
@@ -136,16 +133,17 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict )
 
   for ( MDDictEntry *fp = dict_build.idx->entry_q.hd; fp != NULL;
         fp = fp->next ) {
-    if ( ! dict->lookup( fp->fid, ftype, fsize, flags, fnamelen, fname ) ) {
+    MDLookup by( fp->fid );
+    if ( ! dict->lookup( by ) ) {
       printf( "fid %u not found\n", fp->fid );
       break;
     }
-    if ( fp->ftype != (MDType) ftype || fp->fsize != fsize ||
-         fp->fld_flags != flags || fp->fnamelen != fnamelen ||
-         ::memcmp( fp->fname(), fname, fnamelen ) != 0 ) {
+    if ( fp->ftype != (MDType) by.ftype || fp->fsize != by.fsize ||
+         fp->fld_flags != by.flags || fp->fnamelen != by.fname_len ||
+         ::memcmp( fp->fname(), by.fname, by.fname_len ) != 0 ) {
       printf( "fid %u not equal\n", fp->fid );
       printf( "ftype %u fsize %u fnamelen %u\n",
-              ftype, fsize, fnamelen );
+              by.ftype, by.fsize, by.fname_len );
       printf( "ftype %u fsize %u fnamelen %u\n",
               fp->ftype, fp->fsize, fp->fnamelen );
       break;
@@ -164,16 +162,20 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict )
   fidcnt = 0;
   for ( fid = dict_build.idx->min_fid;
         fid <= dict_build.idx->max_fid; fid++ ) {
-    if ( dict->lookup( fid, ftype, fsize, flags, fnamelen, fname ) ) {
-      if ( dict->get( fname, fnamelen, fid2, ftype2, fsize2, flags2 ) ) {
-        if ( fid == fid2 && ftype == ftype2 && fsize == fsize2 && flags == flags2 )
+    MDLookup by( fid );
+    if ( dict->lookup( by ) ) {
+      MDLookup nm( by.fname, by.fname_len );
+      if ( dict->get( nm ) ) {
+        if ( by.fid == nm.fid && by.ftype == nm.ftype &&
+             by.fsize == nm.fsize && by.flags == nm.flags )
           fidcnt++;
         else
           printf( "fid mismatch: fname: \"%.*s\" "
                   "fid: %d == %d ftype: %u == %u fsize: %u == %u\n",
-                  (int) fnamelen, fname,
-                  (int) fid, (int) fid2, (uint32_t) ftype, (uint32_t) ftype2,
-                  (uint32_t) fsize, (uint32_t) fsize2 );
+                  (int) by.fname_len, by.fname,
+                  (int) by.fid, (int) nm.fid,
+                  (uint32_t) by.ftype, (uint32_t) nm.ftype,
+                  (uint32_t) by.fsize, (uint32_t) nm.fsize );
       }
       else
         printf( "fname not found\n" );
@@ -183,14 +185,15 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict )
 
   for ( MDDictEntry *fp = dict_build.idx->entry_q.hd; fp != NULL;
         fp = fp->next ) {
-    if ( ! dict->get( fp->fname(), fp->fnamelen, fid, ftype, fsize, flags ) ) {
-      printf( "not found: %s\n", fp->fname() );
+    MDLookup by( fp->fname(), fp->fnamelen );
+    if ( ! dict->get( by ) ) {
+      printf( "not found: %s\n", by.fname );
     }
-    else if ( fp->fid != fid || fp->ftype != ftype || fp->fsize != fsize ||
-              fp->fld_flags != flags ) {
+    else if ( fp->fid != by.fid || fp->ftype != by.ftype ||
+              fp->fsize != by.fsize || fp->fld_flags != by.flags ) {
       if ( fp->fno != 0 ) { /* redecleared */
         printf( "%s: fid %u/%u ftype %u/%u fsize %u/%u\n", fp->fname(),
-                fid, fp->fid, ftype, fp->ftype, fsize, fp->fsize );
+                by.fid, fp->fid, by.ftype, fp->ftype, by.fsize, fp->fsize );
       }
     }
   }

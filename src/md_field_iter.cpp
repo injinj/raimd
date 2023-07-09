@@ -19,7 +19,7 @@ uint32_t MDMsg::get_type_id( void ) noexcept
 { return 0; }
 int MDMsg::get_field_iter( MDFieldIter *&iter ) noexcept
 { iter = NULL; return Err::INVALID_MSG; }
-int MDMsg::get_sub_msg( MDReference &,  MDMsg *&msg ) noexcept
+int MDMsg::get_sub_msg( MDReference &, MDMsg *&msg, MDFieldIter * ) noexcept
 { msg = NULL; return Err::INVALID_MSG; }
 int MDMsg::get_reference( MDReference &mref ) noexcept
 { mref.zero(); return Err::INVALID_MSG; }
@@ -45,14 +45,22 @@ MDFieldIter::copy_name( char *name_buf, size_t &name_len, MDFid &fid ) noexcept
   MDName nm;
   int status = this->get_name( nm );
   if ( status == 0 ) {
-    size_t off, size = ( name_len < nm.fnamelen ) ? name_len : nm.fnamelen;
+    size_t off, size = name_len;
+    if ( size > nm.fnamelen )
+      size = nm.fnamelen;
     fid = nm.fid;
+    if ( size > 0 && nm.fname[ size - 1 ] == '\0' )
+      size--;
     for ( off = 0; off < size; off++ )
       name_buf[ off ] = nm.fname[ off ];
+    if ( size < name_len )
+      name_buf[ size ] = '\0';
     name_len = size;
   }
   else {
     fid = 0;
+    if ( name_len > 0 )
+      name_buf[ 0 ] = '\0';
     name_len = 0;
   }
   return status;
@@ -645,7 +653,7 @@ MDMsg::get_escaped_string_output( MDReference &mref,  const char *quotes,
   size_t    j   = 0;
 
   if ( mref.fsize == 0 ) {
-    ::memcpy( str, nul_string, nul_string_len );
+    ::memcpy( str, nul_string, nul_string_len + 1 );
     return nul_string_len;
   }
   if ( quotes != NULL )
@@ -1004,8 +1012,6 @@ MDFieldIter::fname_string( char *fname_buf,  size_t &fname_len ) noexcept
 
   this->copy_name( fname_buf, fname_len, fid );
   fname_off = fname_len;
-  if ( fname_off > 0 ) /* includes the nul char */
-    fname_off -= 1;
 
   if ( fid != 0 ) {
     uint32_t j = 1, k;
@@ -1085,7 +1091,7 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
   switch ( ftype ) {
     case MD_MESSAGE: {
       MDMsg * msg;
-      if ( this->iter_msg.get_sub_msg( mref, msg ) == 0 ) {
+      if ( this->iter_msg.get_sub_msg( mref, msg, this ) == 0 ) {
         if ( indent_newline != 0 ) {
           out->puts( "{\n" );
           indent_newline += 4;
@@ -1933,10 +1939,10 @@ MDDecimal::get_string( char *str,  size_t len,
       case MD_DEC_NULL:
         s = "";
       copy_s:;
-        for (;;) {
+        for ( ; ; i++ ) {
           if ( i == len )
             goto out_of_space;
-          if ( (str[ i++ ] = *s++) == '\0' )
+          if ( (str[ i ] = *s++) == '\0' )
             break;
         }
         return i;

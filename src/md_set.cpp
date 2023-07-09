@@ -46,17 +46,14 @@ SetMsg::is_setmsg( void *bb,  size_t off,  size_t end,  uint32_t ) noexcept
 
 MDMsg *
 SetMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
-                MDMsgMem *m ) noexcept
+                MDMsgMem &m ) noexcept
 {
   if ( ! is_set( bb, off, end ) )
     return NULL;
-#ifdef MD_REF_COUNT
-  if ( m->ref_cnt != MDMsgMem::NO_REF_COUNT )
-    m->ref_cnt++;
-#endif
   /* check if another message is the first opaque field of the SetMsg */
   void * ptr;
-  m->alloc( sizeof( SetMsg ), &ptr );
+  m.incr_ref();
+  m.alloc( sizeof( SetMsg ), &ptr );
   return new ( ptr ) SetMsg( bb, off, end, d, m );
 }
 

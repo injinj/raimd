@@ -859,7 +859,7 @@ struct HashData : public ListData {
 struct HashMsg : public MDMsg {
   void * operator new( size_t, void *ptr ) { return ptr; }
 
-  HashMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem *m )
+  HashMsg( void *bb,  size_t off,  size_t len,  MDDict *d,  MDMsgMem &m )
     : MDMsg( bb, off, len, d, m ) {}
 
   virtual const char *get_proto_string( void ) noexcept final;
@@ -869,7 +869,7 @@ struct HashMsg : public MDMsg {
   static bool is_hashmsg( void *bb,  size_t off,  size_t len,
                           uint32_t h ) noexcept;
   static MDMsg *unpack( void *bb,  size_t off,  size_t len,  uint32_t h,
-                        MDDict *d,  MDMsgMem *m ) noexcept;
+                        MDDict *d,  MDMsgMem &m ) noexcept;
   static void init_auto_unpack( void ) noexcept;
 };
 

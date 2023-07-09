@@ -28,7 +28,7 @@ struct MktfdMsg : public MDMsg {
   /* used by unpack() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }
 
-  MktfdMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem *m )
+  MktfdMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem &m )
     : MDMsg( bb, off, end, d, m ), data_start( 0 ), data_end( 0 ),
       tagp( 0 ), ricp( 0 ), textp( 0 ), taglen( 0 ), riclen( 0 ), textlen( 0 ),
       rstatus( 0 ), flist( 0 ), rtl( 0 ), status( 0 ), func( 0 ) {}
@@ -41,7 +41,7 @@ struct MktfdMsg : public MDMsg {
   static bool is_marketfeed( void *bb,  size_t off,  size_t end,
                              uint32_t h ) noexcept;
   static MktfdMsg *unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
-                           MDDict *d,  MDMsgMem *m ) noexcept;
+                           MDDict *d,  MDMsgMem &m ) noexcept;
   static void init_auto_unpack( void ) noexcept;
 };
 
