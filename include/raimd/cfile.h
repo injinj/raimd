@@ -40,6 +40,7 @@ enum TSS_type {
   TSS_U_INT      = 20,
   TSS_U_LONG     = 21
 };
+const char * tss_type_str( TSS_type tp ) noexcept;
 
 enum CFileTok {
   CFT_ERROR            = -2,

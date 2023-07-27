@@ -4,24 +4,54 @@
 #include <raimd/md_dict.h>
 #include <raimd/cfile.h>
 #include <raimd/md_msg.h>
+#include <raimd/tib_sass_msg.h>
 
 using namespace rai;
 using namespace md;
 
+#define S( s ) s, sizeof( s ) - 1
 static CFileKeyword
-  true_tok             = { "true",              4, CFT_TRUE },
-  false_tok            = { "false",             5, CFT_FALSE },
-  fields_tok           = { "fields",            6, CFT_FIELDS },
-  field_class_name_tok = { "field_class_name", 16, CFT_FIELD_CLASS_NAME },
-  class_id_tok         = { "class_id",          8, CFT_CLASS_ID },
-  cfile_includes_tok   = { "cfile_includes",   14, CFT_CF_INCLUDES },
-  data_size_tok        = { "data_size",         9, CFT_DATA_SIZE },
-  data_type_tok        = { "data_type",         9, CFT_DATA_TYPE },
-  is_fixed_tok         = { "is_fixed",          8, CFT_IS_FIXED },
-  is_partial_tok       = { "is_partial",       10, CFT_IS_PARTIAL },
-  is_primitive_tok     = { "is_primitive",     12, CFT_IS_PRIMITIVE };
+  true_tok             = { S( "true"             ), CFT_TRUE },
+  false_tok            = { S( "false"            ), CFT_FALSE },
+  fields_tok           = { S( "fields"           ), CFT_FIELDS },
+  field_class_name_tok = { S( "field_class_name" ), CFT_FIELD_CLASS_NAME },
+  class_id_tok         = { S( "class_id"         ), CFT_CLASS_ID },
+  cfile_includes_tok   = { S( "cfile_includes"   ), CFT_CF_INCLUDES },
+  data_size_tok        = { S( "data_size"        ), CFT_DATA_SIZE },
+  data_type_tok        = { S( "data_type"        ), CFT_DATA_TYPE },
+  is_fixed_tok         = { S( "is_fixed"         ), CFT_IS_FIXED },
+  is_partial_tok       = { S( "is_partial"       ), CFT_IS_PARTIAL },
+  is_primitive_tok     = { S( "is_primitive"     ), CFT_IS_PRIMITIVE };
+#undef S
 
-/*static const int EOF_CHAR = 256;*/
+const char *
+rai::md::tss_type_str( TSS_type tp ) noexcept
+{
+  switch ( tp ) {
+    case TSS_INTEGER:    return "INTEGER";
+    case TSS_STRING:     return "STRING";
+    case TSS_BOOLEAN:    return "BOOLEAN";
+    case TSS_DATE:       return "DATE";
+    case TSS_TIME:       return "TIME";
+    case TSS_PRICE:      return "PRICE";
+    case TSS_BYTE:       return "BYTE";
+    case TSS_FLOAT:      return "FLOAT";
+    case TSS_SHORT_INT:  return "SHORT_INT";
+    case TSS_DOUBLE:     return "DOUBLE";
+    case TSS_OPAQUE:     return "OPAQUE";
+    case TSS_NULL:       return "NULL";
+    case TSS_RESERVED:   return "RESERVED";
+    case TSS_DOUBLE_INT: return "DOUBLE_INT";
+    case TSS_GROCERY:    return "GROCERY";
+    case TSS_SDATE:      return "SDATE";
+    case TSS_STIME:      return "STIME";
+    case TSS_LONG:       return "LONG";
+    case TSS_U_SHORT:    return "U_SHORT";
+    case TSS_U_INT:      return "U_INT";
+    case TSS_U_LONG:     return "U_LONG";
+    default:             return "NODATA";
+  }
+}
 
 void
 CFile::clear_ident( void ) noexcept
@@ -347,9 +377,18 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
                          p->data_type, p->fname, p->lineno );
             }
           }
-          dict_build.add_entry( p->class_id, p->data_size, type,
+          MDDictAdd a;
+          a.fid      = p->class_id;
+          a.fsize    = p->data_size;
+          a.ftype    = type;
+          a.flags    = flags;
+          a.fname    = p->ident;
+          a.filename = p->fname;
+          a.lineno   = p->ident_lineno;
+          dict_build.add_entry( a );
+                              /*p->class_id, p->data_size, type,
                                 flags, p->ident, NULL, NULL, p->fname,
-                                p->ident_lineno );
+                                p->ident_lineno ); */
           /*printf( "(%s:%u) %s { class-id %u, size %u, type %u }\n",
                   p->fname, p->ident_lineno,
                   p->ident, p->class_id, p->data_size, p->data_type );
@@ -537,8 +576,17 @@ CFile::unpack_sass( MDDictBuild &dict_build,  MDMsg *m ) noexcept
         ftype = tss_data_type_to_md_type( tss_type );
       if ( fsize == 0 )
         fsize = tss_type_default_size( tss_type );
-      status = dict_build.add_entry( class_id, fsize, (MDType) ftype, flags,
-                                     name.fname, NULL, NULL, "msg", ++num );
+      MDDictAdd a;
+      a.fid      = class_id;
+      a.fsize    = fsize;
+      a.ftype    = (MDType) ftype;
+      a.flags    = flags;
+      a.fname    = name.fname;
+      a.filename = "msg";
+      a.lineno   = ++num;
+      status = dict_build.add_entry( a );
+      /*status = dict_build.add_entry( class_id, fsize, (MDType) ftype, flags,
+                                     name.fname, NULL, NULL, "msg", ++num );*/
       if ( status != 0 ) {
         fprintf( stderr, "Bad dict entry: %.*s class_id %d fsize %u ftype %u\n",
                  (int) name.fnamelen, name.fname, class_id, fsize, ftype );

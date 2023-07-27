@@ -8,6 +8,150 @@ namespace md {
 
 static const uint8_t RWF_CONTAINER_BASE = 128;
 
+struct RwfDecoder;
+struct RwfBase {
+  uint32_t type_id, /* RWF_TYPE_ID */
+           set_size;
+  size_t   set_start,
+           data_start;
+  uint32_t parse_type( RwfDecoder &dec ) noexcept;
+};
+
+struct RwfPostInfo {
+  uint32_t user_addr,
+           user_id;
+};
+
+struct RwfGroup {
+  void  * buf;
+  uint8_t len;
+};
+
+struct RwfExtended {
+  void  * buf;
+  uint8_t len;
+};
+
+struct RwfPerm {
+  void   * buf;
+  uint16_t len;
+};
+
+struct RwfConfInfo {
+  uint16_t count,
+           time;
+};
+
+struct RwfText {
+  const char * buf;
+  uint16_t     len;
+};
+
+struct RwfState {
+  uint8_t data_state,
+          stream_state,
+          code;
+  RwfText text;
+  bool decode( void *buf,  size_t buflen ) noexcept;
+};
+
+struct RwfQos {
+  uint8_t  timeliness,
+           rate,
+           dynamic;
+  uint16_t time_info,
+           rate_info;
+  bool decode( void *buf,  size_t buflen ) noexcept;
+};
+
+struct RwfAttrib {
+  uint8_t  container_type;
+  uint16_t len;
+  void   * data;
+};
+
+static inline uint64_t bit64( int x ) { return (uint64_t) 1 << x; }
+static inline uint64_t bit64( int x,  int y ) { return bit64( x ) | bit64( y ); }
+
+struct RwfFieldIter;
+struct RwfMsgKey : public RwfBase {
+  enum {
+    HAS_SERVICE_ID = 1,
+    HAS_NAME       = 2,
+    HAS_NAME_TYPE  = 4,
+    HAS_FILTER     = 8,
+    HAS_IDENTIFIER = 16,
+    HAS_ATTRIB     = 32
+  };
+  uint64_t     flags;
+  void       * data;
+  uint16_t     data_size,
+               key_flags,
+               service_id,
+               name_len;
+  /* login name type: 1 = user , 2 = email, 3 = token, 4 = cookie, 5 = authn */
+  /* other domains:   0 = unspec, 1 = RIC, 2 = contributor */
+  uint8_t      name_type;
+  const char * name;
+  uint32_t     filter,
+               identifier;
+  RwfAttrib    attrib;
+  bool test( RwfMsgSerial s ) const {
+    return ( bit64( s ) & this->flags ) != 0;
+  }
+  bool test( RwfMsgSerial s,  RwfMsgSerial t ) const {
+    return ( bit64( s, t ) & this->flags ) != 0;
+  }
+  int parse( const void *bb,  size_t off,  size_t end ) noexcept;
+  bool ref_iter( size_t which,  RwfFieldIter &iter ) noexcept;
+};
+
+struct RwfPriority {
+  uint8_t  clas;
+  uint16_t count;
+};
+
+struct RwfFieldIter;
+struct RwfMsgHdr : public RwfBase {
+  uint64_t    flags;
+  uint16_t    header_size;    /*Req|Rfr|Sta|Upd|Cls|Ack|Gen|Pos*/
+  uint8_t     msg_class,      /* . | . | . | . | . | . | . | . */
+              domain_type;    /* . | . | . | . | . | . | . | . */
+  uint32_t    stream_id;      /* . | . | . | . | . | . | . | . */
+  uint16_t    msg_flags;      /* . | . | . | . | . | . | . | . */
+  uint8_t     container_type, /* . | . | . | . | . | . | . | . */
+              update_type,    /*   |   |   | . |   |   |   |   */
+              nak_code;       /*   |   |   |   |   | ? |   |   */
+  RwfText     text;           /*   |   |   |   |   | ? |   |   */
+  uint32_t    seq_num,        /*   | ? |   | ? |   | ? | ? | ? */
+              second_seq_num, /*   |   |   |   |   |   | ? |   */
+              post_id,        /*   |   |   |   |   |   |   | ? */
+              ack_id;         /*   |   |   |   |   | . |   |   */
+  RwfState    state;          /*   | . | ? |   |   |   |   |   */
+  RwfGroup    group_id;       /*   | . | ? |   |   |   |   |   */
+  RwfConfInfo conf_info;      /*   |   |   | ? |   |   |   |   */
+  RwfPriority priority;       /* ? |   |   |   |   |   |   |   */
+  RwfPerm     perm;           /*   | ? | ? | ? |   |   | ? | ? */
+  RwfQos      qos,            /* ? | ? |   |   |   |   |   |   */
+              worst_qos;      /* ? |   |   |   |   |   |   |   */
+  RwfMsgKey   msg_key;        /* . | ? | ? | ? |   | ? | ? | ? */
+  RwfExtended extended;       /* ? | ? | ? | ? | ? | ? | ? | ? */
+  RwfPostInfo post_user;      /*   | ? | ? | ? |   |   |   | . */
+  RwfMsgKey   req_msg_key;    /*   | ? | ? |   |   |   | ? |   */
+  uint16_t    part_num,       /*   | ? |   |   |   |   | ? | ? */
+              post_rights;    /*   |   |   |   |   |   |   | ? */
+  size_t      data_start,
+              data_end;
+  int parse( const void *bb,  size_t off,  size_t end ) noexcept;
+  bool test( RwfMsgSerial s ) const {
+    return ( bit64( s ) & this->flags ) != 0;
+  }
+  bool test( RwfMsgSerial s, RwfMsgSerial t ) const {
+    return ( bit64( s, t ) & this->flags ) != 0;
+  }
+  bool ref_iter( size_t which,  RwfFieldIter &iter ) noexcept;
+};
+
 template <class T>
 struct DecodeT {
   const uint8_t * buf,
@@ -27,8 +171,13 @@ struct DecodeT {
   size_t offset( size_t n ) const {
     return n + ( this->buf - this->start );
   }
-  void incr( size_t sz ) {
+  T & incr( size_t sz ) {
     this->buf = &this->buf[ sz ];
+    return (T &) *this;
+  }
+  T & seek( size_t sz ) {
+    this->buf = &this->start[ sz ];
+    return (T &) *this;
   }
   uint32_t peek_u32( size_t i ) const {
     if ( &this->buf[ ( i + 1 ) * 4 ] <= this->eob )
@@ -87,142 +236,50 @@ struct DecodeT {
     this->buf = &this->buf[ len ];
     return (T &) *this;
   }
+  T & dec_qos( RwfQos &q ) {
+    uint8_t x = 0;
+    this->u8( x );
+    q.timeliness = x >> 5;
+    q.rate       = ( x >> 1 ) & 0xf;
+    q.dynamic    = x & 1;
+    q.time_info  = 0;
+    q.rate_info  = 0;
+    if ( q.timeliness > 2 )
+      this->u16( q.time_info );
+    if ( q.rate > 2 )
+      this->u16( q.rate_info );
+    return (T &) *this;
+  }
+  T & dec_state( RwfState &state ) {
+    uint8_t x = 0;
+    this->u8( x );
+    state.data_state   = x & 0x7;
+    state.stream_state = x >> 3;
+    this->u8( state.code );
+    this->u15( state.text.len );
+    const uint8_t * e = &this->buf[ state.text.len ];
+    this->ok &= ( e <= this->eob );
+    state.text.buf = (const char *) this->buf;
+    this->buf = e;
+    return (T &) *this;
+  }
+  T & dec_priority( RwfPriority &prio ) {
+    this->u8( prio.clas );
+    this->z16( prio.count );
+    return (T &) *this;
+  }
+  T & dec_conf_info( RwfConfInfo &conf_info ) {
+    this->u15( conf_info.count );
+    this->u16( conf_info.time );
+    return (T &) *this;
+  }
 };
 
-struct DecodeHdr : public DecodeT<DecodeHdr> {
-  DecodeHdr( const uint8_t *b,  const uint8_t *e ) :
+struct RwfDecoder : public DecodeT<RwfDecoder> {
+  RwfDecoder( const uint8_t *b,  const uint8_t *e ) :
     DecodeT( b, e ) {}
-  DecodeHdr( const void *b,  size_t off,  size_t end ) :
+  RwfDecoder( const void *b,  size_t off,  size_t end ) :
     DecodeT( &((uint8_t *) b)[ off ], &((uint8_t *) b)[ end ] ) {}
-};
-
-struct RwfBase {
-  uint32_t type_id; /* RWF_TYPE_ID */
-  uint32_t parse_type( DecodeHdr &dec ) noexcept;
-};
-
-struct RwfPostInfo {
-  uint32_t user_addr,
-           user_id;
-};
-
-struct RwfGroup {
-  void  * buf;
-  uint8_t len;
-};
-
-struct RwfExtended {
-  void  * buf;
-  uint8_t len;
-};
-
-struct RwfPerm {
-  void   * buf;
-  uint16_t len;
-};
-
-struct RwfConfInfo {
-  uint16_t count,
-           time;
-};
-
-struct RwfText {
-  const char * buf;
-  uint16_t     len;
-};
-
-struct RwfState {
-  uint8_t data_state,
-          stream_state,
-          code;
-  RwfText text;
-};
-
-struct RwfQos {
-  uint8_t  timeliness,
-           rate,
-           dynamic;
-  uint16_t time_info,
-           rate_info;
-};
-
-struct RwfAttrib {
-  uint8_t  container_type;
-  uint16_t len;
-  void   * data;
-};
-
-struct RwfFieldIter;
-struct RwfMsgKey : public RwfBase {
-  enum {
-    HAS_SERVICE_ID = 1,
-    HAS_NAME       = 2,
-    HAS_NAME_TYPE  = 4,
-    HAS_FILTER     = 8,
-    HAS_IDENTIFIER = 16,
-    HAS_ATTRIB     = 32
-  };
-  uint64_t     flags;
-  void       * data;
-  uint16_t     data_size,
-               key_flags,
-               service_id,
-               name_len;
-  /* login name type: 1 = user , 2 = email, 3 = token, 4 = cookie, 5 = authn */
-  /* other domains:   0 = unspec, 1 = RIC, 2 = contributor */
-  uint8_t      name_type;
-  const char * name;
-  uint32_t     filter,
-               identifier;
-  RwfAttrib    attrib;
-  bool test( RwfMsgSerial s ) const {
-    return ( ( (uint64_t) 1 << s ) & this->flags ) != 0;
-  }
-  int parse( const void *bb,  size_t off,  size_t end ) noexcept;
-  bool ref_iter( size_t which,  RwfFieldIter &iter ) noexcept;
-};
-
-struct RwfPriority {
-  uint8_t  clas;
-  uint16_t count;
-};
-
-struct RwfFieldIter;
-struct RwfMsgHdr : public RwfBase {
-  uint64_t    flags;
-  uint16_t    header_size;    /*Req|Rfr|Sta|Upd|Cls|Ack|Gen|Pos*/
-  uint8_t     msg_class,      /* . | . | . | . | . | . | . | . */
-              domain_type;    /* . | . | . | . | . | . | . | . */
-  uint32_t    stream_id;      /* . | . | . | . | . | . | . | . */
-  uint16_t    msg_flags;      /* . | . | . | . | . | . | . | . */
-  uint8_t     container_type, /* . | . | . | . | . | . | . | . */
-              update_type,    /*   |   |   | . |   |   |   |   */
-              nak_code;       /*   |   |   |   |   | ? |   |   */
-  RwfText     text;           /*   |   |   |   |   | ? |   |   */
-  uint32_t    seq_num,        /*   | ? |   | ? |   | ? | ? | ? */
-              second_seq_num, /*   |   |   |   |   |   | ? |   */
-              post_id,        /*   |   |   |   |   |   |   | ? */
-              ack_id;         /*   |   |   |   |   | . |   |   */
-  RwfState    state;          /*   | . | ? |   |   |   |   |   */
-  RwfGroup    group_id;       /*   | . | ? |   |   |   |   |   */
-  RwfConfInfo conf_info;      /*   |   |   | ? |   |   |   |   */
-  RwfPriority priority;       /* ? |   |   |   |   |   |   |   */
-  RwfPerm     perm;           /*   | ? | ? | ? |   |   | ? | ? */
-  RwfQos      qos,            /* ? | ? |   |   |   |   |   |   */
-              worst_qos;      /* ? |   |   |   |   |   |   |   */
-  RwfMsgKey   msg_key;        /* . | ? | ? | ? |   | ? | ? | ? */
-  RwfExtended extended;       /* ? | ? | ? | ? | ? | ? | ? | ? */
-  RwfPostInfo post_user;      /*   | ? | ? | ? |   |   |   | . */
-  RwfMsgKey   req_msg_key;    /*   | ? | ? |   |   |   | ? |   */
-  uint16_t    part_num,       /*   | ? |   |   |   |   | ? | ? */
-              post_rights;    /*   |   |   |   |   |   |   | ? */
-  size_t      data_start,
-              data_end;
-  int parse( const void *bb,  size_t off,  size_t end ) noexcept;
-  bool test( RwfMsgSerial s ) const {
-    return ( ( (uint64_t) 1 << s ) & this->flags ) != 0;
-  }
-  bool ref_iter( size_t which,  RwfFieldIter &iter ) noexcept;
 };
 
 extern const uint64_t rwf_msg_always_present[ RWF_MSG_CLASS_COUNT ],
@@ -289,24 +346,14 @@ const uint64_t rwf_msg_flag_only[ RWF_MSG_CLASS_COUNT ] = {
 struct RwfMsgDecode : public DecodeT<RwfMsgDecode> {
   RwfMsgHdr & h;
 
-  RwfMsgDecode( RwfMsgHdr &x,  DecodeHdr &hdr )
+  RwfMsgDecode( RwfMsgHdr &x,  RwfDecoder &hdr )
     : DecodeT( hdr.start, hdr.buf, hdr.eob, hdr.ok ), h( x ) {
     x.flags  = rwf_flags_map[ x.msg_class ]->serial_map( x.msg_flags );
     x.flags |= rwf_msg_always_present[ x.msg_class ];
   }
 
   RwfMsgDecode & qos( RwfQos &q ) {
-    uint8_t x = 0;
-    this->u8( x );
-    q.timeliness = x >> 5;
-    q.rate       = ( x >> 1 ) & 0xf;
-    q.dynamic    = x & 1;
-    q.time_info  = 0;
-    q.rate_info  = 0;
-    if ( q.timeliness > 2 )
-      this->u16( q.time_info );
-    if ( q.rate > 2 )
-      this->u16( q.rate_info );
+    this->dec_qos( q );
     return *this;
   }
   template <class Buf>
@@ -371,10 +418,8 @@ struct RwfMsgDecode : public DecodeT<RwfMsgDecode> {
     return is_set( X_HAS_SEQ_NUM ) ? this->u32( this->h.seq_num ) : *this;
   }
   RwfMsgDecode & get_conflate_info( void ) {
-    if ( is_set( X_HAS_CONF_INFO ) ) {
-      this->u15( this->h.conf_info.count );
-      return this->u16( this->h.conf_info.time );
-    }
+    if ( is_set( X_HAS_CONF_INFO ) )
+      this->dec_conf_info( this->h.conf_info );
     return *this;
   }
   RwfMsgDecode & get_msg_key( void ) {
@@ -400,14 +445,8 @@ struct RwfMsgDecode : public DecodeT<RwfMsgDecode> {
     return is_set( X_HAS_REQ_MSG_KEY ) ? this->msg_key( this->h.req_msg_key ) : *this;
   }
   RwfMsgDecode & get_state( void ) {
-    if ( is_set( X_HAS_STATE ) ) {
-      uint8_t x = 0;
-      this->u8( x );
-      this->h.state.data_state   = x & 0x7;
-      this->h.state.stream_state = x >> 3;
-      this->u8( this->h.state.code );
-      return this->text15( this->h.state.text );
-    }
+    if ( is_set( X_HAS_STATE ) )
+      this->dec_state( this->h.state );
     return *this;
   }
   RwfMsgDecode & get_group_id( void ) {
@@ -426,10 +465,8 @@ struct RwfMsgDecode : public DecodeT<RwfMsgDecode> {
     return is_set( X_HAS_POST_USER_RIGHTS ) ? this->u15( this->h.post_rights ) : *this;
   }
   RwfMsgDecode & get_priority( void ) {
-    if ( is_set( X_HAS_PRIORITY ) ) {
-      this->u8( this->h.priority.clas );
-      return this->z16( this->h.priority.count );
-    }
+    if ( is_set( X_HAS_PRIORITY ) )
+      this->dec_priority( this->h.priority );
     return *this;
   }
   RwfMsgDecode & get_worst_qos( void ) {

@@ -84,11 +84,6 @@ enum MDEndian {
   MD_BIG    = 1  /* sparc, big first */
 };
 
-enum MDFlags {
-  MD_PRIMITIVE = 1,
-  MD_FIXED     = 2
-};
-
 /* what is endian of the cpu */
 static const MDEndian md_endian = ( is_little_endian ? MD_LITTLE : MD_BIG );
 
@@ -99,6 +94,13 @@ static inline bool is_integer( MDType t ) {
   if ( t == MD_IPDATA || t == MD_ENUM || t == MD_STAMP )
     return true;
   return false;
+}
+static inline bool is_endian_type( MDType t ) {
+  if ( t >= MD_BOOLEAN && t <= MD_REAL )
+    return true;
+  if ( t == MD_ENUM || t == MD_STAMP )
+    return true;
+  return false; /* not including complex types like decimal */
 }
 
 struct MDName {
@@ -186,7 +188,8 @@ struct MDDecimal { /* base 10 decimal */
   int parse( const char *s,  const size_t fsize ) noexcept;
   void zero( void ) { ival = 0; hint = 0; }
   int get_real( double &val ) const noexcept;
-  void degrade( int8_t new_hint ) noexcept;
+  /*void degrade( int8_t new_hint ) noexcept;*/
+  int degrade( void ) noexcept;
   void set_real( double fval ) noexcept;
   int get_decimal( const MDReference &mref ) noexcept;
   size_t get_string( char *str,  size_t len,  bool expand_fractions = true
@@ -314,11 +317,20 @@ struct MDReference {
   MDType    ftype;    /* type, MD_STRING, MD_INT, etc */
   MDEndian  fendian;  /* if machine type, the endian of the data */
   MDType    fentrytp; /* if array, the element type */
-  uint8_t   fentrysz; /* the size of each element, fsize is the entire array */
+  uint32_t  fentrysz; /* the size of each element, fsize is the entire array */
 
   MDReference() {}
   MDReference( void *fp,  size_t sz,  MDType ft, MDEndian end = md_endian ) {
     this->set( fp, sz, ft, end );
+  }
+  MDReference( void *fp,  size_t sz,  MDType ft, MDType fetp,  uint32_t fesz,
+               MDEndian end = md_endian ) {
+    this->fptr     = (uint8_t *) fp;
+    this->fsize    = sz;
+    this->ftype    = ft;
+    this->fendian  = end;
+    this->fentrytp = fetp;
+    this->fentrysz = fesz;
   }
   void zero() {
     this->set();

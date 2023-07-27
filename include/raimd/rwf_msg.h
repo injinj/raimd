@@ -7,6 +7,38 @@
 namespace rai {
 namespace md {
 
+bool rwf_type_size_to_md_type( uint8_t type,  MDType &ftype,  uint32_t &fsize ) noexcept;
+bool rwf_primitive_to_md_type( uint8_t type,  MDType &ftype ) noexcept;
+
+struct RwfFieldListSet {
+  uint16_t count,
+           set_id;
+  struct FieldEntry {
+    MDFid   fid;
+    uint8_t type;
+  } entry[ 1 ];
+  static size_t alloc_size( uint16_t count ) {
+    return sizeof( RwfFieldListSet ) +
+           sizeof( FieldEntry ) * ( count - 1 );
+  }
+  uint8_t get_fid( uint32_t idx,  MDType &ftype,  uint32_t &fsize,  MDFid &fid ) {
+    FieldEntry & e = this->entry[ idx ];
+    fid = e.fid;
+    if ( ! rwf_type_size_to_md_type( e.type, ftype, fsize ) )
+      return 0;
+    return e.type;
+  }
+};
+
+enum RwfNextKind {
+  RWF_NO_MORE          = 0,
+  RWF_NORMAL_ENTRY     = 1,
+  RWF_FIELD_DEFN_ENTRY = 2,
+  RWF_FIRST            = 4,
+  RWF_FIRST_ENTRY      = RWF_NORMAL_ENTRY | RWF_FIRST,
+  RWF_FIRST_FIELD_DEFN = RWF_FIELD_DEFN_ENTRY | RWF_FIRST
+};
+
 struct RwfFieldListHdr : public RwfBase {
   enum {
     HAS_FIELD_LIST_INFO = 1,
@@ -16,18 +48,32 @@ struct RwfFieldListHdr : public RwfBase {
   };
   uint8_t  flags, /* field list flags above */
            dict_id;
-  int16_t  flist;
+  int16_t  flist,
+           set_id;
   uint32_t field_cnt;
-  size_t   data_start;
+  RwfFieldListSet * field_set;
+
   int parse( const void *bb,  size_t off,  size_t end ) noexcept;
-  size_t iter_cnt( void ) const { return this->field_cnt; }
+  int next_kind( uint32_t field_idx ) const {
+    if ( this->field_set == NULL ) {
+      if ( field_idx >= this->field_cnt )
+        return RWF_NO_MORE;
+      return ( field_idx == 0 ? RWF_FIRST_ENTRY : RWF_NORMAL_ENTRY );
+    }
+    if ( field_idx >= this->field_cnt + this->field_set->count )
+      return RWF_NO_MORE;
+    if ( field_idx >= this->field_set->count )
+      return ( field_idx == this->field_set->count ? RWF_FIRST_ENTRY : RWF_NORMAL_ENTRY );
+    return ( field_idx == 0 ? RWF_FIRST_FIELD_DEFN : RWF_FIELD_DEFN_ENTRY );
+  }
 };
 
 enum RwfMapAction {
   MAP_NONE         = 0,
   MAP_UPDATE_ENTRY = 1,
   MAP_ADD_ENTRY    = 2,
-  MAP_DELETE_ENTRY = 3
+  MAP_DELETE_ENTRY = 3,
+  MAP_SUMMARY      = 255
 };
 struct RwfMapHdr : public RwfBase {
   enum {
@@ -44,13 +90,37 @@ struct RwfMapHdr : public RwfBase {
   uint32_t hint_cnt,     /* if has count hint */
            entry_cnt,    /* actual count encoded */
            summary_size, /* summary container size */
-           summary_start,/* start of summary */
-           data_start;   /* start of entries */
+           summary_start;/* start of summary */
   const char * key_fname; /* if key_fid is set */
   uint8_t  key_fnamelen;
   MDType   key_ftype;
   int parse( const void *bb,  size_t off,  size_t end ) noexcept;
-  size_t iter_cnt( void ) const { return this->entry_cnt + ( this->summary_size != 0 ); }
+  bool has_next( uint32_t field_idx ) const {
+    if ( field_idx >= ( this->entry_cnt + ( this->summary_size != 0 ) ) )
+      return false;
+    return true;
+  }
+};
+
+struct RwfElementListSet {
+  uint16_t count,
+           set_id;
+  struct ElemEntry {
+    char   * name;
+    uint16_t name_len;
+    uint8_t  type;
+  } entry[ 1 ];
+  static size_t alloc_size( uint16_t count ) {
+    return sizeof( RwfElementListSet ) +
+           sizeof( ElemEntry ) * ( count - 1 );
+  }
+  bool get_elem( uint32_t idx,  MDType &ftype,  uint32_t &fsize,
+                 const char *&fname,  uint16_t &fname_len ) {
+    ElemEntry & e = this->entry[ idx ];
+    fname     = e.name;
+    fname_len = e.name_len;
+    return rwf_type_size_to_md_type( e.type, ftype, fsize );
+  }
 };
 
 struct RwfElementListHdr : public RwfBase {
@@ -64,9 +134,21 @@ struct RwfElementListHdr : public RwfBase {
   uint16_t list_num,
            set_id;
   uint32_t item_cnt;
-  size_t   data_start;
+  RwfElementListSet * field_set;
+
   int parse( const void *bb,  size_t off,  size_t end ) noexcept;
-  size_t iter_cnt( void ) const { return this->item_cnt; }
+  int next_kind( uint32_t field_idx ) const {
+    if ( this->field_set == NULL ) {
+      if ( field_idx >= this->item_cnt )
+        return RWF_NO_MORE;
+      return ( field_idx == 0 ? RWF_FIRST_ENTRY : RWF_NORMAL_ENTRY );
+    }
+    if ( field_idx >= this->item_cnt + this->field_set->count )
+      return RWF_NO_MORE;
+    if ( field_idx >= this->field_set->count )
+      return ( field_idx == this->field_set->count ? RWF_FIRST_ENTRY : RWF_NORMAL_ENTRY );
+    return ( field_idx == 0 ? RWF_FIRST_FIELD_DEFN : RWF_FIELD_DEFN_ENTRY );
+  }
 };
 
 enum RwfFilterAction {
@@ -88,9 +170,12 @@ struct RwfFilterListHdr : public RwfBase {
            container_type;
   uint32_t hint_cnt,
            item_cnt;
-  size_t   data_start;
   int parse( const void *bb,  size_t off,  size_t end ) noexcept;
-  size_t iter_cnt( void ) const { return this->item_cnt; }
+  bool has_next( uint32_t field_idx ) const {
+    if ( field_idx >= this->item_cnt )
+      return false;
+    return true;
+  }
 };
 
 struct RwfSeriesHdr : public RwfBase {
@@ -105,9 +190,12 @@ struct RwfSeriesHdr : public RwfBase {
            summary_start,/* start of summary */
            hint_cnt,
            item_cnt;
-  size_t   data_start;
   int parse( const void *bb,  size_t off,  size_t end ) noexcept;
-  size_t iter_cnt( void ) const { return this->item_cnt + ( this->summary_size != 0 ); }
+  bool has_next( uint32_t field_idx ) const {
+    if ( field_idx >= ( this->item_cnt + ( this->summary_size != 0 ) ) )
+      return false;
+    return true;
+  }
 };
 
 enum RwfVectorAction {
@@ -116,7 +204,8 @@ enum RwfVectorAction {
   VECTOR_SET_ENTRY    = 2,
   VECTOR_CLEAR_ENTRY  = 3,
   VECTOR_INSERT_ENTRY = 4,
-  VECTOR_DELETE_ENTRY = 5
+  VECTOR_DELETE_ENTRY = 5,
+  VECTOR_SUMMARY      = 255
 };
 struct RwfVectorHdr : public RwfBase {
   enum {
@@ -132,9 +221,12 @@ struct RwfVectorHdr : public RwfBase {
            summary_start,
            hint_cnt,
            item_cnt;
-  size_t   data_start;
   int parse( const void *bb,  size_t off,  size_t end ) noexcept;
-  size_t iter_cnt( void ) const { return this->item_cnt + ( this->summary_size != 0 ); }
+  bool has_next( uint32_t field_idx ) const {
+    if ( field_idx >= ( this->item_cnt + ( this->summary_size != 0 ) ) )
+      return false;
+    return true;
+  }
 };
 
 static const uint32_t RWF_FIELD_LIST_TYPE_ID   = 0x25cdabca,
@@ -145,7 +237,7 @@ static const uint32_t RWF_FIELD_LIST_TYPE_ID   = 0x25cdabca,
                       RWF_VECTOR_TYPE_ID       = 0x5c8b2bf3,
                       RWF_MSG_TYPE_ID          = 0xd13463b7,
                       RWF_MSG_KEY_TYPE_ID      = 0xa5a60b23;
-
+struct MDDictBuild;
 struct RwfMsg : public MDMsg {
   union {
     RwfBase           base;
@@ -158,16 +250,24 @@ struct RwfMsg : public MDMsg {
     RwfMsgHdr         msg;
     RwfMsgKey         msg_key;
   };
+  RwfMsg * parent;
   void * operator new( size_t, void *ptr ) { return ptr; }
 
   RwfMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem &m )
-    : MDMsg( bb, off, end, d, m ) {}
+    : MDMsg( bb, off, end, d, m ), parent( 0 ) {}
 
   virtual const char *get_proto_string( void ) noexcept final;
   virtual uint32_t get_type_id( void ) noexcept final;
   virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
+  RwfMsg * unpack_sub_msg( uint8_t type,  size_t start,  size_t end ) noexcept;
+  RwfMsg * get_msg_key_attributes( void ) noexcept;
+  RwfMsg * get_container_msg( void ) noexcept;
+  RwfMsg * get_summary_msg( void ) noexcept;
   virtual int get_sub_msg( MDReference &mref,  MDMsg *&msg,
                            MDFieldIter *iter ) noexcept final;
+  bool get_field_defn_db( void ) noexcept;
+  virtual int get_array_ref( MDReference &mref, size_t i,
+                             MDReference &aref ) noexcept;
   static bool is_rwf_field_list( void *bb,  size_t off,  size_t end,
                                  uint32_t h ) noexcept;
   static bool is_rwf_map( void *bb,  size_t off,  size_t end,
@@ -202,6 +302,10 @@ struct RwfMsg : public MDMsg {
   static RwfMsg *unpack_msg_key( void *bb,  size_t off,  size_t end,
                                  uint32_t h,  MDDict *d,  MDMsgMem &m ) noexcept;
   static void init_auto_unpack( void ) noexcept;
+  static int decode_field_dictionary( MDDictBuild &dict_build,
+                                      RwfMsg &series ) noexcept;
+  static int decode_enum_dictionary( MDDictBuild &dict_build,
+                                     RwfMsg &series ) noexcept;
 };
 
 struct RwfMapIter {
@@ -210,6 +314,9 @@ struct RwfMapIter {
   uint16_t     keylen;
   void       * key;
   RwfPerm      perm;
+};
+struct RwfSeriesIter {
+  bool is_summary;
 };
 struct RwfVectorIter {
   uint8_t         flags;
@@ -228,6 +335,7 @@ struct RwfFieldListIter {
   MDFid        fid;
   const char * fname;
   uint16_t     fnamelen;
+  uint8_t      rwf_type;
 };
 struct RwfElementListIter {
   uint8_t      type;
@@ -287,6 +395,7 @@ struct RwfFieldIter : public MDFieldIter {
   union {
     RwfFieldListIter   field;
     RwfMapIter         map;
+    RwfSeriesIter      series;
     RwfFilterListIter  flist;
     RwfElementListIter elist;
     RwfVectorIter      vector;
@@ -307,6 +416,7 @@ struct RwfFieldIter : public MDFieldIter {
   virtual int get_name( MDName &name ) noexcept final;
   virtual int get_enum( MDReference &mref,  MDEnum &enu ) noexcept final;
   virtual int get_reference( MDReference &mref ) noexcept final;
+  int get_real_ref( MDReference &mref ) noexcept;
   int decode_ref( MDReference &mref ) noexcept;
   virtual int get_hint_reference( MDReference &mref ) noexcept final;
   virtual int find( const char *name, size_t name_len,
@@ -314,9 +424,11 @@ struct RwfFieldIter : public MDFieldIter {
   virtual int first( void ) noexcept final;
   virtual int next( void ) noexcept final;
   int unpack_field_list_entry( void ) noexcept;
+  int unpack_field_list_defn( void ) noexcept;
   int unpack_map_entry( void ) noexcept;
   int unpack_filter_list_entry( void ) noexcept;
   int unpack_element_list_entry( void ) noexcept;
+  int unpack_element_list_defn( void ) noexcept;
   int unpack_series_entry( void ) noexcept;
   int unpack_vector_entry( void ) noexcept;
   int unpack_message_entry( void ) noexcept;
@@ -325,6 +437,7 @@ struct RwfFieldIter : public MDFieldIter {
 
 int8_t rwf_to_md_decimal_hint( uint8_t hint ) noexcept;
 uint8_t md_to_rwf_decimal_hint( int8_t hint ) noexcept;
+uint8_t md_type_to_rwf_primitive_type( MDType type ) noexcept;
 
 }
 } // namespace rai

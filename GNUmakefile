@@ -155,8 +155,8 @@ all_depends :=
 md_msg_defines := -DMD_VER=$(ver_build)
 $(objd)/md_msg.o : .copr/Makefile
 $(objd)/md_msg.fpic.o : .copr/Makefile
-libraimd_files := md_msg md_field_iter json json_msg rv_msg tib_msg \
-                  tib_sass_msg mf_msg rwf_msg rwf_writer md_dict cfile \
+libraimd_files := md_msg md_field_iter md_iter_map json json_msg rv_msg tib_msg \
+                  tib_sass_msg mf_msg rwf_msg rwf_writer rwf_dict md_dict cfile \
 		  app_a enum_def decimal md_list md_hash md_set md_zset \
 		  md_geo md_hll md_stream glue
 libraimd_cfile := $(addprefix src/, $(addsuffix .cpp, $(libraimd_files)))
@@ -348,8 +348,8 @@ test_rwf_files := test_rwf
 test_rwf_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_rwf_files)))
 test_rwf_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_rwf_files)))
 test_rwf_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_rwf_files)))
-test_rwf_libs  := $(raimd_dlib)
-test_rwf_lnk   := $(raimd_dlnk)
+test_rwf_libs  := $(raimd_lib)
+test_rwf_lnk   := $(lnk_lib)
 
 $(bind)/test_rwf$(exe): $(test_rwf_objs) $(test_rwf_libs)
 all_exes += $(bind)/test_rwf$(exe)
