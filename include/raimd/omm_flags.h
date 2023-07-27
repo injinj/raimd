@@ -81,46 +81,81 @@ enum RdmDomainType { /* always included in *_MSG_CLASS */
 extern const char *rdm_domain_str[ RDM_DOMAIN_COUNT ];
 #else
 const char *rdm_domain_str[ RDM_DOMAIN_COUNT ] = {
-  "no",
-  "login",
-  "rsvd_2",
-  "rsvd_3",
-  "source",
-  "dictionary",
-  "market_price",
-  "market_by_order",
-  "market_by_price",
-  "market_maker",
-  "symbol_list",
-  "service_provider_status",
-  "history",
-  "headline",
-  "story",
-  "replayheadline",
-  "replaystory",
-  "transaction",
-  "rsvd_18",
-  "rsvd_19",
-  "rsvd_20",
-  "rsvd_21",
-  "yield_curve",
-  "rsvd_23",
-  "rsvd_24",
-  "rsvd_25",
-  "rsvd_26",
-  "contribution",
-  "rsvd_28",
-  "provider_admin",
-  "analytics",
-  "reference",
-  "rsvd_32",
-  "news_text_analytics",
-  "economic_indicator",
-  "poll",
-  "forecast",
-  "market_by_time"
+/*0 */ "no",
+/*1 */ "login",
+/*2 */ "rsvd_2",
+/*3 */ "rsvd_3",
+/*4 */ "source",
+/*5 */ "dictionary",
+/*6 */ "market_price",
+/*7 */ "market_by_order",
+/*8 */ "market_by_price",
+/*9 */ "market_maker",
+/*10*/ "symbol_list",
+/*11*/ "service_provider_status",
+/*12*/ "history",
+/*13*/ "headline",
+/*14*/ "story",
+/*15*/ "replayheadline",
+/*16*/ "replaystory",
+/*17*/ "transaction",
+/*18*/ "rsvd_18",
+/*19*/ "rsvd_19",
+/*20*/ "rsvd_20",
+/*21*/ "rsvd_21",
+/*22*/ "yield_curve",
+/*23*/ "rsvd_23",
+/*24*/ "rsvd_24",
+/*25*/ "rsvd_25",
+/*26*/ "rsvd_26",
+/*27*/ "contribution",
+/*28*/ "rsvd_28",
+/*29*/ "provider_admin",
+/*30*/ "analytics",
+/*31*/ "reference",
+/*32*/ "rsvd_32",
+/*33*/ "news_text_analytics",
+/*34*/ "economic_indicator",
+/*35*/ "poll",
+/*36*/ "forecast",
+/*37*/ "market_by_time"
 };
 #endif
+
+enum RdmDirSvcInfoId {
+  DIR_SVC_INFO_ID       = 1,
+  DIR_SVC_STATE_ID      = 2,
+  DIR_SVC_GROUP_ID      = 3,
+  DIR_SVC_LOAD_ID       = 4,
+  DIR_SVC_DATA_ID       = 5,
+  DIR_SVC_LINK_ID       = 6,
+  DIR_SVC_SEQ_MCAST_ID  = 7,
+};
+#define rdm_svc_filter( id ) ( 1U << ( (int) id - 1 ) )
+enum RdmDirSvcFilterFlags {
+  DIR_SVC_INFO_FILTER       = rdm_svc_filter( DIR_SVC_INFO_ID ),  /* source info */
+  DIR_SVC_STATE_FILTER      = rdm_svc_filter( DIR_SVC_STATE_ID ), /* svc state */
+  DIR_SVC_GROUP_FILTER      = rdm_svc_filter( DIR_SVC_GROUP_ID ), /* group info */
+  DIR_SVC_LOAD_FILTER       = rdm_svc_filter( DIR_SVC_LOAD_ID ),  /* load info */
+  DIR_SVC_DATA_FILTER       = rdm_svc_filter( DIR_SVC_DATA_ID ),  /* data info */
+  DIR_SVC_LINK_FILTER       = rdm_svc_filter( DIR_SVC_LINK_ID ),  /* link state */
+  DIR_SVC_SEQ_MCAST_FILTER  = rdm_svc_filter( DIR_SVC_SEQ_MCAST_ID ), /* mcast nfo*/
+  DIR_SVC_ALL_FILTERS       = 0x7f
+};
+
+enum RdmNameType { /* msg key name type values */
+  NAME_TYPE_UNSPEC  = 0,
+  NAME_TYPE_RIC     = 1,
+  NAME_TYPE_CONTRIB = 2
+};
+
+enum RdmLoginType { /* login user name type values */
+  NAME_TYPE_USER_NAME  = 1,
+  NAME_TYPE_EMAIL_ADDR = 2,
+  NAME_TYPE_USER_TOKEN = 3,
+  NAME_TYPE_COOKIE     = 4,
+  NAME_TYPE_AUTHN      = 5
+};
 
 enum RdmUpdateType { /* always in UPDATE_MSG_CLASS */
   UPD_TYPE_UNSPECIFIED      = 0,
@@ -241,6 +276,104 @@ const char *rdm_data_state_str[ RDM_DATA_STATE_COUNT ] = {
   "suspect"
 };
 #endif
+
+enum RdmStatusCode {
+  STATUS_CODE_NONE                         = 0,
+  STATUS_CODE_NOT_FOUND                    = 1,
+  STATUS_CODE_TIMEOUT                      = 2,
+  STATUS_CODE_NOT_ENTITLED                 = 3,
+  STATUS_CODE_INVALID_ARGUMENT             = 4,
+  STATUS_CODE_USAGE_ERROR                  = 5,
+  STATUS_CODE_PREEMPTED                    = 6,
+  STATUS_CODE_JIT_CONFLATION_STARTED       = 7,
+  STATUS_CODE_REALTIME_RESUMED             = 8,
+  STATUS_CODE_FAILOVER_STARTED             = 9,
+  STATUS_CODE_FAILOVER_COMPLETED           = 10,
+  STATUS_CODE_GAP_DETECTED                 = 11,
+  STATUS_CODE_NO_RESOURCES                 = 12,
+  STATUS_CODE_TOO_MANY_ITEMS               = 13,
+  STATUS_CODE_ALREADY_OPEN                 = 14,
+  STATUS_CODE_SOURCE_UNKNOWN               = 15,
+  STATUS_CODE_NOT_OPEN                     = 16,
+  STATUS_CODE_RSVD_17                      = 17,
+  STATUS_CODE_RSVD_18                      = 18,
+  STATUS_CODE_NON_UPDATING_ITEM            = 19,
+  STATUS_CODE_UNSUPPORTED_VIEW_TYPE        = 20,
+  STATUS_CODE_INVALID_VIEW                 = 21,
+  STATUS_CODE_FULL_VIEW_PROVIDED           = 22,
+  STATUS_CODE_UNABLE_TO_REQUEST_AS_BATCH   = 23,
+  STATUS_CODE_RSVD_24                      = 24,
+  STATUS_CODE_RSVD_25                      = 25,
+  STATUS_CODE_NO_BATCH_VIEW_SUPPORT_IN_REQ = 26,
+  STATUS_CODE_EXCEEDED_MAX_MOUNTS_PER_USER = 27,
+  STATUS_CODE_ERROR                        = 28,
+  STATUS_CODE_DACS_DOWN                    = 29,
+  STATUS_CODE_USER_UNKNOWN_TO_PERM_SYS     = 30,
+  STATUS_CODE_DACS_MAX_LOGINS_REACHED      = 31,
+  STATUS_CODE_DACS_USER_ACCESS_DENIED      = 32,
+  STATUS_CODE_RSVD_33                      = 33,
+  STATUS_CODE_GAP_FILL                     = 34,
+  STATUS_CODE_APP_AUTHORIZATION_FAILED     = 35
+};
+#define RDM_STATUS_CODE_COUNT 36
+#ifndef DEFINE_RWF_MSG_DECODER
+extern const char *rdm_status_code_str[ RDM_STATUS_CODE_COUNT ];
+#else
+const char *rdm_status_code_str[ RDM_STATUS_CODE_COUNT ] = {
+/* 0 */ "No state code",
+/* 1 */ "Not found",
+/* 2 */ "Timeout",
+/* 3 */ "Not entitled",
+/* 4 */ "Invalid argument",
+/* 5 */ "Usage error",
+/* 6 */ "Preempted",
+/* 7 */ "Conflation started",
+/* 8 */ "Realtime resumed",
+/* 9 */ "Failover started",
+/* 10*/ "Failover completed",
+/* 11*/ "Gap detected",
+/* 12*/ "No resources",
+/* 13*/ "Too many items open",
+/* 14*/ "Item already open",
+/* 15*/ "Unknown source",
+/* 16*/ "Not open",
+/* 17*/ "Rsvd 17",
+/* 18*/ "Rsvd 18",
+/* 19*/ "Item was requested as streaming but does not update",
+/* 20*/ "View Type requested is not supported for this domain",
+/* 21*/ "An invalid view was requested",
+/* 22*/ "Although a view was requested, the full view is being provided",
+/* 23*/ "Although a batch of items were requested, the batch was split into individual request messages",
+/* 24*/ "Rsvd 24",
+/* 25*/ "Rsvd 25",
+/* 26*/ "Request does not support batch and view",
+/* 27*/ "Login rejected, exceeded maximum number of mounts per user",
+/* 28*/ "Internal error from sender",
+/* 29*/ "Connection to DACS down",
+/* 30*/ "User unknown to permissioning system",
+/* 31*/ "Maximum logins reached.",
+/* 32*/ "Access Denied",
+/* 33*/ "Rsvd 33",
+/* 34*/ "Content fill a recognized gap",
+/* 35*/ "Authorization failed"
+};
+#endif
+
+enum RdmLinkType {
+  LINK_INTERACTIVE = 1,
+  LINK_BROADCAST   = 2
+};
+
+enum RdmLinkState {
+  LINK_DOWN = 0,
+  LINK_UP   = 1
+};
+
+enum RdmLinkCode {
+  LINK_OK               = 1,
+  LINK_RECOVER_START    = 2,
+  LINK_RECOVER_COMPLETE = 3
+};
 
 enum RwfMsgSerial {
   X_ACK_FLAG              = 0,  /* Close, Post flags */

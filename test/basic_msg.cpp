@@ -121,13 +121,21 @@ main( int argc, char **argv )
   mem.reuse();
 
   MDDecimal dec;
-  dec.ival = 10001;
-  dec.hint = MD_DEC_LOGn10_3;
-  m = MDMsg::unpack( &dec, 0, sizeof( dec ), MD_DECIMAL, NULL, mem );
-  printf( "Decimal test (10.001):\n" );
-  if ( m != NULL )
-    m->print( &mout );
-  mem.reuse();
+  dec.ival = 1001010101;
+  dec.hint = MD_DEC_LOGn10_6;
+  for ( i = 0; i < 10; i++ ) {
+    char str[ 16 ];
+    size_t n;
+    m = MDMsg::unpack( &dec, 0, sizeof( dec ), MD_DECIMAL, NULL, mem );
+    n = dec.get_string( str, sizeof( str ) );
+    str[ n ] = '\0';
+    printf( "Decimal test (%s): degrade %u (%ld hint %d)\n", str, i, dec.ival,
+            dec.hint );
+    if ( m != NULL )
+      m->print( &mout );
+    dec.degrade();
+    mem.reuse();
+  }
 
   static char date1[] = "01/10/21";
   m = MDMsg::unpack( date1, 0, sizeof( date1 ), MD_STRING, NULL, mem );

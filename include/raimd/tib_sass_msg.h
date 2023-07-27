@@ -9,6 +9,11 @@ namespace md {
 static const uint32_t TIB_SASS_TYPE_ID      = 0x179ca0f5,
                       TIB_SASS_FORM_TYPE_ID = 0xa08b0040;
 
+enum MDSassDictFlags {
+  MD_PRIMITIVE = 1,
+  MD_FIXED     = 2
+};
+
 struct TibSassMsg : public MDMsg {
   /* used by UnPack() to alloc in MDMsgMem */
   void * operator new( size_t, void *ptr ) { return ptr; }

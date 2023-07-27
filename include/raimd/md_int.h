@@ -545,6 +545,29 @@ get_u30_prefix( const uint8_t *buf,  const uint8_t *end,  Int &sz )
   }
   return 0;
 }
+static inline size_t
+get_n32_prefix_len( const uint8_t *buf,  const uint8_t *end )
+{
+  if ( &buf[ 1 ] <= end ) {
+    if ( buf[ 0 ] == 0x20 )
+      return 1;
+    if ( ( buf[ 0 ] & 0xC0 ) == 0 )
+      return 2;
+    if ( ( buf[ 0 ] & 0xC0 ) == 0x40 )
+      return 3;
+    if ( ( buf[ 0 ] & 0xC0 ) == 0x80 )
+      return 4;
+    return 5;
+  }
+  return 0;
+}
+static inline size_t
+get_n64_prefix_len( const uint8_t *buf,  const uint8_t *end )
+{
+  size_t n = get_n32_prefix_len( buf, end );
+  if ( n > 1 ) n = n * 2 - 1;
+  return n;
+}
 template <class Int>
 static inline size_t
 get_u15_prefix_len( Int sz )

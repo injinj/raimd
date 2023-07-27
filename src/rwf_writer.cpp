@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <math.h>
 #include <raimd/rwf_msg.h>
 #include <raimd/md_dict.h>
 #include <raimd/app_a.h>
@@ -24,7 +23,7 @@ RwfMsgWriterBase::append_base( RwfMsgWriterBase &base,  int bits,
                                size_t *sz_ptr ) noexcept
 {
   size_t len_bytes = ( bits == 0 ? 0 : bits == 15 ? 2 : 3 );
-  if ( ! this->has_space( this->off + base.off + len_bytes ) )
+  if ( ! this->has_space( len_bytes ) )
     this->error( Err::NO_SPACE );
   if ( this->err != 0 ) {
     base.is_complete = true;
@@ -57,13 +56,15 @@ RwfMsgWriterHdr::update_len( RwfMsgWriterBase &base ) noexcept
     }
   }
   if ( base.size_ptr != NULL )
-    *base.size_ptr = len + len_bytes;
+    base.size_ptr[ 0 ] += len + len_bytes;
 }
 
 bool
 RwfMsgWriterBase::resize( size_t len ) noexcept
 {
   static const size_t max_size = 0x3fffffff; /* 1 << 30 - 1 == 1073741823 */
+  if ( this->is_complete || this->err != 0 )
+    return false;
   RwfMsgWriterBase *p = this;
   for ( ; p->parent != NULL; p = p->parent )
     ;
@@ -100,9 +101,11 @@ RwfMsgWriterBase::resize( size_t len ) noexcept
 int
 RwfMsgWriterBase::error( int e ) noexcept
 {
+  if ( this->err == 0 )
+    this->err = e;
   if ( this->parent != NULL )
     return this->parent->error( e );
-  return this->err = e;
+  return e;
 }
 
 size_t
@@ -177,19 +180,24 @@ RwfMsgWriterBase::make_child( void ) noexcept
 void
 RwfMsgWriter::reset( void ) noexcept
 {
+  static uint16_t zero = 0;
   this->RwfMsgWriterBase::reset( 0, 64 );
 
   uint8_t *start = (uint8_t *) (void *) &this->msg_flags,
           *end   = (uint8_t *) (void *) &this[ 1 ];
   ::memset( start, 0, end - start );
 
-  this->flags          = rwf_msg_always_present[ this->msg_class ];
-  this->msg_key_off    = 0;
-  this->msg_key_size   = 0;
-  this->container_off  = 0;
-  this->container_size = 0;
-  this->header_size    = 0;
-  this->container_type = RWF_CONTAINER_BASE;
+  this->flags              = rwf_msg_always_present[ this->msg_class ];
+  this->msg_key_off        = 0;
+  this->msg_key_size       = 0;
+  this->container_off      = 0;
+  this->container_size     = 0;
+  this->header_size        = 0;
+  this->container_type     = RWF_CONTAINER_BASE;
+  this->state.data_state   = DATA_STATE_OK;    /* always in refresh */
+  this->state.stream_state = STREAM_STATE_OPEN;
+  this->group_id.buf       = &zero;            /* always in refresh */
+  this->group_id.len       = sizeof( zero );
 }
 
 size_t
@@ -384,7 +392,7 @@ RwfMsgWriter::update_hdr( void ) noexcept
     default: break;
   }
   if ( af != 0 ) {
-    hdr.set( this->header_size - af );
+    hdr.seek( this->header_size - af );
     switch ( this->msg_class ) {
       case REQUEST_MSG_CLASS:
         /*this->size_extended( sz )*/
@@ -494,10 +502,20 @@ RwfMsgKeyWriter::update_hdr( void ) noexcept
 }
 
 RwfMsgKeyWriter &
+RwfMsgKeyWriter::order_error( int fl ) noexcept
+{
+  fprintf( stderr, "msg_key field %s added out of order\n",
+           rwf_msg_serial_str[ fl ] );
+  return this->set_error( Err::BAD_FIELD );
+}
+
+RwfMsgKeyWriter &
 RwfMsgKeyWriter::service_id( uint16_t service_id ) noexcept
 {
   if ( ! this->has_space( 2 ) )
     return this->set_error( Err::NO_SPACE );
+  if ( this->key_flags != 0 )
+    return this->order_error( X_HAS_SERVICE_ID );
   this->key_flags |= RwfMsgKey::HAS_SERVICE_ID;
   this->z16( service_id );
   return *this;
@@ -508,6 +526,8 @@ RwfMsgKeyWriter::name( const char *nm,  size_t nm_size ) noexcept
 {
   if ( ! this->has_space( nm_size + 1 ) )
     return this->set_error( Err::NO_SPACE );
+  if ( ( this->key_flags & ~( RwfMsgKey::HAS_NAME - 1 ) ) != 0 )
+    return this->order_error( X_HAS_NAME );
   this->key_flags |= RwfMsgKey::HAS_NAME;
   this->u8( nm_size )
        .b ( nm, nm_size );
@@ -519,6 +539,8 @@ RwfMsgKeyWriter::name_type( uint8_t name_type ) noexcept
 {
   if ( ! this->has_space( 1 ) )
     return this->set_error( Err::NO_SPACE );
+  if ( ( this->key_flags & ~( RwfMsgKey::HAS_NAME_TYPE - 1 ) ) != 0 )
+    return this->order_error( X_HAS_NAME_TYPE );
   this->key_flags |= RwfMsgKey::HAS_NAME_TYPE;
   this->u8( name_type );
   return *this;
@@ -529,6 +551,8 @@ RwfMsgKeyWriter::filter( uint32_t filter ) noexcept
 {
   if ( ! this->has_space( 4 ) )
     return this->set_error( Err::NO_SPACE );
+  if ( ( this->key_flags & ~( RwfMsgKey::HAS_FILTER - 1 ) ) != 0 )
+    return this->order_error( X_HAS_FILTER );
   this->key_flags |= RwfMsgKey::HAS_FILTER;
   this->u32( filter );
   return *this;
@@ -539,6 +563,8 @@ RwfMsgKeyWriter::identifier( uint32_t id ) noexcept
 {
   if ( ! this->has_space( 4 ) )
     return this->set_error( Err::NO_SPACE );
+  if ( ( this->key_flags & ~( RwfMsgKey::HAS_IDENTIFIER - 1 ) ) != 0 )
+    return this->order_error( X_HAS_IDENTIFIER );
   this->key_flags |= RwfMsgKey::HAS_IDENTIFIER;
   this->u32( id );
   return *this;
@@ -551,6 +577,8 @@ RwfMsgKeyWriter::attrib( void ) noexcept
     new ( this->make_child() )
       RwfElementListWriter( this->mem, this->dict, NULL, 0 );
     
+  if ( ( this->key_flags & ~( RwfMsgKey::HAS_ATTRIB - 1 )) != 0 )
+    this->order_error( X_HAS_ATTRIB );
   if ( this->has_space( 1 ) ) {
     this->key_flags |= RwfMsgKey::HAS_ATTRIB;
     this->u8( RWF_ELEMENT_LIST - RWF_CONTAINER_BASE );
@@ -559,10 +587,430 @@ RwfMsgKeyWriter::attrib( void ) noexcept
   return *elem_list;
 }
 
+RwfFieldDefnWriter &
+RwfFieldDefnWriter::add_defn( uint16_t id,  RwfFieldSetKind k ) noexcept
+{
+  if ( this->set != NULL )
+    this->end_defn();
+  this->parent.mem.alloc( sizeof( RwfFieldSetList ), &this->set );
+  this->set->init( id, k );
+  return *this;
+}
+
+RwfFieldDefnWriter &
+RwfFieldDefnWriter::end_defn( void ) noexcept
+{
+  if ( this->tl != NULL )
+    this->tl->next = this->set;
+  else
+    this->hd = this->set;
+  this->tl  = this->set;
+  this->set->next = NULL;
+  this->set = NULL;
+  this->num_sets++;
+  return *this;
+}
+
+void
+RwfFieldDefnWriter::end_field_defn( void ) noexcept
+{
+  if ( this->set != NULL )
+    this->end_defn();
+
+  size_t sz = 2; /* flags:u8 + num_sets:u8 */
+  for ( RwfFieldSetList *p = this->hd; p != NULL; p = p->next )
+    sz += p->size(); /* set_id:u15 + set_arity:u8 <defn> */
+
+  RwfMsgWriterBase & hdr = this->parent;
+  hdr.off = this->hdr_off;
+  hdr.u16( 0x8000 | sz )
+     .u8( 0 )
+     .u8( this->num_sets );
+  for ( RwfFieldSetList *p = this->hd; p != NULL; p = p->next )
+    p->encode( hdr );
+
+  if ( hdr.type == W_SERIES )
+    ((RwfSeriesWriter &) hdr).field_defn_size = sz + 2; /* 2 for size */
+  else if ( hdr.type == W_MAP )
+    ((RwfMapWriter &) hdr).field_defn_size = sz + 2; /* 2 for size */
+  else if ( hdr.type == W_VECTOR )
+    ((RwfVectorWriter &) hdr).field_defn_size = sz + 2; /* 2 for size */
+}
+
+RwfFieldDefnWriter &
+RwfFieldDefnWriter::append_defn( const char *fname,  uint8_t rwf_type ) noexcept
+{
+  RwfFieldSetList * p = this->set;
+  size_t oldsz, newsz;
+
+  if ( p->kind != DEFN_IS_ELEM_LIST ) {
+    MDLookup by( fname, ::strlen( fname ) );
+    if ( this->parent.dict == NULL || ! this->parent.dict->get( by ) )
+      this->parent.error( Err::UNKNOWN_FID );
+    else {
+      oldsz = sizeof( RwfFieldSetList ) +
+              sizeof( RwfFieldListSet::FieldEntry ) * p->fld_list_defn.count,
+      newsz = oldsz + sizeof( RwfFieldListSet::FieldEntry );
+      this->parent.mem.extend( oldsz, newsz, &p );
+      p->add( by.fid, rwf_type );
+    }
+  }
+  else {
+    oldsz = sizeof( RwfFieldSetList ) +
+            sizeof( RwfElementListSet::ElemEntry ) * p->elem_list_defn.count,
+    newsz = oldsz + sizeof( RwfElementListSet::ElemEntry );
+    this->parent.mem.extend( oldsz, newsz, &p );
+    p->add( fname, rwf_type );
+  }
+  return *this;
+}
+
+void
+RwfFieldSetList::init( uint16_t id,  RwfFieldSetKind k ) noexcept
+{
+  this->next = NULL;
+  this->kind = k;
+  if ( k == DEFN_IS_FIELD_LIST ) {
+    this->fld_list_defn.count  = 0;
+    this->fld_list_defn.set_id = id;
+  }
+  else {
+    this->elem_list_defn.count  = 0;
+    this->elem_list_defn.set_id = id;
+  }
+}
+
+void
+RwfFieldSetList::add( const char *fname,  uint8_t rwf_type ) noexcept
+{
+  uint32_t i = this->elem_list_defn.count++;
+  this->elem_list_defn.entry[ i ].name     = (char *) fname;
+  this->elem_list_defn.entry[ i ].name_len = ::strlen( fname );
+  this->elem_list_defn.entry[ i ].type     = rwf_type;
+}
+
+void
+RwfFieldSetList::add( uint16_t fid,  uint8_t rwf_type ) noexcept
+{
+  uint32_t i = this->fld_list_defn.count++;
+  this->fld_list_defn.entry[ i ].fid  = fid;
+  this->fld_list_defn.entry[ i ].type = rwf_type;
+}
+
+size_t
+RwfFieldSetList::size( void ) noexcept
+{
+  size_t sz = 3; /* set_id:u15 + set_arity:u8 <defn> */
+  if ( this->kind == DEFN_IS_FIELD_LIST ) {
+    sz += this->fld_list_defn.count * ( 2 + 1 ); /* fid:u16 type:u8 */
+  }
+  else {
+    for ( uint32_t i = 0; i < this->elem_list_defn.count; i++ ) {
+      uint16_t len = this->elem_list_defn.entry[ i ].name_len;
+      sz += len + get_u15_prefix_len( len ) + 1; /* name:u15 type:u8 */
+    }
+  }
+  return sz;
+}
+
+void
+RwfFieldSetList::encode( RwfMsgWriterBase &hdr ) noexcept
+{
+  uint32_t i;
+  if ( this->kind == DEFN_IS_FIELD_LIST ) {
+    hdr.u16( 0x8000 | this->fld_list_defn.set_id )
+       .u8( this->fld_list_defn.count );
+    for ( i = 0; i < this->fld_list_defn.count; i++ ) {
+      hdr.u16( this->fld_list_defn.entry[ i ].fid )
+         .u8 ( this->fld_list_defn.entry[ i ].type );
+    }
+  }
+  else {
+    hdr.u16( 0x8000 | this->elem_list_defn.set_id )
+       .u8( this->elem_list_defn.count );
+    for ( i = 0; i < this->elem_list_defn.count; i++ ) {
+      uint16_t len = this->elem_list_defn.entry[ i ].name_len;
+      hdr.u15( len )
+         .b  ( this->elem_list_defn.entry[ i ].name, len )
+         .u8 ( this->elem_list_defn.entry[ i ].type );
+    }
+  }
+}
+
+int
+RwfMsgWriterBase::pack_mref( uint8_t type,  MDReference &mref ) noexcept
+{
+  MDValue val;
+  char    tmp_buf[ 64 ];
+  size_t  tmp_size = rwf_fixed_size( (RWF_type) type );
+  int     status = 0;
+
+  if ( ! this->has_space( tmp_size ) )
+    return Err::NO_SPACE;
+
+  switch ( type ) {
+    case RWF_ASCII_STRING:
+    case RWF_UTF8_STRING:
+    case RWF_RMTES_STRING:
+      if ( mref.ftype != MD_STRING && mref.ftype != MD_OPAQUE ) {
+        tmp_size = sizeof( tmp_buf );
+        val.str  = tmp_buf;
+        status   = to_string( mref, tmp_buf, tmp_size );
+      }
+      else {
+        tmp_size = mref.fsize;
+        val.str  = (char *) mref.fptr;
+      }
+      if ( status == 0 ) {
+        if ( ! this->has_space( get_u15_prefix_len( tmp_size ) + tmp_size ) )
+          status = Err::NO_SPACE;
+        else {
+          this->u15( tmp_size )
+               .b( val.str, tmp_size );
+        }
+      }
+      break;
+    case RWF_INT_1:
+      if ( (status = cvt_number( mref, val.i8 )) == 0 )
+        this->u8( val.i8 );
+      break;
+    case RWF_UINT_1:
+      if ( (status = cvt_number( mref, val.u8 )) == 0 )
+        this->u8( val.u8 );
+      break;
+    case RWF_INT_2:
+      if ( (status = cvt_number( mref, val.i16 )) == 0 )
+        this->u16( val.i16 );
+      break;
+    case RWF_UINT_2:
+      if ( (status = cvt_number( mref, val.u16 )) == 0 )
+        this->u16( val.u16 );
+      break;
+    case RWF_INT_4:
+      if ( (status = cvt_number( mref, val.i32 )) == 0 )
+        this->u32( val.i32 );
+      break;
+    case RWF_UINT_4:
+      if ( (status = cvt_number( mref, val.u32 )) == 0 )
+        this->u32( val.u32 );
+      break;
+    case RWF_INT_8:
+      if ( (status = cvt_number( mref, val.i64 )) == 0 )
+        this->u64( val.i64 );
+      break;
+    case RWF_UINT_8:
+      if ( (status = cvt_number( mref, val.u64 )) == 0 )
+        this->u64( val.u64 );
+      break;
+    case RWF_FLOAT_4:
+      if ( (status = cvt_number( mref, val.f32 )) == 0 )
+        this->f32( val.f32 );
+      break;
+    case RWF_DOUBLE_8:
+      if ( (status = cvt_number( mref, val.f64 )) == 0 )
+        this->f64( val.f64 );
+      break;
+    case RWF_REAL:
+    case RWF_REAL_4RB:
+    case RWF_REAL_8RB: {
+      MDDecimal dec;
+      if ( (status = dec.get_decimal( mref )) != 0 )
+        break;
+      tmp_size = 1;
+      if ( dec.hint > MD_DEC_NULL || dec.hint < MD_DEC_NNAN ) {
+        tmp_size += int_size( dec.ival );
+
+        if ( type == RWF_REAL_4RB ) { /* 1, 2, 3, 4, 5 */
+          if ( tmp_size > 5 ) {
+            while ( dec.ival > (int64_t) (uint64_t) 0xffffffffU )
+              dec.degrade();
+            tmp_size = 5;
+          }
+        }
+        else if ( type == RWF_REAL_8RB ) {
+          if ( ( tmp_size & 1 ) == 0 ) /* 1, 3, 5, 7, 9 */
+            tmp_size++;
+        }
+      }
+      if ( ! this->has_space( tmp_size ) ) {
+        status = Err::NO_SPACE;
+        break;
+      }
+      uint8_t rwf_hint = md_to_rwf_decimal_hint( dec.hint );
+      if ( type == RWF_REAL ) {
+        this->u8( tmp_size )
+             .u8( rwf_hint );
+        if ( tmp_size > 1 )
+          this->i( dec.ival, tmp_size - 1 );
+        break;
+      }
+      if ( --tmp_size == 0 )
+        this->u8( 0x20 );
+      else {
+        static const uint8_t n32_prefix[] = { 0, 0, 0x40, 0x80, 0xC0 };
+        uint8_t prefix = type == RWF_REAL_4RB ?
+                         n32_prefix[ tmp_size ] : n32_prefix[ tmp_size / 2 ];
+        this->u8( prefix | rwf_hint ).i( dec.ival, tmp_size );
+      }
+      break;
+    }
+    case RWF_ARRAY: {
+      size_t len = mref.fsize + 4 + get_fe_prefix_len( mref.fsize + 4 );
+      if ( ! this->has_space( len ) )
+        return Err::NO_SPACE;
+      this->z16( mref.fsize + 4 )
+           .u8 ( md_type_to_rwf_primitive_type( mref.fentrytp ) )
+           .u8 ( mref.fentrysz )
+           .u16( mref.fsize / mref.fentrysz )
+           .b  ( mref.fptr, mref.fsize );
+
+      if ( mref.fendian != MD_BIG && mref.fentrysz > 1 &&
+           is_endian_type( mref.fentrytp ) ) {
+        size_t end = this->off,
+               i   = end - mref.fsize;
+        for ( ; i < end; i += mref.fentrysz )
+          this->uN2( &this->buf[ i ], mref.fentrysz, &this->buf[ i ] );
+      }
+      break;
+    }
+    case RWF_DATE_4: {
+      MDDate date;
+      if ( (status = date.get_date( mref )) != 0 )
+        break;
+      if ( ! this->has_space( 4 ) )
+        return Err::NO_SPACE;
+      this->u8( date.day )
+           .u8( date.mon )
+           .u16( date.year );
+      break;
+    }
+    case RWF_TIME_3:
+    case RWF_TIME_5:
+    case RWF_TIME_7:
+    case RWF_TIME_8: {
+      MDTime time;
+      if ( (status = time.get_time( mref )) != 0 )
+        break;
+      if ( time.is_null() ) {
+        time.hour     = 0xff;
+        time.minute   = 0xff;
+        time.sec      = 0xff;
+        time.fraction = 0;
+      }
+      this->u8( time.hour )
+           .u8( time.minute )
+           .u8( time.sec );
+
+      if ( type != RWF_TIME_3 ) {
+        uint16_t ms = 0, us = 0, ns = 0;
+        if ( time.resolution == MD_RES_MILLISECS )
+          ms = (uint16_t) time.fraction;
+        else if ( time.resolution == MD_RES_MICROSECS ) {
+          us = (uint16_t) ( time.fraction % 1000 );
+          ms = (uint16_t) ( time.fraction / 1000 );
+        }
+        else if ( time.resolution == MD_RES_NANOSECS ) {
+          ns = (uint16_t) ( time.fraction % 1000 );
+          us = (uint16_t) ( ( time.fraction / 1000 ) % 1000 );
+          ms = (uint16_t) ( time.fraction / 1000000 );
+        }
+        if ( type == RWF_TIME_5 )
+          this->u16( ms );
+        else if ( type == RWF_TIME_7 )
+          this->u16( ms )
+               .u16( us );
+        else if ( type == RWF_TIME_8 ) {
+          us |= ( ns & 0xff00 ) << 3; /* shift 3 top bits into micro */
+          ns  &= 0xff;
+          this->u16( ms )
+               .u16( us )
+               .u8 ( ns );
+        }
+      }
+      break;
+    }
+    case RWF_DATETIME_7:
+    case RWF_DATETIME_9:
+    case RWF_DATETIME_11:
+    case RWF_DATETIME_12:
+    default:
+      status = Err::BAD_CVT_STRING;
+      break;
+  }
+  return status;
+}
+
+size_t
+RwfMsgWriterBase::time_size( const MDTime &time ) noexcept
+{
+  switch ( time.resolution ) {
+    case MD_RES_MILLISECS: return 5;
+    case MD_RES_MICROSECS: return 7;
+    case MD_RES_NANOSECS:  return 8;
+    case MD_RES_MINUTES:   return 3;
+    case MD_RES_SECONDS:   return 4;
+    default:               return 1;
+  }
+}
+
+void
+RwfMsgWriterBase::pack_time( size_t sz,  const MDTime &time ) noexcept
+{
+  if ( sz == 1 ) {
+    this->u8( 0 );
+    return;
+  }
+  this->u8( sz - 1 )
+       .u8( time.hour )
+       .u8( time.minute );
+  if ( sz > 3 ) /* second */
+    this->u8( time.sec );
+  if ( sz == 5 ) /* millisec */
+    this->u16( time.fraction );
+  else if ( sz == 7 ) { /* microsec */
+    this->u16( time.fraction / 1000 )
+         .u16( time.fraction % 1000 );
+  }
+  else if ( sz == 8 ) { /* nano encoding */
+    uint16_t milli = (uint16_t) ( time.fraction / 1000000 ),
+             nano  = (uint16_t) ( time.fraction % 1000 ),
+             micro = (uint16_t) ( time.fraction % 1000000 ) / 1000;
+    micro |= ( nano & 0xff00 ) << 3; /* shift 3 top bits into micro */
+    nano  &= 0xff;
+    this->u16( milli )
+         .u16( micro )
+         .u8 ( nano );
+  }
+}
+
 size_t
 RwfFieldListWriter::update_hdr( void ) noexcept
 {
+/*
+ * three cases:
+ *
+ * flags:u8   HAS_STANDARD_DATA | HAS_FIELD_LIST_INFO
+ * info_size:u8 dict_id:u8 flist:u16
+ * nflds:u16
+ * data
+ *
+ * flags:u8   HAS_SET_ID | HAS_SET_DATA | HAS_FIELD_LIST_INFO
+ * info_size:u8 dict_id:u8 flist:u16
+ * set_id:u16
+ * data
+ *
+ * flags:u8   HAS_SET_ID | HAS_SET_DATA | HAS_STANDARD_DATA | HAS_FIELD_LIST_INFO
+ * info_size:u8 dict_id:u8 flist:u16
+ * set_id:u16
+ * set_size:u16
+ * set_data
+ * nflds:u16
+ * data
+*/
   size_t hdr_size = 7;
+  if ( this->set_nflds < this->nflds )
+    hdr_size += 2 + this->set_size + 2; /* set_id + set_size + set_data */
+
   if ( hdr_size > this->off )
     this->off = hdr_size;
   if ( ! this->check_offset() ) {
@@ -570,13 +1018,80 @@ RwfFieldListWriter::update_hdr( void ) noexcept
     return 0;
   }
   RwfMsgWriterHdr hdr( *this );
-  hdr.u8 ( RwfFieldListHdr::HAS_FIELD_LIST_INFO |
-           RwfFieldListHdr::HAS_STANDARD_DATA )
-     .u8 ( 3 )  /* info size */
-     .u8 ( 1 )  /* dict id */
-     .u16( this->flist )
-     .u16( this->nflds );
+  if ( this->set_nflds != 0 ) {
+    uint8_t flags = RwfFieldListHdr::HAS_FIELD_LIST_INFO |
+                    RwfFieldListHdr::HAS_SET_ID |
+                    RwfFieldListHdr::HAS_SET_DATA;
+    if ( this->set_nflds < this->nflds )
+      flags |= RwfFieldListHdr::HAS_STANDARD_DATA;
+
+    hdr.u8( flags )
+       .u8 ( 3 )  /* info size */
+       .u8 ( 1 )  /* dict id */
+       .u16( this->flist )
+       .u16( 0x8000 | this->set_id );
+    if ( this->set_nflds < this->nflds )
+      hdr.incr( this->set_size + 2 )
+         .u16( this->nflds - this->set_nflds );
+  }
+  else {
+    hdr.u8 ( RwfFieldListHdr::HAS_FIELD_LIST_INFO |
+             RwfFieldListHdr::HAS_STANDARD_DATA )
+       .u8 ( 3 )  /* info size */
+       .u8 ( 1 )  /* dict id */
+       .u16( this->flist )
+       .u16( this->nflds );
+  }
   return this->off;
+}
+
+RwfFieldListWriter &
+RwfFieldListWriter::use_field_set( uint16_t id ) noexcept
+{
+  if ( this->off == 7 ) {
+    for ( RwfMsgWriterBase *p = this->parent; p != NULL; p = p->parent ) {
+      RwfFieldDefnWriter * defn;
+      switch ( p->type ) {
+        case W_SERIES: defn = ((RwfSeriesWriter *) p )->field_defn; break;
+        case W_MAP:    defn = ((RwfMapWriter *) p )->field_defn;    break;
+        case W_VECTOR: defn = ((RwfVectorWriter *) p )->field_defn;  break;
+        default:       defn = NULL; break;
+      }
+      if ( defn != NULL ) {
+        for ( RwfFieldSetList *set = defn->hd; set != NULL; set = set->next ) {
+          if ( set->kind == DEFN_IS_FIELD_LIST &&
+               set->fld_list_defn.set_id == id ) {
+            this->set_id = id;
+            this->set    = &set->fld_list_defn;
+            return *this;
+          }
+        }
+      }
+    }
+  }
+  return this->set_error( Err::BAD_FIELD );
+}
+
+bool
+RwfFieldListWriter::match_set( MDFid fid ) noexcept
+{
+  if ( this->set_size == 0 && this->nflds < this->set->count ) {
+    if ( fid == this->set->entry[ this->nflds ].fid )
+      return true;
+  }
+  if ( this->set_size == 0 && this->set_nflds > 0 ) {
+    if ( ! this->has_space( 4 ) ) {
+      this->error( Err::NO_SPACE );
+      return false;
+    }
+    size_t start = 7;
+    this->set_size = this->off - start;
+    ::memmove( &this->buf[ start + 2 ], &this->buf[ start ], this->set_size );
+    this->seek( start )
+         .u16( 0x8000 | this->set_size )
+         .seek( start + this->set_size + 4 ); /* room for nflds */
+  }
+  return false;
 }
 
 RwfFieldListWriter &
@@ -594,6 +1109,8 @@ RwfFieldListWriter &
 RwfFieldListWriter::append_ival( MDFid fid,  const void *ival, size_t ilen,
                                  MDType t ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fid ) )
+    return this->append_set_ival( ival, ilen, t );
   MDLookup by( fid );
   if ( this->dict == NULL || ! this->dict->lookup( by ) )
     return this->set_error( Err::UNKNOWN_FID );
@@ -604,6 +1121,8 @@ RwfFieldListWriter &
 RwfFieldListWriter::append_ival( MDLookup &by,  const void *ival,  size_t ilen,
                                  MDType t ) noexcept
 {
+  if ( this->set != NULL && this->match_set( by.fid ) )
+    return this->append_set_ival( ival, ilen, t );
   MDValue val;
 
   if ( by.ftype == MD_UINT || by.ftype == MD_ENUM || by.ftype == MD_BOOLEAN ) {
@@ -698,6 +1217,8 @@ RwfFieldListWriter &
 RwfFieldListWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
                                 MDReference &mref ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fid ) )
+    return this->append_set_ref( mref );
   char      str_buf[ 64 ];
   uint8_t * fptr = mref.fptr;
   size_t    len, slen;
@@ -741,7 +1262,29 @@ RwfFieldListWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       dec.get_decimal( mref );
       return this->append_decimal( fid, ftype, fsize, dec );
     }
+    case MD_ARRAY: {
+      size_t len = fid_pack_size( fsize + 4 );
+      if ( ! this->has_space( len ) )
+        return this->set_error( Err::NO_SPACE );
 
+      this->nflds++;
+      this->u16( fid )
+           .u8 ( md_type_to_rwf_primitive_type( ftype ) )
+           .z16( fsize + 4 )
+           .u8 ( md_type_to_rwf_primitive_type( mref.fentrytp ) )
+           .u8 ( mref.fentrysz )
+           .u16( fsize / mref.fentrysz )
+           .b  ( mref.fptr, mref.fsize );
+
+      if ( fendian != MD_BIG && mref.fentrysz > 1 &&
+           is_endian_type( mref.fentrytp ) ) {
+        size_t end = this->off,
+               i   = end - mref.fsize;
+        for ( ; i < end; i += mref.fentrysz )
+          this->uN2( &this->buf[ i ], mref.fentrysz, &this->buf[ i ] );
+      }
+      return *this;
+    }
     case MD_PARTIAL:
       slen = mref.fsize;
       if ( slen > fsize )
@@ -760,7 +1303,7 @@ RwfFieldListWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
           return this->set_error( Err::BAD_CVT_STRING );
         fptr = (uint8_t *) (void *) str_buf;
       }
-      if ( slen < fsize )
+      /*if ( slen < fsize )*/
         fsize = (uint32_t) slen;
       break;
     }
@@ -776,9 +1319,8 @@ RwfFieldListWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
   this->u16( fid )
        .z16( fsize );
   /* invert endian, for little -> big */
-  if ( fendian != MD_BIG && fsize > 1 &&
-       ( ftype == MD_UINT || ftype == MD_INT || ftype == MD_REAL ) )
-    this->flip( fptr, fsize );
+  if ( fendian != MD_BIG && is_endian_type( ftype ) )
+    this->uN( fptr, fsize );
   else
     this->b( fptr, fsize );
   return *this;
@@ -788,17 +1330,22 @@ RwfFieldListWriter &
 RwfFieldListWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
                                     MDDecimal &dec ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fid ) )
+    return this->append_set_decimal( dec );
   if ( ftype == MD_DECIMAL ) {
-    size_t ilen = int_size( dec.ival );
+    size_t ilen = 1;
+    if ( dec.hint > MD_DEC_NULL || dec.hint < MD_DEC_NNAN )
+      ilen += int_size( dec.ival );
 
-    if ( ! this->has_space( ilen + 4 ) )
+    if ( ! this->has_space( ilen + 3 ) )
       return this->set_error( Err::NO_SPACE );
 
     this->nflds++;
     this->u16( fid )
-         .u8 ( ilen + 1 )
-         .u8 ( md_to_rwf_decimal_hint( dec.hint ) )
-         .i  ( dec.ival, ilen );
+         .u8 ( ilen )
+         .u8 ( md_to_rwf_decimal_hint( dec.hint ) );
+    if ( ilen > 1 )
+      this->i( dec.ival, ilen - 1 );
     return *this;
   }
   if ( ftype == MD_STRING ) {
@@ -817,53 +1364,12 @@ RwfFieldListWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
   return this->set_error( Err::BAD_CVT_NUMBER );
 }
 
-size_t
-RwfMsgWriterBase::time_size( const MDTime &time ) noexcept
-{
-  switch ( time.resolution ) {
-    case MD_RES_MILLISECS: return 5;
-    case MD_RES_MICROSECS: return 7;
-    case MD_RES_NANOSECS:  return 8;
-    case MD_RES_MINUTES:   return 3;
-    case MD_RES_SECONDS:   return 4;
-    default:               return 1;
-  }
-}
-
-void
-RwfMsgWriterBase::pack_time( size_t sz,  const MDTime &time ) noexcept
-{
-  if ( sz == 1 ) {
-    this->u8( 0 );
-    return;
-  }
-  this->u8( sz - 1 )
-       .u8( time.hour )
-       .u8( time.minute );
-  if ( sz > 3 ) /* second */
-    this->u8( time.sec );
-  if ( sz == 5 ) /* millisec */
-    this->u16( time.fraction );
-  else if ( sz == 7 ) { /* microsec */
-    this->u16( time.fraction / 1000 )
-         .u16( time.fraction % 1000 );
-  }
-  else if ( sz == 8 ) { /* nano encoding */
-    uint16_t milli = (uint16_t) ( time.fraction / 1000000 ),
-             nano  = (uint16_t) ( time.fraction % 1000 ),
-             micro = (uint16_t) ( time.fraction % 1000000 ) / 1000;
-    micro |= ( nano & 0xff00 ) << 3; /* shift 3 top bits into micro */
-    nano  &= 0xff;
-    this->u16( milli )
-         .u16( micro )
-         .u8 ( nano );
-  }
-}
-
 RwfFieldListWriter &
 RwfFieldListWriter::append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
                                  MDTime &time ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fid ) )
+    return this->append_set_time( time );
   if ( ftype == MD_TIME ) {
     size_t sz = this->time_size( time );
     if ( ! this->has_space( sz + 2 ) )
@@ -886,6 +1392,8 @@ RwfFieldListWriter &
 RwfFieldListWriter::append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
                                  MDDate &date ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fid ) )
+    return this->append_set_date( date );
   if ( ftype == MD_DATE ) {
     if ( ! this->has_space( 7 ) )
       return this->set_error( Err::NO_SPACE );
@@ -963,8 +1471,131 @@ RwfFieldListWriter::append_date( const char *fname,  size_t fname_len,
   return this->append_date( by.fid, by.ftype, by.fsize, date );
 }
 
-static RWF_type
-md_type_to_rwf_primitive_type( MDType type ) noexcept
+RwfFieldListWriter &
+RwfFieldListWriter::append_set_ref( MDReference &mref ) noexcept
+{
+  uint32_t n = this->nflds;
+
+  if ( this->set == NULL || n >= this->set->count )
+    return this->set_error( Err::BAD_FIELD );
+
+  uint8_t type   = this->set->entry[ n ].type;
+  int     status = this->pack_mref( type, mref );
+
+  if ( status != 0 )
+    this->error( status );
+  else {
+    this->set_nflds++;
+    this->nflds++;
+  }
+  return *this;
+}
+
+size_t
+RwfElementListWriter::update_hdr( void ) noexcept
+{
+/*
+ * three cases: ( minus list info )
+ *
+ * flags:u8   HAS_STANDARD_DATA
+ * nitems:u16
+ * data
+ *
+ * flags:u8   HAS_SET_ID | HAS_SET_DATA
+ * set_id:u16
+ * data
+ *
+ * flags:u8   HAS_SET_ID | HAS_SET_DATA | HAS_STANDARD_DATA
+ * set_id:u16
+ * set_size:u16
+ * set_data
+ * nitems:u16
+ * data
+*/
+  size_t hdr_size = 3;
+  if ( this->set_nitems < this->nitems )
+    hdr_size += 2 + this->set_size + 2; /* set_id + set_size + set_data */
+
+  if ( hdr_size > this->off )
+    this->off = hdr_size;
+  if ( ! this->check_offset() ) {
+    this->error( Err::NO_SPACE );
+    return 0;
+  }
+  RwfMsgWriterHdr hdr( *this );
+  if ( this->set_nitems != 0 ) {
+    uint8_t flags = RwfElementListHdr::HAS_SET_ID |
+                    RwfElementListHdr::HAS_SET_DATA;
+    if ( this->set_nitems < this->nitems  )
+      flags |= RwfElementListHdr::HAS_STANDARD_DATA;
+
+    hdr.u8( flags )
+       .u16( 0x8000 | this->set_id );
+    if ( this->set_nitems < this->nitems )
+      hdr.incr( this->set_size + 2 )
+         .u16( this->nitems - this->set_nitems );
+  }
+  else {
+    hdr.u8 ( RwfElementListHdr::HAS_STANDARD_DATA )
+       .u16( this->nitems );
+  }
+  return this->off;
+}
+
+RwfElementListWriter &
+RwfElementListWriter::use_field_set( uint16_t id ) noexcept
+{
+  if ( this->off == 3 ) {
+    for ( RwfMsgWriterBase *p = this->parent; p != NULL; p = p->parent ) {
+      RwfFieldDefnWriter * defn;
+      switch ( p->type ) {
+        case W_SERIES: defn = ((RwfSeriesWriter *) p )->field_defn; break;
+        case W_MAP:    defn = ((RwfMapWriter *) p )->field_defn;    break;
+        case W_VECTOR: defn = ((RwfVectorWriter *) p )->field_defn;  break;
+        default:       defn = NULL; break;
+      }
+      if ( defn != NULL ) {
+        for ( RwfFieldSetList *set = defn->hd; set != NULL; set = set->next ) {
+          if ( set->kind == DEFN_IS_ELEM_LIST &&
+               set->elem_list_defn.set_id == id ) {
+            this->set_id = id;
+            this->set    = &set->elem_list_defn;
+            return *this;
+          }
+        }
+      }
+    }
+  }
+  return this->set_error( Err::BAD_FIELD );
+}
+
+bool
+RwfElementListWriter::match_set( const char *fname,  size_t fname_len ) noexcept
+{
+  if ( this->set_size == 0 && this->nitems < this->set->count ) {
+    if ( fname_len == this->set->entry[ this->nitems ].name_len &&
+         ::memcmp( fname, this->set->entry[ this->nitems ].name,
+                   fname_len ) == 0 ) {
+      return true;
+    }
+  }
+  if ( this->set_size == 0 && this->set_nitems > 0 ) {
+    if ( ! this->has_space( 4 ) ) {
+      this->error( Err::NO_SPACE );
+      return false;
+    }
+    size_t start = 3;
+    this->set_size = this->off - start;
+    ::memmove( &this->buf[ start + 2 ], &this->buf[ start ], this->set_size );
+    this->seek( start )
+         .u16( 0x8000 | this->set_size )
+         .seek( start + this->set_size + 4 ); /* reoom for nitems */
+  }
+  return false;
+}
+
+uint8_t
+rai::md::md_type_to_rwf_primitive_type( MDType type ) noexcept
 {
   switch ( type ) {
     case MD_INT:      return RWF_INT;
@@ -977,32 +1608,20 @@ md_type_to_rwf_primitive_type( MDType type ) noexcept
     case MD_DATETIME: return RWF_DATETIME;
     case MD_ENUM:     return RWF_ENUM;
     case MD_STRING:   return RWF_ASCII_STRING;
+    case MD_ARRAY:    return RWF_ARRAY;
+    case MD_OPAQUE:   return RWF_BUFFER;
 
     default:
       return RWF_BUFFER;
   }
 }
 
-size_t
-RwfElementListWriter::update_hdr( void ) noexcept
-{
-  size_t hdr_size = 3;
-  if ( hdr_size > this->off )
-    this->off = hdr_size;
-  if ( ! this->check_offset() ) {
-    this->error( Err::NO_SPACE );
-    return 0;
-  }
-  RwfMsgWriterHdr hdr( *this );
-  hdr.u8 ( RwfElementListHdr::HAS_STANDARD_DATA )
-     .u16( this->nitems );
-  return this->off;
-}
-
 RwfElementListWriter &
 RwfElementListWriter::append_ref( const char *fname,  size_t fname_len,
                                   MDReference &mref ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fname, fname_len ) )
+    return this->append_set_ref( mref );
   uint8_t * fptr    = mref.fptr;
   MDType    ftype   = mref.ftype;
   size_t    fsize   = mref.fsize;
@@ -1045,7 +1664,30 @@ RwfElementListWriter::append_ref( const char *fname,  size_t fname_len,
       dec.get_decimal( mref );
       return this->append_decimal( fname, fname_len, dec );
     }
+    case MD_ARRAY: {
+      size_t len = fname_pack_size( fname_len, fsize + 4 );
+      if ( ! this->has_space( len ) )
+        return this->set_error( Err::NO_SPACE );
 
+      this->nitems++;
+      this->u15( fname_len )
+           .b  ( fname, fname_len )
+           .u8 ( RWF_ARRAY )
+           .z16( fsize + 4 )
+           .u8 ( md_type_to_rwf_primitive_type( mref.fentrytp ) )
+           .u8 ( mref.fentrysz )
+           .u16( fsize / mref.fentrysz )
+           .b  ( mref.fptr, mref.fsize );
+
+      if ( fendian != MD_BIG && mref.fentrysz > 1 &&
+           is_endian_type( mref.fentrytp ) ) {
+        size_t end = this->off,
+               i   = end - mref.fsize;
+        for ( ; i < end; i += mref.fentrysz )
+          this->uN2( &this->buf[ i ], mref.fentrysz, &this->buf[ i ] );
+      }
+      return *this;
+    }
     case MD_PARTIAL: /* no partials in elem list */
     case MD_OPAQUE:
     case MD_STRING:
@@ -1065,12 +1707,103 @@ RwfElementListWriter::append_ref( const char *fname,  size_t fname_len,
        .u8 ( md_type_to_rwf_primitive_type( ftype ) )
        .z16( fsize );
 
-  if ( fendian != MD_BIG && fsize > 1 &&
-       ( ftype == MD_UINT || ftype == MD_INT || ftype == MD_REAL ) )
-    this->flip( fptr, fsize );
+  if ( fendian != MD_BIG && is_endian_type( ftype ) )
+    this->uN( fptr, fsize );
   else
     this->b( fptr, fsize );
+  return *this;
+}
 
+RwfElementListWriter &
+RwfElementListWriter::append_array( const char *fname,  size_t fname_len,
+                                    const char **str,  size_t arsz ) noexcept
+{
+  size_t len,
+         sz  = 0, i;
+  for ( i = 0; i < arsz; i++ ) {
+    sz += 1 + ( str[ i ] != NULL ? ::strlen( str[ i ] ) : 0 );
+  }
+  len = fname_pack_size( fname_len, sz + 4 );
+  if ( ! this->has_space( len ) )
+    return this->set_error( Err::NO_SPACE );
+
+  this->nitems++;
+  this->u15( fname_len )
+       .b  ( fname, fname_len )
+       .u8 ( RWF_ARRAY )
+       .z16( sz + 4 )
+       .u8 ( RWF_ASCII_STRING )
+       .u8 ( 0 )
+       .u16( arsz );
+
+  for ( i = 0; i < arsz; i++ ) {
+    sz = ( str[ i ] != NULL ? ::strlen( str[ i ] ) : 0 );
+    this->u8( sz );
+    if ( sz > 0 )
+      this->b( str[ i ], sz );
+  }
+  return *this;
+}
+
+RwfElementListWriter &
+RwfElementListWriter::append_array( const char *fname,  size_t fname_len,
+                                    RwfQos *qos,  size_t arsz ) noexcept
+{
+  size_t len,
+         sz  = 0, i;
+  for ( i = 0; i < arsz; i++ ) {
+    sz += 1 + 1 + ( qos[ i ].timeliness > 2 ? 2 : 0 ) +
+                  ( qos[ i ].rate       > 2 ? 2 : 0 );
+  }
+  len = fname_pack_size( fname_len, sz + 4 );
+  if ( ! this->has_space( len ) )
+    return this->set_error( Err::NO_SPACE );
+
+  this->nitems++;
+  this->u15( fname_len )
+       .b  ( fname, fname_len )
+       .u8 ( RWF_ARRAY )
+       .z16( sz + 4 )
+       .u8 ( RWF_QOS )
+       .u8 ( 0 )
+       .u16( arsz );
+
+  for ( i = 0; i < arsz; i++ ) {
+    sz = 1 + ( qos[ i ].timeliness > 2 ? 2 : 0 ) +
+             ( qos[ i ].rate       > 2 ? 2 : 0 );
+    uint8_t q = ( qos[ i ].timeliness << 5 ) |
+                ( qos[ i ].rate << 1 ) |
+                  qos[ i ].dynamic;
+    this->u8( sz )
+         .u8( q );
+    if ( qos[ i ].timeliness > 2 )
+      this->u16( qos[ i ].time_info );
+    if ( qos[ i ].rate > 2 )
+      this->u16( qos[ i ].rate_info );
+  }
+  return *this;
+}
+
+RwfElementListWriter &
+RwfElementListWriter::append_state( const char *fname,  size_t fname_len,
+                                    RwfState &state ) noexcept
+{
+  size_t len,
+         sz = 1 + 1 + get_u15_prefix_len( state.text.len ) + state.text.len;
+  len = fname_pack_size( fname_len, sz );
+  if ( ! this->has_space( len ) )
+    return this->set_error( Err::NO_SPACE );
+
+  this->nitems++;
+  this->u15( fname_len )
+       .b  ( fname, fname_len )
+       .u8 ( RWF_STATE )
+       .u15( sz )
+       .u8 ( state.data_state | state.stream_state << 3 )
+       .u8 ( state.code )
+       .u15( state.text.len );
+  if ( state.text.len > 0 )
+    this->b( state.text.buf, state.text.len );
   return *this;
 }
 
@@ -1078,6 +1811,8 @@ RwfElementListWriter &
 RwfElementListWriter::pack_uval( const char *fname,  size_t fname_len,
                                  uint64_t uval ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fname, fname_len ) )
+    return this->append_set_uint( uval );
   size_t ilen = uint_size( uval ),
          len  = fname_pack_size( fname_len, ilen );
   if ( ! this->has_space( len ) )
@@ -1096,6 +1831,8 @@ RwfElementListWriter &
 RwfElementListWriter::pack_ival( const char *fname,  size_t fname_len,
                                  int64_t ival ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fname, fname_len ) )
+    return this->append_set_int( ival );
   size_t ilen = int_size( ival ),
          len  = fname_pack_size( fname_len, ilen );
   if ( ! this->has_space( len ) )
@@ -1114,6 +1851,8 @@ RwfElementListWriter &
 RwfElementListWriter::pack_real( const char *fname,  size_t fname_len,
                                  double fval ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fname, fname_len ) )
+    return this->append_set_real( fval );
   size_t len = fname_pack_size( fname_len, 8 );
   if ( ! this->has_space( len ) )
     return this->set_error( Err::NO_SPACE );
@@ -1131,17 +1870,22 @@ RwfElementListWriter &
 RwfElementListWriter::append_decimal( const char *fname,  size_t fname_len,
                                       MDDecimal &dec ) noexcept
 {
-  size_t ilen = int_size( dec.ival ),
-         len  = fname_pack_size( fname_len, ilen );
+  if ( this->set != NULL && this->match_set( fname, fname_len ) )
+    return this->append_set_decimal( dec );
+  size_t ilen = 1;
+  if ( dec.hint > MD_DEC_NULL || dec.hint < MD_DEC_NNAN )
+    ilen += int_size( dec.ival );
+  size_t len  = fname_pack_size( fname_len, ilen );
   if ( ! this->has_space( len ) )
     return this->set_error( Err::NO_SPACE );
 
   this->nitems++;
   this->u15( fname_len )
        .b  ( fname, fname_len )
-       .u8 ( ilen + 1 )
-       .u8 ( md_to_rwf_decimal_hint( dec.hint ) )
-       .i  ( dec.ival, ilen );
+       .u8 ( ilen )
+       .u8 ( md_to_rwf_decimal_hint( dec.hint ) );
+  if ( ilen > 1 )
+    this->i( dec.ival, ilen - 1 );
   return *this;
 }
 
@@ -1149,6 +1893,8 @@ RwfElementListWriter &
 RwfElementListWriter::append_time( const char *fname,  size_t fname_len,
                                    MDTime &time ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fname, fname_len ) )
+    return this->append_set_time( time );
   size_t sz  = this->time_size( time ),
          len = fname_pack_size( fname_len, sz );
   if ( ! this->has_space( len ) )
@@ -1165,6 +1911,8 @@ RwfElementListWriter &
 RwfElementListWriter::append_date( const char *fname,  size_t fname_len,
                                    MDDate &date ) noexcept
 {
+  if ( this->set != NULL && this->match_set( fname, fname_len ) )
+    return this->append_set_date( date );
   size_t len = fname_pack_size( fname_len, 4 );
   if ( ! this->has_space( len ) )
     return this->set_error( Err::NO_SPACE );
@@ -1179,12 +1927,40 @@ RwfElementListWriter::append_date( const char *fname,  size_t fname_len,
   return *this;
 }
 
+RwfElementListWriter &
+RwfElementListWriter::append_set_ref( MDReference &mref ) noexcept
+{
+  uint32_t n = this->nitems;
+
+  if ( this->set == NULL || n >= this->set->count )
+    return this->set_error( Err::BAD_FIELD );
+
+  uint8_t type   = this->set->entry[ n ].type;
+  int     status = this->pack_mref( type, mref );
+
+  if ( status != 0 )
+    this->error( status );
+  else {
+    this->set_nitems++;
+    this->nitems++;
+  }
+  return *this;
+}
+
 size_t
 RwfMapWriter::update_hdr( void ) noexcept
 {
-  size_t  hdr_size = 5;
+  size_t  hdr_size = 5;/*flags:u8 key-type:u8 container-type:u8 item-count:u16*/
   uint8_t flags = 0;
 
+  if ( this->key_fid != 0 ) {
+    flags |= RwfMapHdr::HAS_KEY_FID;
+    hdr_size += 2;
+  }
+  if ( this->field_defn_size != 0 ) {
+    flags |= RwfMapHdr::HAS_SET_DEFS;
+    hdr_size += this->field_defn_size;
+  }
   if ( this->summary_size != 0 ) {
     flags |= RwfMapHdr::HAS_SUMMARY_DATA;
     hdr_size += this->summary_size;
@@ -1192,10 +1968,6 @@ RwfMapWriter::update_hdr( void ) noexcept
   if ( this->hint_cnt != 0 ) {
     flags |= RwfMapHdr::HAS_COUNT_HINT;
     hdr_size += 4;
-  }
-  if ( this->key_fid != 0 ) {
-    flags |= RwfMapHdr::HAS_KEY_FID;
-    hdr_size += 2;
   }
   if ( hdr_size > this->off )
     this->off = hdr_size;
@@ -1209,12 +1981,28 @@ RwfMapWriter::update_hdr( void ) noexcept
      .u8 ( this->container_type - RWF_CONTAINER_BASE );
   if ( this->key_fid != 0 )
     hdr.u16( this->key_fid );
+  if ( this->field_defn_size != 0 )
+    hdr.incr( this->field_defn_size );
   if ( this->summary_size != 0 )
     hdr.incr( this->summary_size );
   if ( this->hint_cnt != 0 )
     hdr.u32( this->hint_cnt | 0xc0000000U );
   hdr.u16( this->nitems );
   return this->off;
+}
+
+RwfFieldDefnWriter &
+RwfMapWriter::add_field_defn( void ) noexcept
+{
+  void * m = NULL;
+  uint32_t hdr_off = 3;
+  if ( this->key_fid != 0 )
+    hdr_off += 2;
+  this->mem.alloc( sizeof( RwfFieldDefnWriter ), &m );
+  this->field_defn = new ( m ) RwfFieldDefnWriter( *this, hdr_off );
+  if ( this->summary_size != 0 || this->nitems != 0 )
+    this->error( Err::INVALID_MSG );
+  return *this->field_defn;
 }
 
 bool
@@ -1243,7 +2031,7 @@ add_map_summary( RwfMapWriter &w ) noexcept
 {
   T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
   if ( w.check_container( *container, true ) ) {
-    w.off = 3;
+    w.off = 3 + w.field_defn_size;
     if ( w.key_fid != 0 )
       w.off += 2;
     w.append_base( *container, 15, &w.summary_size );
@@ -1268,7 +2056,7 @@ RwfMapWriter::add_action_entry( RwfMapAction action,  MDReference &key,
 {
   if ( this->check_container( base, false ) ) {
     if ( this->nitems++ == 0 ) {
-      this->off = 3 + this->summary_size + 2;
+      this->off = 3 + this->summary_size + this->field_defn_size + 2;
       if ( this->key_fid != 0 )
         this->off += 2;
       if ( this->hint_cnt != 0 )
@@ -1364,9 +2152,8 @@ RwfMapWriter::append_key( RwfMapAction action,  MDReference &mref ) noexcept
   this->u8( action )
        .z16( fsize );
   /* invert endian, for little -> big */
-  if ( fendian != MD_BIG && fsize > 1 &&
-       ( ftype == MD_UINT || ftype == MD_INT || ftype == MD_REAL ) )
-    this->flip( fptr, fsize );
+  if ( fendian != MD_BIG && is_endian_type( ftype ) )
+    this->uN( fptr, fsize );
   else
     this->b( fptr, fsize );
   return 0;
@@ -1403,15 +2190,18 @@ RwfMapWriter::key_ival( RwfMapAction action,  int64_t ival ) noexcept
 int
 RwfMapWriter::key_decimal( RwfMapAction action,  MDDecimal &dec ) noexcept
 {
-  size_t ilen = int_size( dec.ival ),
-         len  = map_pack_size( ilen );
+  size_t ilen = 1;
+  if ( dec.hint > MD_DEC_NULL || dec.hint < MD_DEC_NNAN )
+    ilen += int_size( dec.ival );
+  size_t len = map_pack_size( ilen );
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
 
   this->u8 ( action )
-       .u8 ( ilen + 1 )
-       .u8 ( md_to_rwf_decimal_hint( dec.hint ) )
-       .i  ( dec.ival, ilen );
+       .u8 ( ilen )
+       .u8 ( md_to_rwf_decimal_hint( dec.hint ) );
+  if ( ilen > 1 )
+    this->i( dec.ival, ilen - 1 );
   return 0;
 }
 
@@ -1517,9 +2307,13 @@ RwfVectorWriter      & RwfFilterListWriter::add_vector      ( RwfFilterAction ac
 size_t
 RwfSeriesWriter::update_hdr( void ) noexcept
 {
-  size_t  hdr_size = 4;
+  size_t  hdr_size = 4; /* flags:u8 container-type:u8 item-count:u16 */
   uint8_t flags = 0;
 
+  if ( this->field_defn_size != 0 ) {
+    flags |= RwfSeriesHdr::HAS_SET_DEFS;
+    hdr_size += this->field_defn_size;
+  }
   if ( this->summary_size != 0 ) {
     flags |= RwfSeriesHdr::HAS_SUMMARY_DATA;
     hdr_size += this->summary_size;
@@ -1537,6 +2331,8 @@ RwfSeriesWriter::update_hdr( void ) noexcept
   RwfMsgWriterHdr hdr( *this );
   hdr.u8 ( flags )
      .u8 ( this->container_type - RWF_CONTAINER_BASE );
+  if ( this->field_defn_size != 0 )
+    hdr.incr( this->field_defn_size );
   if ( this->summary_size != 0 )
     hdr.incr( this->summary_size );
   if ( this->hint_cnt != 0 )
@@ -1544,6 +2340,17 @@ RwfSeriesWriter::update_hdr( void ) noexcept
   hdr.u16( this->nitems );
 
   return this->off;
+}
+
+RwfFieldDefnWriter &
+RwfSeriesWriter::add_field_defn( void ) noexcept
+{
+  void * m = NULL;
+  this->mem.alloc( sizeof( RwfFieldDefnWriter ), &m );
+  this->field_defn = new ( m ) RwfFieldDefnWriter( *this, 2 );
+  if ( this->summary_size != 0 || this->nitems != 0 )
+    this->error( Err::INVALID_MSG );
+  return *this->field_defn;
 }
 
 bool
@@ -1572,7 +2379,7 @@ add_series_summary( RwfSeriesWriter &w ) noexcept
 {
   T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
   if ( w.check_container( *container, true ) ) {
-    w.off = 2;
+    w.off = 2 + w.field_defn_size;
     w.append_base( *container, 15, &w.summary_size );
   }
   return *container;
@@ -1585,7 +2392,7 @@ add_series_entry( RwfSeriesWriter &w ) noexcept
   T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
   if ( w.check_container( *container, false ) ) {
     if ( w.nitems++ == 0 ) {
-      w.off = 4 + w.summary_size;
+      w.off = 4 + w.summary_size + w.field_defn_size;
       if ( w.hint_cnt != 0 )
         w.off += 4;
     }

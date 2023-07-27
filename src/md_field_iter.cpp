@@ -4,6 +4,7 @@
 #include <time.h>
 #include <raimd/md_field_iter.h>
 #include <raimd/md_msg.h>
+#include <raimd/md_dict.h>
 #include <raimd/sass.h>
 #include <raimd/hex_dump.h>
 #include <raimd/md_list.h>
@@ -634,7 +635,7 @@ MDMsg::get_escaped_string_len( MDReference &mref,  const char *quotes ) noexcept
         j += 2;
         break;
       case 0:
-        if ( mref.ftype == MD_STRING )
+        if ( mref.ftype == MD_STRING || mref.ftype == MD_PARTIAL )
           return j;
         /* FALLTHRU */
       default:
@@ -668,7 +669,7 @@ MDMsg::get_escaped_string_output( MDReference &mref,  const char *quotes,
       case '\"': str[ j++ ] = '\\'; str[ j++ ] = '\"'; break;
       case '\\': str[ j++ ] = '\\'; str[ j++ ] = '\\'; break;
       case 0:
-        if ( mref.ftype == MD_STRING )
+        if ( mref.ftype == MD_STRING || mref.ftype == MD_PARTIAL )
           goto break_loop;
         /* FALLTHRU */
       default:
@@ -1155,9 +1156,9 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
         char tmp_buf[ 32 ];
         if ( fname_buf[ 0 ] >= 'M' && fname_buf[ 1 ] >= 'E' && fname_buf[ 2 ] >= 'C' &&
              fname_buf[ 3 ] == '_' ) {
-          if ( fname_len == 9 && ::memcmp( fname_buf, "MSG_TYPE", 8 ) == 0 )
+          if ( MDDict::dict_equals( fname_buf, fname_len, "MSG_TYPE", 8 ) )
             extra = sass_msg_type_string( get_int<int16_t>( mref ), tmp_buf );
-          else if ( fname_len == 11 && ::memcmp( fname_buf, "REC_STATUS", 10 ) == 0 )
+          else if ( MDDict::dict_equals( fname_buf, fname_len, "REC_STATUS", 10 ) )
             extra = sass_rec_status_string( get_int<int16_t>( mref ), tmp_buf );
         }
         out->puts( str );
@@ -1800,6 +1801,39 @@ MDDecimal::get_real( double &res ) const noexcept
   return Err::BAD_DECIMAL;
 }
 
+int
+MDDecimal::degrade( void ) noexcept
+{
+  switch ( this->hint ) {
+    case MD_DEC_NNAN:
+    case MD_DEC_NAN:
+    case MD_DEC_NINF:
+    case MD_DEC_INF:
+    case MD_DEC_NULL:
+      return Err::BAD_DECIMAL;
+
+    case MD_DEC_INTEGER:
+      this->ival /= 10;
+      this->hint = MD_DEC_LOGp10_1;
+      return 0;
+
+    default:
+      if ( this->hint >= MD_DEC_FRAC_2 && this->hint <= MD_DEC_FRAC_512 ) {
+        this->hint -= 1;
+        this->ival /= 2;
+        return 0;
+      }
+      if ( this->hint >= MD_DEC_LOGp10_1 || this->hint <= MD_DEC_LOGn10_1 ) {
+        this->ival /= 10;
+        this->hint++;
+        if ( this->hint == -10 )
+          this->hint = MD_DEC_INTEGER;
+        return 0;
+      }
+      return Err::BAD_DECIMAL;
+  }
+}
+#if 0
 void
 MDDecimal::degrade( int8_t new_hint ) noexcept
 {
@@ -1813,7 +1847,7 @@ MDDecimal::degrade( int8_t new_hint ) noexcept
     }
   }
 }
-
+#endif
 void
 MDDecimal::set_real( double fval ) noexcept
 {

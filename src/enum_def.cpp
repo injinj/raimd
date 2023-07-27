@@ -29,11 +29,13 @@ EnumDef::define_enum( MDDictBuild &dict_build ) noexcept
   uint8_t   * p;
   uint8_t   * map   = NULL;
   uint16_t  * value = NULL;
-
+#if 0
   for ( v = this->acro.hd; v != NULL; v = v->next )
     dict_build.add_entry( v->value, this->map_num, MD_ENUM, 0,
                           v->str, NULL, NULL, this->fname, v->lineno );
-
+#endif
+  for ( v = this->acro.hd; v != NULL; v = v->next )
+    dict_build.update_entry_enum( v->value, this->map_num + 1, this->max_len );
   v = this->map.hd;
   if ( (size_t) this->max_value + 1 < this->value_cnt * 2 ) {
     value_cnt = (size_t) this->max_value + 1;
@@ -59,13 +61,66 @@ EnumDef::define_enum( MDDictBuild &dict_build ) noexcept
       v = v->next;
     }
   }
+  MDEnumAdd a;
+  a.map_num   = this->map_num + 1;
+  a.max_value = this->max_value;
+  a.value_cnt = value_cnt;
+  a.value     = value;
+  a.max_len   = this->max_len;
+  a.map       = map;
+  dict_build.add_enum_map( a );
+  /*
   dict_build.add_enum_map( this->map_num, this->max_value, (uint32_t) value_cnt,
                            value, (uint16_t) this->max_len, map );
+  */
   ::free( map );
   if ( value != NULL )
     ::free( value );
   this->map_num++;
   this->clear_enum();
+}
+
+void
+MDDictBuild::add_rwf_enum_map( int16_t *fids,  uint32_t num_fids,
+                               uint16_t *values,  uint16_t num_values,
+                               char *display,  uint32_t disp_len,
+                               uint32_t map_num ) noexcept
+{
+  uint32_t i;
+/*
+  for ( i = 0; i < num_fids; i++ ) {
+    this->add_entry( fids[ i ], map_num + 10, MD_ENUM, 0, NULL, NULL, NULL,
+                     "rwf", map_num );
+  }
+*/
+  for ( i = 0; i < num_fids; i++ )
+    this->update_entry_enum( fids[ i ], map_num + 1, disp_len );
+
+  uint16_t max_value = values[ num_values - 1 ],
+           max_len   = ::strnlen( display, disp_len );
+  uint8_t * map      = (uint8_t *) display;
+  if ( max_len != disp_len ) {
+    map = (uint8_t *) ::malloc( max_len * num_values );
+    for ( i = 0; i < num_values; i++ )
+      ::memcpy( &map[ i * max_len ], &display[ i * disp_len ], max_len );
+  }
+  if ( max_value == num_values - 1 )
+    values = NULL;
+
+  MDEnumAdd a;
+  a.map_num   = map_num + 1;
+  a.max_value = max_value;
+  a.value_cnt = num_values;
+  a.value     = values;
+  a.max_len   = max_len;
+  a.map       = map;
+  this->add_enum_map( a );
+/*
+  this->add_enum_map( map_num + 10, max_value, num_values, values,
+                      max_len, map );
+*/
+  if ( map != (uint8_t *) display )
+    ::free( map );
 }
 
 void
@@ -128,12 +183,16 @@ EnumDef::consume_hex( void ) noexcept
 }
 
 EnumDefTok
-EnumDef::get_token( void ) noexcept
+EnumDef::get_token( MDDictBuild &dict_build ) noexcept
 {
   int c;
   for (;;) {
-    while ( (c = this->eat_white()) == '!' )
+    while ( (c = this->eat_white()) == '!' ) {
+      size_t tag_sz = this->match_tag( "!tag ", 5 );
+      if ( tag_sz > 0 )
+        dict_build.add_tag( &this->buf[ this->off ], tag_sz );
       this->eat_comment();
+    }
     this->col++;
     switch ( c ) {
       case '"': return this->consume_string();
@@ -185,7 +244,7 @@ EnumDef::parse_path( MDDictBuild &dict_build,  const char *path,
   while ( p != NULL ) {
     if ( p->col == 2 )
       p->eat_comment();
-    tok = p->get_token();
+    tok = p->get_token( dict_build );
     /* flush last enum list */
     if ( p->col == 1 && tok == ETK_IDENT && p->map.tl != NULL )
       p->define_enum( dict_build );

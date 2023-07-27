@@ -11,22 +11,26 @@ namespace md {
  * ACRO  DDE_ACRO  FID  RIPPLES_TO  MF_type  MF_len  RWF_type  RWF_len */
 
 enum MF_type {
-  MF_NONE         = 0,
-  MF_ALPHANUMERIC = 1,
-  MF_TIME         = 2,
-  MF_DATE         = 3,
-  MF_ENUMERATED   = 4,
-  MF_INTEGER      = 5,
-  MF_PRICE        = 6,
-  MF_TIME_SECONDS = 7,
-  MF_BINARY       = 8  /* binary + uint = mf encoded integer */
+  MF_NONE              = -1,
+  MF_TIME_SECONDS      = 0,
+  MF_INTEGER           = 1,
+  MF_NUMERIC           = 2,
+  MF_DATE              = 3,
+  MF_PRICE             = 4,
+  MF_ALPHANUMERIC      = 5,
+  MF_ENUMERATED        = 6,
+  MF_TIME              = 7,
+  MF_BINARY            = 8,
+  MF_LONG_ALPHANUMERIC = 9,
+  MF_OPAQUE            = 10
 };
+const char *mf_type_str( MF_type ) noexcept;
 
 enum RWF_type {
   /* primitives */
   RWF_NONE         = 0,
-  RWF_RSVD_1       = 1,
-  RWF_RSVD_2       = 2,
+  RWF_RSVD_1       = 1, /* INT32 */
+  RWF_RSVD_2       = 2, /* UINT32 */
   RWF_INT          = 3, /* int64, int32 (rare) */
   RWF_UINT         = 4, /* uint64 */
   RWF_FLOAT        = 5, /* float */
@@ -36,6 +40,7 @@ enum RWF_type {
   RWF_TIME         = 10, /* h:m:s */
   RWF_DATETIME     = 11, /* date + time */
   RWF_QOS          = 12, /* qos bits */
+  RWF_STATE        = 13, /* stream state */
   RWF_ENUM         = 14, /* uint16 enum */
   RWF_ARRAY        = 15, /* primitive type array */
   RWF_BUFFER       = 16, /* len + opaque */
@@ -83,6 +88,7 @@ enum RWF_type {
   RWF_MSG          = 141,
   RWF_JSON         = 142
 };
+const char *rwf_type_str( RWF_type t ) noexcept;
 
 static inline int is_rwf_primitive( RWF_type t ) {
   return t >= RWF_INT && t <= RWF_RMTES_STRING;
@@ -94,6 +100,62 @@ static inline int is_rwf_container( RWF_type t ) {
   return t >= RWF_NO_DATA  && t <= RWF_JSON &&
          t != RWF_RSVD_139 && t != RWF_RSVD_140;
 }
+
+static inline size_t rwf_fixed_size( RWF_type t ) {
+  switch ( t ) {
+    case RWF_INT_1:
+    case RWF_UINT_1:
+    case RWF_INT_2:
+    case RWF_UINT_2:
+    case RWF_INT_4:
+    case RWF_UINT_4:
+    case RWF_INT_8:
+    case RWF_UINT_8:
+      return 1 << ( ( t - RWF_INT_1 ) / 2 );
+
+    case RWF_FLOAT_4:
+    case RWF_DOUBLE_8:
+    case RWF_DATE_4:
+      return ( t & 1 ) * 4 + 4;
+
+    case RWF_TIME_3:
+    case RWF_TIME_5:
+    case RWF_DATETIME_7:
+    case RWF_DATETIME_9:
+    case RWF_DATETIME_11:
+    case RWF_DATETIME_12:
+    case RWF_TIME_7:
+    case RWF_TIME_8: {
+      static const uint8_t x[] = { 3, 5, 7, 9, 11, 12, 7, 8 };
+      return x[ t - RWF_TIME_3 ];
+    }
+
+    case RWF_REAL_4RB:
+    case RWF_REAL_8RB:
+    default: return 0;
+  }
+}
+/*
+ * STRING  -> ALPHANUMERIC        -> { RMTES_STRING, ASCII_STRING, UTF8_STRING }
+ * DECIMAL -> { PRICE, INTEGER }  -> REAL64
+ * UINT    -> { INTEGER, BINARY } -> UINT64
+ * OPAQUE  -> BINARY              -> BUFFER
+ */
+enum MD_RWF_MF_Flags {
+  STRING_TO_RWF_RMTES     = 0, /* default */
+  STRING_TO_RWF_ASCII     = 1,
+  STRING_TO_RWF_UTF8      = 2,
+  STRING_TO_RWF_BUFFER    = 4,
+  DECIMAL_TO_MF_PRICE     = 0, /* default */
+  DECIMAL_TO_MF_INTEGER   = 1,
+  UINT_TO_MF_INTEGER      = 0, /* default */
+  UINT_TO_MF_BINARY       = 1,
+  OPAQUE_TO_RWF_BUFFER    = 1,
+  OPAQUE_TO_RWF_ARRAY     = 2,
+  OPAQUE_TO_MF_BINARY     = 4,
+  INT_TO_RWF_TIME         = 1,
+  TIME_TO_MF_TIME_SECONDS = 1
+};
 
 enum AppATok {
   ATK_ERROR        = -2,
@@ -136,16 +198,19 @@ struct AppAKeyword {
 };
 
 struct MDDictBuild;
+struct MDDictAdd;
 struct AppA : public DictParser {
-  int     fid,
-          length,
-          enum_length,
-          rwf_len;
-  AppATok field_type,
-          rwf_type;
-  char    acro[ 256 ],
-          dde_acro[ 256 ],
-          ripples_to[ 256 ];
+  int      fid,
+           length,
+           enum_length,
+           rwf_len;
+  AppATok  field_token,
+           rwf_token;
+  char     acro[ 256 ],
+           dde_acro[ 256 ],
+           ripples_to[ 256 ];
+  RWF_type rwf_type;
+  MF_type  mf_type;
 
   void * operator new( size_t, void *ptr ) { return ptr; } 
   void operator delete( void *ptr ) { ::free( ptr ); } 
@@ -176,11 +241,11 @@ struct AppA : public DictParser {
   AppATok consume_string( void ) {
     return (AppATok) this->DictParser::consume_string_tok();
   }
-  AppATok get_token( void ) noexcept;
+  AppATok get_token( MDDictBuild &dict_build ) noexcept;
   bool match( AppAKeyword &kw ) {
     return this->DictParser::match( kw.str, kw.len );
   }
-  void get_type_size( MDType &type,  uint32_t &size ) noexcept;
+  static void rwf_to_md_type_size( MDDictAdd &a ) noexcept;
 
   static AppA * open_path( const char *path,  const char *filename,
                            int debug_flags ) noexcept;

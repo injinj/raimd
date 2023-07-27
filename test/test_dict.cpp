@@ -9,8 +9,10 @@
 using namespace rai;
 using namespace md;
 
-static void test_lookup( MDDictBuild &dict_build,  MDDict *dict );
-static void gen_sass_fields( MDDictBuild &dict_build,  MDDict *dict );
+static void test_lookup( MDDictBuild &dict_build,  MDDict *dict ) noexcept;
+static void gen_sass_fields( MDDictBuild &dict_build,  MDDict *dict ) noexcept;
+static void gen_rdm_fields( MDDict *dict ) noexcept;
+static void gen_enum_defs( MDDict *dict ) noexcept;
 
 static int
 get_arg( const char *arg,  int argc,  char **argv ) noexcept
@@ -27,14 +29,17 @@ main( int argc, char **argv )
   MDDictBuild dict_build;
   MDDict * dict = NULL;
   const char * path = ::getenv( "cfile_path" );
-  bool gen_fields = ( get_arg( "-g", argc, argv ) > 0 );
-  int path_arg = get_arg( "-p", argc, argv );
+  bool gen_fields   = ( get_arg( "-g", argc, argv ) > 0 );
+  bool gen_app_a    = ( get_arg( "-a", argc, argv ) > 0 );
+  bool gen_enumdefs = ( get_arg( "-e", argc, argv ) > 0 );
+  int  path_arg     = get_arg( "-p", argc, argv );
 
   if ( get_arg( "-h", argc, argv ) > 0 ) {
     fprintf( stderr,
       "Usage: %s [-g] [-p cfile_path]\n"
       "Test loading dictionaries or generate SASS Qform fields\n"
       "Use -g to generate tss_fields.cf from RDMFieldDictionary\n"
+      "Use -a to generate RDMFieldDictionary\n"
       "Set $cfile_path to the path that has dictionary files\n"
       "or pass path to the -p arg\n", argv[ 0 ] );
     return 1;
@@ -46,7 +51,7 @@ main( int argc, char **argv )
   if ( AppA::parse_path( dict_build, path, "RDMFieldDictionary" ) == 0 ) {
     EnumDef::parse_path( dict_build, path, "enumtype.def" );
     dict_build.index_dict( "app_a", dict );
-    if ( ! gen_fields )
+    if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs )
       test_lookup( dict_build, dict );
   }
   /* if generating, don't load cfiles */
@@ -56,8 +61,20 @@ main( int argc, char **argv )
     else
       gen_sass_fields( dict_build, dict );
   }
+  if ( gen_app_a ) {
+    if ( dict == NULL )
+      fprintf( stderr, "No RDMFieldDictionary loaded\n" );
+    else
+      gen_rdm_fields( dict );
+  }
+  if ( gen_enumdefs ) {
+    if ( dict == NULL )
+      fprintf( stderr, "No RDMFieldDictionary loaded\n" );
+    else
+      gen_enum_defs( dict );
+  }
   /* load Tib cfiles */
-  else {
+  if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs ) {
     dict_build.clear_build();
     if ( CFile::parse_path( dict_build, path, "tss_fields.cf" ) == 0 ) {
       CFile::parse_path( dict_build, path, "tss_records.cf" );
@@ -103,11 +120,10 @@ const char *str =
 }
 
 static void
-test_lookup( MDDictBuild &dict_build,  MDDict *dict )
+test_lookup( MDDictBuild &dict_build,  MDDict *dict ) noexcept
 {
   uint32_t fidcnt;
   MDFid fid;
-  uint8_t shft, algn;
 #if 0
   for ( uint16_t fid = 0; fid < 0x4000; fid++ ) {
     if ( dict->lookup( fid, ftype, fsize, fnamelen, fname ) ) {
@@ -122,15 +138,32 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict )
   printf( "\n" );
   printf( "dict %s\n", dict->dict_type ); 
   printf( "build size %" PRIu64 "\n", dict_build.idx->total_size() );
-  printf( "fname %" PRIu64 "\n", dict_build.idx->fname_size( shft, algn ) );
-  printf( "shift %u align %u = %u bits\n", shft, algn, shft - algn );
+  printf( "fname %u\n", dict->ht_off - dict->fname_off );
+  printf( "shift %u align %u\n", dict->fname_shft, dict->fname_algn );
   printf( "entry count %" PRIu64 "\n", dict_build.idx->entry_count );
   printf( "fid min %u max %u\n", dict_build.idx->min_fid,
                                  dict_build.idx->max_fid );
   printf( "type count %u/%u\n", dict_build.idx->type_hash->htcnt,
-                             dict_build.idx->type_hash->htsize );
+                             dict_build.idx->type_hash->htsize() );
   printf( "index size %u\n", dict->dict_size );
-
+  const char * val;
+  size_t val_sz;
+  if ( dict->find_tag( "Version", val, val_sz ) )
+    printf( "version \"%.*s\"\n", (int) val_sz, val );
+  if ( dict->find_tag( "DictionaryId", val, val_sz ) )
+    printf( "dictionary_id \"%.*s\"\n", (int) val_sz, val );
+  if ( dict->find_tag( "DT_Version", val, val_sz ) )
+    printf( "dt_version \"%.*s\"\n", (int) val_sz, val );
+  if ( dict->find_tag( "RT_Version", val, val_sz ) )
+    printf( "rt_version \"%.*s\"\n", (int) val_sz, val );
+#if 0
+  const char * tag;
+  size_t tag_sz;
+  for ( bool b = dict->first_tag( tag, tag_sz ); b;
+       b = dict->next_tag( tag, tag_sz ) ) {
+    printf( "tag %.*s\n", (int) tag_sz, tag );
+  }
+#endif
   for ( MDDictEntry *fp = dict_build.idx->entry_q.hd; fp != NULL;
         fp = fp->next ) {
     MDLookup by( fp->fid );
@@ -317,7 +350,7 @@ struct BitSet {
 };
 
 static uint32_t
-hash_fid( MDFid fid )
+hash_fid( MDFid fid ) noexcept
 {
   uint32_t a = (uint32_t) fid;
   a -= (a<<6);
@@ -338,86 +371,17 @@ static const MDFid MSG_TYPE_FID   = 4001,
                    PROD_PERM_FID  = 1;
 
 static const char *
-tss_type_str( int tp )
-{
-  switch ( tp ) {
-    case TSS_INTEGER:    return "INTEGER";
-    case TSS_STRING:     return "STRING";
-    case TSS_BOOLEAN:    return "BOOLEAN";
-    case TSS_DATE:       return "DATE";
-    case TSS_TIME:       return "TIME";
-    case TSS_PRICE:      return "PRICE";
-    case TSS_BYTE:       return "BYTE";
-    case TSS_FLOAT:      return "FLOAT";
-    case TSS_SHORT_INT:  return "SHORT_INT";
-    case TSS_DOUBLE:     return "DOUBLE";
-    case TSS_OPAQUE:     return "OPAQUE";
-    case TSS_NULL:       return "NULL";
-    case TSS_RESERVED:   return "RESERVED";
-    case TSS_DOUBLE_INT: return "DOUBLE_INT";
-    case TSS_GROCERY:    return "GROCERY";
-    case TSS_SDATE:      return "SDATE";
-    case TSS_STIME:      return "STIME";
-    case TSS_LONG:       return "LONG";
-    case TSS_U_SHORT:    return "U_SHORT";
-    case TSS_U_INT:      return "U_INT";
-    case TSS_U_LONG:     return "U_LONG";
-    default:             return "NODATA";
-  }
-}
-
-static const char *
-mf_type_str( uint8_t mf_type )
-{
-  switch ( mf_type ) {
-    case MF_ALPHANUMERIC: return "ALPHANUMERIC";
-    case MF_TIME:         return "TIME";
-    case MF_DATE:         return "DATE";
-    case MF_ENUMERATED:   return "ENUMERATED";
-    case MF_INTEGER:      return "INTEGER";
-    case MF_PRICE:        return "PRICE";
-    case MF_TIME_SECONDS: return "TIME_SECONDS";
-    case MF_BINARY:       return "BINARY";
-    default:              return "NONE";
-  }
-}
-
-static const char *
-rwf_type_str( uint8_t rwf_type )
-{
-  switch ( rwf_type ) {
-    default:               return "NONE";
-    case RWF_INT:          return "INT";
-    case RWF_UINT:         return "UINT";
-    case RWF_REAL:         return "REAL";
-    case RWF_DATE:         return "DATE";
-    case RWF_TIME:         return "TIME";
-    case RWF_ENUM:         return "ENUM";
-    case RWF_ARRAY:        return "ARRAY";
-    case RWF_BUFFER:       return "BUFFER";
-    case RWF_ASCII_STRING: return "ASCII_STRING";
-    case RWF_RMTES_STRING: return "RMTES_STRING";
-    case RWF_FIELD_LIST:   return "FIELD_LIST";
-    case RWF_ELEMENT_LIST: return "ELEMENT_LIST";
-    case RWF_FILTER_LIST:  return "FILTER_LIST";
-    case RWF_VECTOR:       return "VECTOR";
-    case RWF_MAP:          return "MAP";
-    case RWF_SERIES:       return "SERIES";
-  }
-}
-
-static const char *
-rdm_type_str( const MDDictEntry *entry,  char *buf )
+rdm_type_str( const MDDictEntry &entry,  char *buf ) noexcept
 {
   char *p = buf;
   ::strcpy( buf, "MF=" ); buf = &buf[ 3 ];
-  ::strcpy( buf, mf_type_str( entry->mf_type ) );
+  ::strcpy( buf, mf_type_str( (MF_type) entry.mf_type ) );
   buf = &buf[ ::strlen( buf ) ];
   ::strcpy( buf, ", RWF=" ); buf = &buf[ 6 ];
-  ::strcpy( buf, rwf_type_str( entry->rwf_type ) );
+  ::strcpy( buf, rwf_type_str( (RWF_type) entry.rwf_type ) );
   buf = &buf[ ::strlen( buf ) ];
   ::strcpy( buf, ", MD=" ); buf = &buf[ 5 ];
-  ::strcpy( buf, md_type_str( entry->ftype ) );
+  ::strcpy( buf, md_type_str( entry.ftype ) );
 #if 0
   if ( entry->rwftype != RWF_NONE ) {
     ::strcat( buf, "/" );
@@ -429,7 +393,7 @@ rdm_type_str( const MDDictEntry *entry,  char *buf )
 }
 
 static bool
-isreserved( const char *fname )
+isreserved( const char *fname ) noexcept
 {
   switch ( fname[ 0 ] ) {
     case 'M': return ::strcmp( fname, "MSG_TYPE" ) == 0;
@@ -447,11 +411,11 @@ struct SassCounts {
                  existing_fields( 0 ), skipped( 0 ), reserved( 0 ) {}
 };
 
-static bool gen_sass_entry( MDFid new_fid,  const MDDictEntry *mentry,
-                            SassCounts &cnt,  bool is_collision );
+static bool gen_sass_entry( MDFid new_fid,  const MDDictEntry &mentry,
+                            SassCounts &cnt,  bool is_collision ) noexcept;
 
 static void
-gen_sass_fields( MDDictBuild &dict_build,  MDDict * )
+gen_sass_fields( MDDictBuild &dict_build,  MDDict * ) noexcept
 {
   static const uint16_t MAX_SASS_FID = 16 * 1024 - 1;
   static const MDFid base_fid = 10700 - 1; /* + fid(non-zero) >= 10700 */
@@ -478,7 +442,7 @@ gen_sass_fields( MDDictBuild &dict_build,  MDDict * )
         mentry = mentry->next ) {
     if ( isreserved( mentry->fname() ) ) {
       printf( "\n# %s(%d) reserved, %s\n",
-               mentry->fname(), mentry->fid, rdm_type_str( mentry, tbuf ) );
+               mentry->fname(), mentry->fid, rdm_type_str( *mentry, tbuf ) );
       cnt.reserved++;
       continue;
     }
@@ -498,7 +462,7 @@ gen_sass_fields( MDDictBuild &dict_build,  MDDict * )
       collisions[ num_collisions++ ] = mentry;
       continue;
     }
-    if ( ! gen_sass_entry( new_fid, mentry, cnt, false ) )
+    if ( ! gen_sass_entry( new_fid, *mentry, cnt, false ) )
       used.unset( new_fid );
   }
 
@@ -523,7 +487,7 @@ gen_sass_fields( MDDictBuild &dict_build,  MDDict * )
                num_collisions - i + 1 );
       break;
     }
-    if ( ! gen_sass_entry( new_fid, mentry, cnt, true ) )
+    if ( ! gen_sass_entry( new_fid, *mentry, cnt, true ) )
       used.unset( new_fid );
   }
 
@@ -550,15 +514,15 @@ gen_sass_fields( MDDictBuild &dict_build,  MDDict * )
 }
 
 static bool
-gen_sass_entry( MDFid new_fid,  const MDDictEntry *mentry,  SassCounts &cnt,
-                bool is_collision )
+gen_sass_entry( MDFid new_fid,  const MDDictEntry &mentry,  SassCounts &cnt,
+                bool is_collision ) noexcept
 {
   char tbuf[ 128 ];
   uint32_t size;
   TSS_type tp;
   bool partial = false;
 
-  if ( mentry->fid == PROD_PERM_FID ) {
+  if ( mentry.fid == PROD_PERM_FID ) {
     printf( "\n# Entitlement field from PROD_PERM\n"
                  "PROD_CATG\n"
                  "{\n"
@@ -573,19 +537,19 @@ gen_sass_entry( MDFid new_fid,  const MDDictEntry *mentry,  SassCounts &cnt,
     return true;
   }
   fputs( "\n", stdout );
-  switch ( mentry->ftype ) {
+  switch ( mentry.ftype ) {
     case MD_PARTIAL:
       tp   = TSS_STRING;
-      size = mentry->fsize;
+      size = mentry.fsize;
       partial = true;
       break;
     case MD_STRING:
       tp   = TSS_STRING;
-      size = mentry->fsize;
+      size = mentry.fsize;
       break;
     case MD_TIME:
       tp   = TSS_STIME;
-      size = mentry->fsize;
+      size = mentry.fsize;
       break;
     case MD_DATE:
       tp   = TSS_SDATE;
@@ -593,19 +557,19 @@ gen_sass_entry( MDFid new_fid,  const MDDictEntry *mentry,  SassCounts &cnt,
       break;
     case MD_ENUM:
       tp   = TSS_STRING;
-      if ( mentry->mf_len > mentry->enum_len )
-        size = mentry->mf_len;
+      if ( mentry.mf_len > mentry.enum_len )
+        size = mentry.mf_len;
       else
-        size = mentry->enum_len;
+        size = mentry.enum_len;
       if ( ( ++size % 2 ) != 0 )
         size++;
       break;
     case MD_INT:
     case MD_UINT:
-      /*if ( ( mentry->rwftype == RWF_UINT && mentry->rwfbits == 32 ) ||
-           ( mentry->rwftype == RWF_NONE && mentry->flen < 4 ) ) {*/
+      /*if ( ( mentry.rwftype == RWF_UINT && mentry.rwfbits == 32 ) ||
+           ( mentry.rwftype == RWF_NONE && mentry.flen < 4 ) ) {*/
       tp   = TSS_INTEGER;
-      size = mentry->fsize;
+      size = mentry.fsize;
       /*}
       else {
         tp   = TSS_DOUBLE_INT;
@@ -613,7 +577,7 @@ gen_sass_entry( MDFid new_fid,  const MDDictEntry *mentry,  SassCounts &cnt,
       }*/
       break;
     case MD_DECIMAL:
-      if ( mentry->mf_type == MF_INTEGER ) {
+      if ( mentry.mf_type == MF_INTEGER ) {
         tp   = TSS_DOUBLE_INT;
         size = 8;
       }
@@ -624,9 +588,9 @@ gen_sass_entry( MDFid new_fid,  const MDDictEntry *mentry,  SassCounts &cnt,
       break;
     case MD_OPAQUE:
       tp   = TSS_STRING;
-      size = mentry->fsize;
+      size = mentry.fsize;
       if ( size == 0 )
-        size = mentry->rwf_len;
+        size = mentry.rwf_len;
       break;
     default:
       tp   = TSS_NODATA;
@@ -641,19 +605,19 @@ gen_sass_entry( MDFid new_fid,  const MDDictEntry *mentry,  SassCounts &cnt,
             "\tCLASS_ID\t%d; # fid=%d%s\n"
             "\tIS_PRIMITIVE\ttrue;\n"
             "\tIS_FIXED\ttrue;\n",
-            mentry->fname(),
-            new_fid, mentry->fid,
+            mentry.fname(),
+            new_fid, mentry.fid,
             is_collision ? " collision" : ""/*, new_str*/ );
 
     if ( partial )
       fputs( "\tIS_PARTIAL\ttrue;\n", stdout );
-    if ( mentry->enum_len > 0 )
+    if ( mentry.enum_len > 0 )
       printf( "\tDATA_SIZE\t%u; # MKTFD LEN=%u(%u)",
-              size, mentry->mf_len, mentry->enum_len );
+              size, mentry.mf_len, mentry.enum_len );
     else
-      printf( "\tDATA_SIZE\t%u; # MKTFD LEN=%u", size, mentry->mf_len );
-    if ( mentry->rwf_len > 0 )
-      printf( ", RWF LEN=%u\n", mentry->rwf_len );
+      printf( "\tDATA_SIZE\t%u; # MKTFD LEN=%u", size, mentry.mf_len );
+    if ( mentry.rwf_len > 0 )
+      printf( ", RWF LEN=%u\n", mentry.rwf_len );
     else
       fputs( "\n", stdout );
     printf( "\tDATA_TYPE\t%u; # TSS=%s, %s", (uint32_t) tp,
@@ -664,8 +628,118 @@ gen_sass_entry( MDFid new_fid,  const MDDictEntry *mentry,  SassCounts &cnt,
   }
   else {
     printf( "# %s(%d) skipped, %s\n",
-            mentry->fname(), mentry->fid, rdm_type_str( mentry, tbuf ) );
+            mentry.fname(), mentry.fid, rdm_type_str( mentry, tbuf ) );
     cnt.skipped++;
     return false;
   }
 }
+
+static void
+gen_enum_defs( MDDict *dict ) noexcept
+{
+  for ( uint32_t mapnum = 1; mapnum < dict->map_count; mapnum++ ) {
+    bool first = true;
+    for ( MDFid fid = dict->min_fid; fid <= dict->max_fid; fid++ ) {
+      MDLookup by( fid );
+      if ( dict->lookup( by ) && by.enummap == mapnum ) {
+        if ( first ) {
+printf(
+"! ACRONYM    FID\n"
+"! -------    ---\n"
+"!\n" );
+
+          first = false;
+        }
+        printf( "%-10s %5u\n", by.fname, by.fid );
+      }
+    }
+    if ( ! first ) {
+      MDEnumMap *map = dict->get_enum_map( mapnum );
+      if ( map != NULL ) {
+        uint16_t * vidx = map->value();
+        uint8_t  * vmap = map->map();
+        uint32_t   len  = map->max_len;
+        first = true;
+        for ( uint32_t i = 0; i < map->value_cnt; i++ ) {
+          char  * disp = (char *) &vmap[ i * len ];
+          uint16_t val = ( vidx == NULL ? i : vidx[ i ] );
+          if ( first ) {
+printf(
+"!\n"
+"! VALUE      DISPLAY   MEANING\n"
+"! -----      -------   -------\n" );
+            first = false;
+          }
+          uint32_t k, algn = 0;
+          for ( k = 0; k < len; k++ ) {
+            if ( (uint8_t) disp[ k ] > '~' )
+              break;
+          }
+          if ( k != len ) {
+            if ( len * 2 < 10 )
+              algn = 10 - ( len * 2 );
+            printf( "%7u %*s#", val, algn, "" );
+            for ( k = 0; k < len; k++ )
+              printf( "%02X", (uint8_t) disp[ k ] );
+            printf( "#  %5s\n", "none" );
+          }
+          else {
+            if ( len < 10 )
+              algn = 10 - len;
+            printf( "%7u %*s\"%.*s\"  %5s\n", val, algn, "",
+                    len, disp, "none" );
+          }
+        }
+      }
+    }
+  }
+}
+
+static void
+gen_rdm_fields( MDDict *dict ) noexcept
+{
+  MDFid fid;
+
+printf(
+"!ACRONYM    DDE ACRONYM          FID  RIPPLES TO  FIELD TYPE     LENGTH  RWF TYPE   RWF LEN\n"
+"!-------    -----------          ---  ----------  ----------     ------  --------   -------\n"
+"!\n" );
+  for ( fid = dict->min_fid; fid <= dict->max_fid; fid++ ) {
+    MDLookup by( fid );
+    uint8_t rwf_type, mf_type;
+    const char * rwf_str, * mf_str;
+    uint32_t mf_len, rwf_len, enum_len;
+
+    if ( ! dict->lookup( by ) )
+      continue;
+
+    by.mf_type( mf_type, mf_len, enum_len );
+    by.rwf_type( rwf_type, rwf_len );
+    mf_str  = mf_type_str( (MF_type) mf_type );
+    if ( rwf_type == RWF_UINT )
+      rwf_str = "UINT64";
+    else if ( rwf_type == RWF_INT )
+      rwf_str = "INT64";
+    else if ( rwf_type == RWF_REAL )
+      rwf_str = "REAL64";
+    else
+      rwf_str = rwf_type_str( (RWF_type) rwf_type );
+
+    const char *name, *ripple;
+    uint8_t namelen, ripplelen;
+    char name_buf[ 256 + 3 ];
+
+    by.get_name_ripple( name, namelen, ripple, ripplelen );
+    if ( ripple == NULL )
+      ripple = "NULL";
+    ::snprintf( name_buf, sizeof( name_buf ), "\"%s\"", namelen != 0 ? name : by.fname );
+
+    if ( enum_len != 0 )
+      printf( "%-10s %-20s %5d  %-11s %-13s %u ( %u )  %-13s %4u\n", by.fname,
+              name_buf, by.fid, ripple, mf_str, mf_len, enum_len, rwf_str, rwf_len );
+    else
+      printf( "%-10s %-20s %5d  %-11s %-15s %5u  %-13s %4u\n", by.fname,
+              name_buf, by.fid, ripple, mf_str, mf_len, rwf_str, rwf_len );
+  }
+}
+

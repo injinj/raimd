@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <math.h>
 #define DEFINE_RWF_MSG_DECODER
 #include <raimd/rwf_msg.h>
 #include <raimd/md_dict.h>
@@ -69,35 +68,70 @@ bool RwfMsg::is_rwf_vector( void *bb,  size_t off,  size_t end,  uint32_t h ) no
 bool RwfMsg::is_rwf_message( void *bb,  size_t off,  size_t end,  uint32_t h ) noexcept      { return is_rwf<RwfMsgHdr>( bb, off, end, h ); }
 bool RwfMsg::is_rwf_msg_key( void *bb,  size_t off,  size_t end,  uint32_t h ) noexcept      { return is_rwf<RwfMsgKey>( bb, off, end, h ); }
 
-static MDType
-rwf_primitive_to_md_type( RWF_type type ) noexcept
+bool
+rai::md::rwf_primitive_to_md_type( uint8_t type,  MDType &ftype ) noexcept
 {
   switch ( type ) {
-    case RWF_INT:           return MD_INT;
-    case RWF_UINT:          return MD_UINT;
+    case RWF_INT:          ftype = MD_INT;      return true;
+    case RWF_UINT:         ftype = MD_UINT;     return true;
     case RWF_FLOAT:
-    case RWF_DOUBLE:        return MD_REAL;
-    case RWF_REAL:          return MD_DECIMAL;
-    case RWF_DATE:          return MD_DATE;
-    case RWF_TIME:          return MD_TIME;
-    case RWF_DATETIME:      return MD_DATETIME;
-    case RWF_ENUM:          return MD_ENUM;
-    case RWF_ASCII_STRING:  return MD_STRING;
-    case RWF_UTF8_STRING:   return MD_STRING;
-    case RWF_RMTES_STRING:  return MD_STRING;
-
-    default:
-    case RWF_ARRAY:
+    case RWF_DOUBLE:       ftype = MD_REAL;     return true;
+    case RWF_REAL:         ftype = MD_DECIMAL;  return true;
+    case RWF_DATE:         ftype = MD_DATE;     return true;
+    case RWF_TIME:         ftype = MD_TIME;     return true;
+    case RWF_DATETIME:     ftype = MD_DATETIME; return true;
+    case RWF_ENUM:         ftype = MD_ENUM;     return true;
+    case RWF_ASCII_STRING: ftype = MD_STRING;   return true;
+    case RWF_UTF8_STRING:  ftype = MD_STRING;   return true;
+    case RWF_RMTES_STRING: ftype = MD_STRING;   return true;
+    case RWF_ARRAY:        ftype = MD_ARRAY;    return true;
     case RWF_BUFFER:
     case RWF_QOS:
-      return MD_OPAQUE;
+    case RWF_STATE:        ftype = MD_OPAQUE;   return true;
+    default:               ftype = MD_NODATA;   return false;
   }
+  return false;
+}
+
+bool
+rai::md::rwf_type_size_to_md_type( uint8_t type,  MDType &ftype,  uint32_t &fsize ) noexcept
+{
+  switch ( type ) {
+    case RWF_INT_1:       ftype = MD_INT;      fsize = 1;  return true;
+    case RWF_UINT_1:      ftype = MD_UINT;     fsize = 1;  return true;
+    case RWF_INT_2:       ftype = MD_INT;      fsize = 2;  return true;
+    case RWF_UINT_2:      ftype = MD_UINT;     fsize = 2;  return true;
+    case RWF_INT_4:       ftype = MD_INT;      fsize = 4;  return true;
+    case RWF_UINT_4:      ftype = MD_UINT;     fsize = 4;  return true;
+    case RWF_INT_8:       ftype = MD_INT;      fsize = 8;  return true;
+    case RWF_UINT_8:      ftype = MD_UINT;     fsize = 8;  return true;
+    case RWF_FLOAT_4:     ftype = MD_REAL;     fsize = 4;  return true;
+    case RWF_DOUBLE_8:    ftype = MD_REAL;     fsize = 8;  return true;
+    case RWF_REAL_4RB:    ftype = MD_DECIMAL;  fsize = 0;  return true;
+    case RWF_REAL_8RB:    ftype = MD_DECIMAL;  fsize = 0;  return true;
+    case RWF_DATE_4:      ftype = MD_DATE;     fsize = 4;  return true;
+    case RWF_TIME_3:      ftype = MD_TIME;     fsize = 3;  return true;
+    case RWF_TIME_5:      ftype = MD_TIME;     fsize = 5;  return true;
+    case RWF_DATETIME_7:  ftype = MD_DATETIME; fsize = 7;  return true;
+    case RWF_DATETIME_9:  ftype = MD_DATETIME; fsize = 9;  return true;
+    case RWF_DATETIME_11: ftype = MD_DATETIME; fsize = 11; return true;
+    case RWF_DATETIME_12: ftype = MD_DATETIME; fsize = 12; return true;
+    case RWF_TIME_7:      ftype = MD_TIME;     fsize = 7;  return true;
+    case RWF_TIME_8:      ftype = MD_TIME;     fsize = 8;  return true;
+    default:
+      fsize = 0;
+      return rwf_primitive_to_md_type( type, ftype );
+  }
+  return false;
 }
 
 uint32_t
-RwfBase::parse_type( DecodeHdr &dec ) noexcept
+RwfBase::parse_type( RwfDecoder &dec ) noexcept
 {
   uint32_t t = 0;
+  this->set_size   = 0;
+  this->set_start  = 0;
+  this->data_start = 0;
   if ( dec.len() >= 8 ) {
     if ( dec.peek_u32( 0 ) == RWF_FIELD_LIST_TYPE_ID ) {
       t = dec.peek_u32( 1 );
@@ -113,7 +147,7 @@ RwfBase::parse_type( DecodeHdr &dec ) noexcept
 int
 RwfMsgKey::parse( const void *bb,  size_t off,  size_t end ) noexcept
 {
-  DecodeHdr dec( bb, off, end );
+  RwfDecoder dec( bb, off, end );
 
   this->type_id   = RWF_MSG_KEY;
   this->data      = (void *) dec.buf;
@@ -154,7 +188,7 @@ RwfMsgKey::parse( const void *bb,  size_t off,  size_t end ) noexcept
 int
 RwfMsgHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
 {
-  DecodeHdr hdr( bb, off, end );
+  RwfDecoder hdr( bb, off, end );
   uint32_t t = this->parse_type( hdr );
 
   if ( t != 0 && t != RWF_MSG )
@@ -258,6 +292,26 @@ RwfMsgHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
   if ( ! dec.ok )
     return Err::BAD_HEADER;
   return 0;
+}
+
+bool
+RwfQos::decode( void *buf,  size_t buflen ) noexcept
+{
+  uint8_t * start = (uint8_t *) buf,
+          * end   = &start[ buflen ];
+  RwfDecoder inp( start, end );
+  inp.dec_qos( *this );
+  return inp.ok;
+}
+
+bool
+RwfState::decode( void *buf,  size_t buflen ) noexcept
+{
+  uint8_t * start = (uint8_t *) buf,
+          * end   = &start[ buflen ];
+  RwfDecoder inp( start, end );
+  inp.dec_state( *this );
+  return inp.ok;
 }
 
 static void
@@ -437,6 +491,17 @@ RwfMsgHdr::ref_iter( size_t which,  RwfFieldIter &iter ) noexcept
     case POST_RIGHTS: iter.set_uint( this->post_rights ); break;
     case CONTAINER:
       if ( this->data_end >= this->data_start ) {
+        #define n( x ) it.name = x; it.namelen = sizeof( x )
+        switch ( this->container_type ) {
+          case RWF_FIELD_LIST:   n( "field_list" );   break;
+          case RWF_ELEMENT_LIST: n( "element_list" ); break;
+          case RWF_FILTER_LIST:  n( "filter_list" );  break;
+          case RWF_VECTOR:       n( "vector" );       break;
+          case RWF_MAP:          n( "map" );          break;
+          case RWF_SERIES:       n( "series" );       break;
+          default: break;
+        }
+        #undef n
         iter.field_start = this->data_start;
         iter.fsize       = this->data_end - this->data_start;
         iter.field_end   = this->data_end;
@@ -534,7 +599,7 @@ RwfFieldIter::unpack_msg_key_entry( void ) noexcept
 int
 RwfFieldListHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
 {
-  DecodeHdr dec( bb, off, end );
+  RwfDecoder dec( bb, off, end );
   uint32_t t = this->parse_type( dec );
 
   if ( t != 0 && t != RWF_FIELD_LIST )
@@ -544,7 +609,9 @@ RwfFieldListHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
   this->flags     = 0;
   this->dict_id   = 1;
   this->flist     = 0;
+  this->set_id    = 0;
   this->field_cnt = 0;
+  this->field_set = NULL;
 
   dec.u8( this->flags );
   /* which dict and flist */
@@ -559,12 +626,24 @@ RwfFieldListHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
     if ( sz > 0 )
       dec.incr( sz );
   }
-  /* no decoders for these */
-  if ( ( this->flags & ( HAS_SET_DATA | HAS_SET_ID ) ) != 0 )
-    return Err::BAD_HEADER;
-  if ( ( this->flags & HAS_STANDARD_DATA ) != 0 )
+  if ( ( this->flags & HAS_SET_DATA ) != 0 ) {
+    if ( ( this->flags & HAS_SET_ID ) != 0 )
+      dec.u15( this->set_id );
+    /* no length, calculate item count on demenad */
+    if ( ( this->flags & HAS_STANDARD_DATA ) == 0 ) {
+      this->set_start = dec.offset( off );
+    }
+    else { /* both set and standard data, has size of set */
+      dec.u15( this->set_size );
+      this->set_start = dec.offset( off );
+      dec.incr( this->set_size );
+    }
+  }
+  /* standard data */
+  if ( ( this->flags & HAS_STANDARD_DATA ) != 0 ) {
     dec.u16( this->field_cnt );
-  this->data_start = dec.offset( off );
+    this->data_start = dec.offset( off );
+  }
   if ( ! dec.ok )
     return Err::BAD_HEADER;
   return 0;
@@ -590,9 +669,58 @@ RwfFieldIter::unpack_field_list_entry( void ) noexcept
 }
 
 int
+RwfFieldIter::unpack_field_list_defn( void ) noexcept
+{
+  RwfMsg  & msg = (RwfMsg &) this->iter_msg;
+  uint8_t * buf = (uint8_t *) msg.msg_buf,
+          * eob = &buf[ this->field_end ];
+  size_t    i   = this->field_start;
+  uint8_t   rwf_type;
+
+  rwf_type = msg.fields.field_set->get_fid( this->field_idx, this->ftype,
+                                            this->fsize, this->u.field.fid );
+  this->u.field.rwf_type = rwf_type;
+  if ( rwf_type == RWF_NONE )
+    return Err::BAD_FIELD_TYPE;
+
+  if ( this->iter_msg.dict != NULL ) {
+    MDLookup by( this->u.field.fid );
+    if ( this->iter_msg.dict->lookup( by ) ) {
+      this->u.field.fname    = by.fname;
+      this->u.field.fnamelen = by.fname_len;
+    }
+  }
+  if ( this->fsize == 0 ) {
+    if ( rwf_type == RWF_REAL_4RB ) {
+      this->fsize = get_n32_prefix_len( &buf[ i ], eob );
+      if ( this->fsize == 0 )
+        return Err::BAD_FIELD_BOUNDS;
+    }
+    else if ( rwf_type == RWF_REAL_8RB ) {
+      this->fsize = get_n64_prefix_len( &buf[ i ], eob );
+      if ( this->fsize == 0 )
+        return Err::BAD_FIELD_BOUNDS;
+    }
+    else {
+      size_t sz = get_fe_prefix( &buf[ i ], eob, this->fsize );
+      i += sz;
+      if ( sz == 0 )
+        return Err::BAD_FIELD_BOUNDS;
+    }
+  }
+  if ( &buf[ i + (size_t) this->fsize ] > eob )
+    return Err::BAD_FIELD_BOUNDS;
+
+  /* <fdata> */
+  this->data_start = i;
+  this->field_end  = this->data_start + this->fsize;
+  return 0;
+}
+
+int
 RwfMapHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
 {
-  DecodeHdr dec( bb, off, end );
+  RwfDecoder dec( bb, off, end );
   uint32_t t = this->parse_type( dec );
 
   if ( t != 0 && t != RWF_MAP )
@@ -617,6 +745,11 @@ RwfMapHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
   if ( ( this->flags & HAS_KEY_FID ) != 0 )
     dec.u16( this->key_fid );
 
+  if ( ( this->flags & HAS_SET_DEFS ) != 0 ) {
+    dec.u15( this->set_size );
+    this->set_start = dec.offset( off );
+    dec.incr( this->set_size );
+  }
   if ( ( this->flags & HAS_SUMMARY_DATA ) != 0 ) {
     dec.u15( this->summary_size );
     this->summary_start = dec.offset( off );
@@ -624,15 +757,12 @@ RwfMapHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
   }
   if ( ( this->flags & HAS_COUNT_HINT ) != 0 )
     dec.u30( this->hint_cnt );
-  if ( ( this->flags & HAS_SET_DEFS ) != 0 )
-    return Err::BAD_HEADER;
-
   dec.u16( this->entry_cnt );
   this->data_start = dec.offset( off );
-  this->key_ftype  = rwf_primitive_to_md_type( (RWF_type) this->key_type );
 
-  if ( ! dec.ok || ! is_rwf_container( (RWF_type) this->container_type ) ||
-       ! is_rwf_primitive( (RWF_type) this->key_type ) )
+  if ( ! rwf_primitive_to_md_type( this->key_type, this->key_ftype ) )
+    return Err::BAD_FIELD_TYPE;
+  if ( ! dec.ok || ! is_rwf_container( (RWF_type) this->container_type ) )
     return Err::BAD_HEADER;
   return 0;
 }
@@ -656,7 +786,7 @@ unpack_summary( RwfFieldIter &iter,  Hdr &hdr )
     if ( hdr.summary_size != 0 )
       return hdr.data_start;
   }
-  return iter.field_end;
+  return iter.field_start;
 }
 
 static inline size_t
@@ -677,9 +807,11 @@ RwfFieldIter::unpack_map_entry( void ) noexcept
   size_t       i, sz, keyoff;
   /* first time, return summary message, if any */
 
-  if ( (i = unpack_summary( *this, msg.map )) == 0 )
+  if ( (i = unpack_summary( *this, msg.map )) == 0 ) {
+    it.flags  = 0;
+    it.action = MAP_SUMMARY;
     return 0;
-
+  }
   this->field_start = i;
   if ( &buf[ i ] >= eob )
     return Err::NOT_FOUND;
@@ -726,17 +858,18 @@ RwfFieldIter::unpack_map_entry( void ) noexcept
 int
 RwfElementListHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
 {
-  DecodeHdr dec( bb, off, end );
+  RwfDecoder dec( bb, off, end );
   uint32_t t = this->parse_type( dec );
 
   if ( t != 0 && t != RWF_ELEMENT_LIST )
     return Err::BAD_HEADER;
 
-  this->type_id  = RWF_ELEMENT_LIST;
-  this->flags    = 0;
-  this->list_num = 0;
-  this->set_id   = 0;
-  this->item_cnt = 0;
+  this->type_id   = RWF_ELEMENT_LIST;
+  this->flags     = 0;
+  this->list_num  = 0;
+  this->set_id    = 0;
+  this->item_cnt  = 0;
+  this->field_set = NULL;
 
   dec.u8( this->flags );
   if ( ( this->flags & HAS_ELEMENT_LIST_INFO ) != 0 ) {
@@ -749,11 +882,24 @@ RwfElementListHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
     if ( sz > 0 )
       dec.incr( sz );
   }
-  if ( ( this->flags & ( HAS_SET_DATA | HAS_SET_ID ) ) != 0 )
-    return Err::BAD_HEADER;
-  if ( ( this->flags & HAS_STANDARD_DATA ) != 0 )
+  if ( ( this->flags & HAS_SET_DATA ) != 0 ) {
+    if ( ( this->flags & HAS_SET_ID ) != 0 )
+      dec.u15( this->set_id );
+    /* no length, calculate item count on demenad */
+    if ( ( this->flags & HAS_STANDARD_DATA ) == 0 ) {
+      this->set_start = dec.offset( off );
+    }
+    else { /* both set and standard data, has size of set */
+      dec.u15( this->set_size );
+      this->set_start = dec.offset( off );
+      dec.incr( this->set_size );
+    }
+  }
+  /* standard data */
+  if ( ( this->flags & HAS_STANDARD_DATA ) != 0 ) {
     dec.u16( this->item_cnt );
-  this->data_start = dec.offset( off );
+    this->data_start = dec.offset( off );
+  }
   if ( ! dec.ok )
     return Err::BAD_HEADER;
   return 0;
@@ -784,7 +930,8 @@ RwfFieldIter::unpack_element_list_entry( void ) noexcept
     if ( (sz = get_fe_prefix( &buf[ i ], eob, this->fsize )) == 0 )
       return Err::BAD_FIELD_BOUNDS;
     i += sz;
-    this->ftype = rwf_primitive_to_md_type( (RWF_type) it.type );
+    if ( ! rwf_primitive_to_md_type( (RWF_type) it.type, this->ftype ) )
+      return Err::BAD_FIELD_TYPE;
   }
   this->data_start = i;
   this->field_end  = this->data_start + this->fsize;
@@ -794,9 +941,36 @@ RwfFieldIter::unpack_element_list_entry( void ) noexcept
 }
 
 int
+RwfFieldIter::unpack_element_list_defn( void ) noexcept
+{
+  RwfMsg & msg = (RwfMsg &) this->iter_msg;
+  RwfElementListIter & it = this->u.elist;
+  uint8_t * buf = (uint8_t *) msg.msg_buf,
+          * eob = &buf[ this->field_end ];
+  size_t    i   = this->field_start;
+
+  if ( ! msg.elist.field_set->get_elem( this->field_idx, this->ftype, this->fsize,
+                                        it.name, it.namelen ) )
+    return Err::BAD_FIELD_TYPE;
+
+  if ( this->fsize == 0 ) {
+    size_t sz;
+    if ( (sz = get_fe_prefix( &buf[ i ], eob, this->fsize )) == 0 )
+      return Err::BAD_FIELD_BOUNDS;
+    i += sz;
+  }
+  if ( &buf[ i + this->fsize ] > eob )
+    return Err::BAD_FIELD_BOUNDS;
+
+  this->data_start = i;
+  this->field_end  = this->data_start + this->fsize;
+  return 0;
+}
+
+int
 RwfFilterListHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
 {
-  DecodeHdr dec( bb, off, end );
+  RwfDecoder dec( bb, off, end );
   uint32_t t = this->parse_type( dec );
 
   if ( t != 0 && t != RWF_FILTER_LIST )
@@ -877,7 +1051,7 @@ RwfFieldIter::unpack_filter_list_entry( void ) noexcept
 int
 RwfSeriesHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
 {
-  DecodeHdr dec( bb, off, end );
+  RwfDecoder dec( bb, off, end );
   uint32_t t = this->parse_type( dec );
 
   if ( t != 0 && t != RWF_SERIES )
@@ -894,9 +1068,11 @@ RwfSeriesHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
      .u8( this->container_type );
   this->container_type += RWF_CONTAINER_BASE;
 
-  if ( ( this->flags & HAS_SET_DEFS ) != 0 )
-    return Err::BAD_HEADER;
-
+  if ( ( this->flags & HAS_SET_DEFS ) != 0 ) {
+    dec.u15( this->set_size );
+    this->set_start = dec.offset( off );
+    dec.incr( this->set_size );
+  }
   if ( ( this->flags & HAS_SUMMARY_DATA ) != 0 ) {
     dec.u15( this->summary_size );
     this->summary_start = dec.offset( off );
@@ -915,14 +1091,17 @@ RwfSeriesHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
 int
 RwfFieldIter::unpack_series_entry( void ) noexcept
 {
+  RwfSeriesIter & it = this->u.series;
   RwfMsg  & msg = (RwfMsg &) this->iter_msg;
   uint8_t * buf = (uint8_t *) msg.msg_buf,
           * eob = &buf[ msg.msg_end ];
   size_t    i, sz;
 
-  if ( (i = unpack_summary( *this, msg.series )) == 0 )
+  if ( (i = unpack_summary( *this, msg.series )) == 0 ) {
+    it.is_summary = true;
     return 0;
-
+  }
+  it.is_summary = false;
   this->field_start = i;
   if ( &buf[ i ] >= eob )
     return Err::NOT_FOUND;
@@ -945,7 +1124,7 @@ RwfFieldIter::unpack_series_entry( void ) noexcept
 int
 RwfVectorHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
 {
-  DecodeHdr dec( bb, off, end );
+  RwfDecoder dec( bb, off, end );
   uint32_t t = this->parse_type( dec );
 
   if ( t != 0 && t != RWF_VECTOR )
@@ -963,9 +1142,11 @@ RwfVectorHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
      .u8( this->container_type );
   this->container_type += RWF_CONTAINER_BASE;
 
-  if ( ( this->flags & HAS_SET_DEFS ) != 0 )
-    return Err::BAD_HEADER;
-
+  if ( ( this->flags & HAS_SET_DEFS ) != 0 ) {
+    dec.u15( this->set_size );
+    this->set_start = dec.offset( off );
+    dec.incr( this->set_size );
+  }
   if ( ( this->flags & HAS_SUMMARY_DATA ) != 0 ) {
     dec.u15( this->summary_size );
     this->summary_start = dec.offset( off );
@@ -990,9 +1171,11 @@ RwfFieldIter::unpack_vector_entry( void ) noexcept
              * eob = &buf[ msg.msg_end ];
   size_t       i, sz;
 
-  if ( (i = unpack_summary( *this, msg.vector )) == 0 )
+  if ( (i = unpack_summary( *this, msg.vector )) == 0 ) {
+    it.flags  = 0;
+    it.action = VECTOR_SUMMARY;
     return 0;
-
+  }
   this->field_start = i;
   if ( &buf[ i ] >= eob )
     return Err::NOT_FOUND;
@@ -1042,21 +1225,16 @@ RwfMsg::unpack_field_list( void *bb,  size_t off,  size_t end,  uint32_t h,
   RwfFieldListHdr hdr;
   ::memset( &hdr, 0, sizeof( hdr ) );
   if ( hdr.parse( bb, off, end ) != 0 ) {
-    if ( hdr.type_id == RWF_MAP )
-      return RwfMsg::unpack_map( bb, off, end, h, d, m );
-    if ( hdr.type_id == RWF_ELEMENT_LIST )
-      return RwfMsg::unpack_element_list( bb, off, end, h, d, m );
-    if ( hdr.type_id == RWF_FILTER_LIST )
-      return RwfMsg::unpack_filter_list( bb, off, end, h, d, m );
-    if ( hdr.type_id == RWF_SERIES )
-      return RwfMsg::unpack_series( bb, off, end, h, d, m );
-    if ( hdr.type_id == RWF_VECTOR )
-      return RwfMsg::unpack_vector( bb, off, end, h, d, m );
-    if ( hdr.type_id == RWF_MSG )
-      return RwfMsg::unpack_message( bb, off, end, h, d, m );
-    if ( hdr.type_id == RWF_MSG_KEY )
-      return RwfMsg::unpack_msg_key( bb, off, end, h, d, m );
-    return NULL;
+    switch ( hdr.type_id ) {
+      case RWF_MAP:          return RwfMsg::unpack_map( bb, off, end, h, d, m );
+      case RWF_ELEMENT_LIST: return RwfMsg::unpack_element_list( bb, off, end, h, d, m );
+      case RWF_FILTER_LIST:  return RwfMsg::unpack_filter_list( bb, off, end, h, d, m );
+      case RWF_SERIES:       return RwfMsg::unpack_series( bb, off, end, h, d, m );
+      case RWF_VECTOR:       return RwfMsg::unpack_vector( bb, off, end, h, d, m );
+      case RWF_MSG:          return RwfMsg::unpack_message( bb, off, end, h, d, m );
+      case RWF_MSG_KEY:      return RwfMsg::unpack_msg_key( bb, off, end, h, d, m );
+      default:               return NULL;
+    }
   }
   void * ptr;
   m.incr_ref();
@@ -1181,71 +1359,199 @@ RwfMsg::get_field_iter( MDFieldIter *&iter ) noexcept
   return 0;
 }
 
+RwfMsg *
+RwfMsg::unpack_sub_msg( uint8_t type,  size_t start,  size_t end ) noexcept
+{
+  MDDict   * d  = this->dict;
+  MDMsgMem & m  = *this->mem;
+  void     * bb = this->msg_buf;
+
+  switch ( type ) {
+    case RWF_FIELD_LIST:   return RwfMsg::unpack_field_list( bb, start, end, 0, d, m );
+    case RWF_ELEMENT_LIST: return RwfMsg::unpack_element_list( bb, start, end, 0, d, m );
+    case RWF_FILTER_LIST:  return RwfMsg::unpack_filter_list( bb, start, end, 0, d, m );
+    case RWF_VECTOR:       return RwfMsg::unpack_vector( bb, start, end, 0, d, m );
+    case RWF_MAP:          return RwfMsg::unpack_map( bb, start, end, 0, d, m );
+    case RWF_SERIES:       return RwfMsg::unpack_series( bb, start, end, 0, d, m );
+    case RWF_MSG:          return RwfMsg::unpack_message( bb, start, end, 0, d, m );
+    case RWF_MSG_KEY:      return RwfMsg::unpack_msg_key( bb, start, end, 0, d, m );
+    default:
+      return NULL;
+  }
+}
+
+RwfMsg *
+RwfMsg::get_container_msg( void ) noexcept
+{
+  if ( this->base.type_id != RWF_MSG )
+    return NULL;
+  uint8_t type = this->msg.container_type;
+  return this->unpack_sub_msg( type, this->msg.data_start, this->msg.data_end );
+}
+
+RwfMsg *
+RwfMsg::get_summary_msg( void ) noexcept
+{
+  size_t  start = 0,
+          size = 0;
+  uint8_t type = 0;
+  switch ( this->base.type_id ) {
+    case RWF_MAP:
+      type  = this->map.container_type;
+      start = this->map.summary_start;
+      size  = this->map.summary_size;
+      break;
+    case RWF_SERIES:
+      type  = this->series.container_type;
+      start = this->series.summary_start;
+      size  = this->series.summary_size;
+      break;
+    case RWF_VECTOR:
+      type  = this->vector.container_type;
+      start = this->vector.summary_start;
+      size  = this->vector.summary_size;
+      break;
+    default:
+      return NULL;
+  }
+  if ( size == 0 )
+    return NULL;
+  return this->unpack_sub_msg( type, start, start + size );
+}
+
+RwfMsg *
+RwfMsg::get_msg_key_attributes( void ) noexcept
+{
+  if ( this->base.type_id != RWF_MSG )
+    return NULL;
+  uint8_t   type = this->msg.msg_key.attrib.container_type;
+  uint8_t * data = (uint8_t *) this->msg.msg_key.attrib.data;
+  size_t    len  = this->msg.msg_key.attrib.len;
+  uint8_t * bb    = (uint8_t *) this->msg_buf;
+  size_t    start = (size_t) ( data - bb );
+  if ( len == 0 )
+    return NULL;
+  return this->unpack_sub_msg( type, start, start + len );
+}
+
 int
 RwfMsg::get_sub_msg( MDReference &mref,  MDMsg *&msg,
                      MDFieldIter *iter ) noexcept
 {
   uint8_t * bb    = (uint8_t *) this->msg_buf;
   size_t    start = (size_t) ( mref.fptr - bb );
-  RWF_type  type  = RWF_NO_DATA;
+  uint8_t   type  = RWF_NO_DATA;
+  RwfMsg  * rwf_msg;
 
   if ( this->base.type_id == RWF_MAP )
-    type = (RWF_type) this->map.container_type;
+    type = this->map.container_type;
   else if ( this->base.type_id == RWF_FILTER_LIST ) {
     if ( iter != NULL )
-      type = (RWF_type) ((RwfFieldIter *) iter)->u.flist.type;
+      type = ((RwfFieldIter *) iter)->u.flist.type;
   }
   else if ( this->base.type_id == RWF_SERIES )
-    type = (RWF_type) this->series.container_type;
+    type = this->series.container_type;
   else if ( this->base.type_id == RWF_VECTOR )
-    type = (RWF_type) this->vector.container_type;
+    type = this->vector.container_type;
   else if ( this->base.type_id == RWF_MSG ) {
-    type = (RWF_type) this->msg.container_type;
+    type = this->msg.container_type;
     if ( mref.fptr == (uint8_t *) this->msg.msg_key.data ||
          mref.fptr == (uint8_t *) this->msg.req_msg_key.data )
       type = RWF_MSG_KEY;
   }
   else if ( this->base.type_id == RWF_MSG_KEY )
-    type =  (RWF_type) this->msg_key.attrib.container_type;
+    type = this->msg_key.attrib.container_type;
 
-  switch ( type ) {
-    case RWF_FIELD_LIST:
-      msg = RwfMsg::unpack_field_list( bb, start, start + mref.fsize, 0,
-                                       this->dict, *this->mem );
-      break;
-    case RWF_ELEMENT_LIST:
-      msg = RwfMsg::unpack_element_list( bb, start, start + mref.fsize, 0,
-                                         this->dict, *this->mem );
-      break;
-    case RWF_FILTER_LIST:
-      msg = RwfMsg::unpack_filter_list( bb, start, start + mref.fsize, 0,
-                                        this->dict, *this->mem );
-      break;
-    case RWF_VECTOR:
-      msg = RwfMsg::unpack_vector( bb, start, start + mref.fsize, 0,
-                                   this->dict, *this->mem );
-      break;
-    case RWF_MAP:
-      msg = RwfMsg::unpack_map( bb, start, start + mref.fsize, 0,
-                                this->dict, *this->mem );
-      break;
-    case RWF_SERIES:
-      msg = RwfMsg::unpack_series( bb, start, start + mref.fsize, 0,
-                                   this->dict, *this->mem );
-      break;
-    case RWF_MSG:
-      msg = RwfMsg::unpack_message( bb, start, start + mref.fsize, 0,
-                                    this->dict, *this->mem );
-      break;
-    case RWF_MSG_KEY:
-      msg = RwfMsg::unpack_msg_key( bb, start, start + mref.fsize, 0,
-                                    this->dict, *this->mem );
-      break;
-    default:
-      msg = NULL;
-      return Err::BAD_SUB_MSG;
-  }
+  rwf_msg = this->unpack_sub_msg( type, start, start + mref.fsize );
+  msg     = rwf_msg;
+  if ( rwf_msg == NULL )
+    return Err::BAD_SUB_MSG;
+  rwf_msg->parent = this;
   return 0;
+}
+
+bool
+RwfMsg::get_field_defn_db( void ) noexcept
+{
+  uint16_t my_set_id = 0;
+  if ( this->base.type_id == RWF_FIELD_LIST ) {
+    if ( this->fields.field_set != NULL )
+      return true;
+    my_set_id = this->fields.set_id;
+  }
+  else if ( this->base.type_id == RWF_ELEMENT_LIST ) {
+    if ( this->elist.field_set != NULL )
+      return true;
+    my_set_id = this->elist.set_id;
+  }
+  else { /* no field data for others */
+    return false;
+  }
+
+  for ( RwfMsg *p = this->parent; p != NULL; p = p->parent ) {
+    if ( p->base.set_start != 0 ) {
+      RwfDecoder dec( p->msg_buf, p->base.set_start, p->base.set_start + p->base.set_size );
+      uint8_t flags, num_sets = 0;
+      dec.u8( flags );
+      dec.u8( num_sets );
+      for (;;) {
+        uint16_t set_id = 0,
+                 set_cnt = 0,
+                 name_len, i;
+        uint8_t  type;
+
+        dec.u15( set_id );
+        dec.u8( set_cnt );
+        if ( ! dec.ok )
+          break;
+        if ( set_id == my_set_id ) {
+          if ( this->base.type_id == RWF_FIELD_LIST ) {
+            this->mem->alloc( RwfFieldListSet::alloc_size( set_cnt ), &this->fields.field_set );
+            for ( i = 0; i < set_cnt; i++ ) {
+              dec.u16( this->fields.field_set->entry[ i ].fid );
+              dec.u8( this->fields.field_set->entry[ i ].type );
+            }
+            if ( dec.ok ) {
+              this->fields.field_set->count = set_cnt;
+              this->fields.field_set->set_id = my_set_id;
+            }
+            else
+              this->fields.field_set = NULL;
+          }
+          else {
+            this->mem->alloc( RwfElementListSet::alloc_size( set_cnt ), &this->elist.field_set );
+            for ( i = 0; i < set_cnt; i++ ) {
+              dec.u15( name_len );
+              this->elist.field_set->entry[ i ].name_len = name_len;
+              this->elist.field_set->entry[ i ].name     = (char *) dec.buf;
+              dec.incr( name_len );
+              dec.u8( this->elist.field_set->entry[ i ].type );
+            }
+            if ( dec.ok ) {
+              this->elist.field_set->count  = set_cnt;
+              this->elist.field_set->set_id = my_set_id;
+            }
+            else
+              this->elist.field_set = NULL;
+          }
+          return dec.ok;
+        }
+        if ( --num_sets == 0 )
+          break;
+        /* skip this set, go to next */
+        if ( this->base.type_id == RWF_FIELD_LIST )
+          dec.incr( 3 * set_cnt );
+        else {
+          for ( i = 0; i < set_cnt; i++ ) {
+            dec.u15( name_len );
+            dec.incr( name_len );
+            dec.u8( type );
+          }
+        }
+      }
+    }
+  }
+  return false;
 }
 
 void
@@ -1259,12 +1565,14 @@ RwfFieldIter::lookup_fid( void ) noexcept
         this->fsize = by.fsize;
         this->u.field.fname    = by.fname;
         this->u.field.fnamelen = by.fname_len;
+        this->u.field.rwf_type = RWF_NONE;
       }
     }
     if ( this->ftype == MD_NODATA ) { /* undefined fid or no dictionary */
-      this->ftype    = MD_OPAQUE;
+      this->ftype = MD_OPAQUE;
       this->u.field.fname    = NULL;
       this->u.field.fnamelen = 0;
+      this->u.field.rwf_type = RWF_NONE;
     }
   }
 }
@@ -1465,40 +1773,45 @@ int8_t
 rai::md::rwf_to_md_decimal_hint( uint8_t hint ) noexcept
 {
   static int8_t to_md[] = {
-    MD_DEC_LOGn10_10-4,  /* ^10-14 */
-    MD_DEC_LOGn10_10-3,
-    MD_DEC_LOGn10_10-2,
-    MD_DEC_LOGn10_10-1,
-    MD_DEC_LOGn10_10,
-    MD_DEC_LOGn10_9,
-    MD_DEC_LOGn10_8,
-    MD_DEC_LOGn10_7,
-    MD_DEC_LOGn10_6,
-    MD_DEC_LOGn10_5,
-    MD_DEC_LOGn10_4,
-    MD_DEC_LOGn10_3,
-    MD_DEC_LOGn10_2,
-    MD_DEC_LOGn10_1,
-    MD_DEC_INTEGER,   /* 14 */
-    MD_DEC_LOGp10_1,
-    MD_DEC_LOGp10_2,
-    MD_DEC_LOGp10_3,
-    MD_DEC_LOGp10_4,
-    MD_DEC_LOGp10_5,
-    MD_DEC_LOGp10_6,
-    MD_DEC_LOGp10_7,  /* ^10+7 */
-    MD_DEC_INTEGER,   /* 22 */
-    MD_DEC_FRAC_2,
-    MD_DEC_FRAC_4,
-    MD_DEC_FRAC_8,
-    MD_DEC_FRAC_16,
-    MD_DEC_FRAC_32,
-    MD_DEC_FRAC_64,
-    MD_DEC_FRAC_128,
-    MD_DEC_FRAC_256,
-    MD_DEC_INF,       /* 33 */
-    MD_DEC_NINF,      /* 34 */
-    MD_DEC_NAN        /* 35 */
+  /*  0 */ MD_DEC_LOGn10_10-4,/* ^10-14 */
+  /*  1 */ MD_DEC_LOGn10_10-3,
+  /*  2 */ MD_DEC_LOGn10_10-2,
+  /*  3 */ MD_DEC_LOGn10_10-1,
+  /*  4 */ MD_DEC_LOGn10_10,
+  /*  5 */ MD_DEC_LOGn10_9,
+  /*  6 */ MD_DEC_LOGn10_8,
+  /*  7 */ MD_DEC_LOGn10_7,
+  /*  8 */ MD_DEC_LOGn10_6,
+  /*  9 */ MD_DEC_LOGn10_5,
+
+  /* 10 */ MD_DEC_LOGn10_4,
+  /* 11 */ MD_DEC_LOGn10_3,
+  /* 12 */ MD_DEC_LOGn10_2,
+  /* 13 */ MD_DEC_LOGn10_1,
+  /* 14 */ MD_DEC_INTEGER,   /* n^0 */
+  /* 15 */ MD_DEC_LOGp10_1,
+  /* 16 */ MD_DEC_LOGp10_2,
+  /* 17 */ MD_DEC_LOGp10_3,
+  /* 18 */ MD_DEC_LOGp10_4,
+  /* 19 */ MD_DEC_LOGp10_5,
+
+  /* 20 */ MD_DEC_LOGp10_6,
+  /* 21 */ MD_DEC_LOGp10_7,  /* ^10+7 */
+  /* 22 */ MD_DEC_INTEGER,   /* n/1 */
+  /* 23 */ MD_DEC_FRAC_2,
+  /* 24 */ MD_DEC_FRAC_4,
+  /* 25 */ MD_DEC_FRAC_8,
+  /* 26 */ MD_DEC_FRAC_16,
+  /* 27 */ MD_DEC_FRAC_32,
+  /* 28 */ MD_DEC_FRAC_64,
+  /* 29 */ MD_DEC_FRAC_128,
+
+  /* 30 */ MD_DEC_FRAC_256,
+  /* 31 */ MD_DEC_NULL,
+  /* 32 */ MD_DEC_NULL,      /* blank */
+  /* 33 */ MD_DEC_INF,
+  /* 34 */ MD_DEC_NINF,
+  /* 35 */ MD_DEC_NAN
   };
   return to_md[ hint < 36 ? hint : 35 ];
 }
@@ -1564,7 +1877,6 @@ get_short( const uint8_t *buf,  size_t &i,  const uint8_t *eos,
 int
 RwfFieldIter::get_reference( MDReference &mref ) noexcept
 {
-  mref.fendian  = MD_BIG;
   mref.fentrysz = 0;
   mref.fentrytp = MD_NODATA;
   mref.fendian  = md_endian;
@@ -1572,8 +1884,17 @@ RwfFieldIter::get_reference( MDReference &mref ) noexcept
   if ( this->msg_fptr == NULL ) {
     RwfMsg & msg = (RwfMsg &) this->iter_msg;
     uint8_t * buf = &((uint8_t *) msg.msg_buf)[ this->data_start ];
-    if ( this->ftype == MD_NODATA && msg.base.type_id == RWF_FIELD_LIST )
-      this->lookup_fid();
+    if ( msg.base.type_id == RWF_FIELD_LIST ) {
+      if ( this->ftype == MD_NODATA )
+        this->lookup_fid();
+      if ( this->u.field.rwf_type == RWF_REAL_4RB ||
+           this->u.field.rwf_type == RWF_REAL_8RB ) {
+        mref.ftype = MD_DECIMAL;
+        mref.fsize = this->field_end - this->data_start;
+        mref.fptr  = buf;
+        return this->get_real_ref( mref );
+      }
+    }
     mref.ftype = this->ftype;
     mref.fsize = this->field_end - this->data_start;
     mref.fptr  = buf;
@@ -1587,10 +1908,124 @@ RwfFieldIter::get_reference( MDReference &mref ) noexcept
 }
 
 int
+RwfFieldIter::get_real_ref( MDReference &mref ) noexcept
+{
+  uint8_t * buf = mref.fptr;
+  if ( mref.fsize == 1 ) {
+    this->dec.ival = 0;
+    this->dec.hint = MD_DEC_NULL;
+  }
+  else {
+    this->dec.hint = rwf_to_md_decimal_hint( buf[ 0 ] & ~0xc0 );
+    if ( mref.fsize == 2 )
+      this->dec.ival = (int64_t) (char) buf[ 1 ];
+    else if ( mref.fsize < 8 ) {
+      if ( mref.fsize == 3 ) {
+        this->dec.ival = get_u16<MD_BIG>( &buf[ 1 ] );
+      }
+      else if ( mref.fsize == 4 ) {
+        this->dec.ival = get_u16<MD_BIG>( &buf[ 1 ] );
+        this->dec.ival <<= 8;
+        this->dec.ival |= buf[ 3 ];
+      }
+      else if ( mref.fsize >= 5 ) {
+        this->dec.ival = get_u32<MD_BIG>( &buf[ 1 ] );
+        if ( mref.fsize >= 6 ) {
+          this->dec.ival <<= 8;
+          this->dec.ival |= buf[ 5 ];
+        }
+        if ( mref.fsize == 7 ) {
+          this->dec.ival <<= 8;
+          this->dec.ival |= buf[ 6 ];
+        }
+      }
+      int shft = ( mref.fsize - 1 ) * 8;
+      if ( ( this->dec.ival >> ( shft - 1 ) ) != 0 )
+        this->dec.ival |= ( ~(uint64_t) 0 ) << shft;
+    }
+    else if ( mref.fsize == 8 ) {
+      this->dec.ival = (int64_t) get_u64<MD_BIG>( &buf[ 1 ] );
+    }
+  }
+  mref.fptr    = (uint8_t *) (void *) &this->dec;
+  mref.fsize   = sizeof( this->dec );
+  mref.fendian = md_endian;
+  return 0;
+}
+
+int
+RwfMsg::get_array_ref( MDReference &mref,  size_t i,
+                       MDReference &aref ) noexcept
+{
+  size_t num_entries = mref.fsize;
+  uint8_t * buf      = mref.fptr;
+
+  aref.zero();
+  if ( mref.fentrysz != 0 ) {
+    num_entries /= mref.fentrysz;
+    if ( i < num_entries ) {
+      aref.ftype   = mref.fentrytp;
+      aref.fsize   = mref.fentrysz;
+      aref.fendian = mref.fendian;
+      aref.fptr    = &buf[ i * (size_t) mref.fentrysz ];
+      return 0;
+    }
+    return Err::NOT_FOUND;
+  }
+
+  for ( ; ; i-- ) {
+    size_t sz = buf[ 0 ];
+    if ( i == 0 ) {
+      aref.ftype   = mref.fentrytp;
+      aref.fsize   = sz;
+      aref.fendian = mref.fendian;
+      aref.fptr    = &buf[ 1 ];
+      return 0;
+    }
+    buf = &buf[ sz + 1 ];
+  }
+  return Err::NOT_FOUND;
+}
+
+int
 RwfFieldIter::decode_ref( MDReference &mref ) noexcept
 {
   uint8_t * buf = mref.fptr;
   switch ( mref.ftype ) {
+    case MD_ARRAY: {
+      uint8_t * eob = &buf[ mref.fsize ];
+      if ( &buf[ 4 ] <= eob ) {
+        uint32_t count = get_uint<uint16_t>( &buf[ 2 ], MD_BIG );
+        if ( ! rwf_primitive_to_md_type( buf[ 0 ], mref.fentrytp ) )
+          return Err::BAD_FIELD_TYPE;
+        mref.fentrysz = buf[ 1 ];
+        mref.fptr     = &buf[ 4 ];
+        mref.fsize    = &buf[ mref.fsize ] - &buf[ 4 ];
+        mref.fendian  = MD_BIG;
+        if ( mref.fentrysz > 0 ) {
+          size_t ar_size = count * mref.fentrysz;
+          if ( mref.fsize > ar_size )
+            mref.fsize = ar_size;
+        }
+        else {
+          count = 0;
+          for ( buf = &buf[ 4 ]; ; ) {
+            if ( buf >= eob )
+              break;
+            size_t sz = buf[ 0 ];
+            if ( &buf[ 1 + sz ] > eob )
+              break;
+            buf = &buf[ 1 + sz ];
+            count++;
+          }
+          mref.fsize = count;
+        }
+      }
+      else {
+        mref.ftype = MD_OPAQUE;
+      }
+      break;
+    }
     case MD_OPAQUE:
     case MD_MESSAGE:
       break;
@@ -1598,6 +2033,7 @@ RwfFieldIter::decode_ref( MDReference &mref ) noexcept
     case MD_UINT:
     case MD_ENUM:
     case MD_BOOLEAN:
+      mref.fendian = MD_BIG;
       if ( ( mref.fsize & ( mref.fsize - 1 ) ) != 0 ) { /* not a power of 2 */
         if ( mref_to_value( mref, this->val ) ) {
           mref.fptr    = (uint8_t *) (void *) &this->val;
@@ -1639,6 +2075,8 @@ RwfFieldIter::decode_ref( MDReference &mref ) noexcept
             this->time.resolution = MD_RES_NANOSECS;
           }
         }
+        if ( this->time.hour == 0xff )
+          this->time.resolution |= MD_RES_NULL;
       }
       else {
         this->time.zero();
@@ -1767,36 +2205,56 @@ int
 RwfFieldIter::first( void ) noexcept
 {
   RwfMsg & msg = (RwfMsg &) this->iter_msg;
-  this->field_idx = 0;
+  int k;
+
   this->field_end = msg.msg_end;
+  this->field_idx = 0;
   this->msg_fptr  = NULL;
 
   switch ( msg.base.type_id ) {
     case RWF_FIELD_LIST:
-      this->field_start = msg.fields.data_start;
-      if ( msg.fields.iter_cnt() == 0 )
-        break;
-      return this->unpack_field_list_entry();
+      if ( msg.fields.set_start != 0 )
+        msg.get_field_defn_db();
+
+      k = msg.fields.next_kind( 0 );
+      if ( k == RWF_FIRST_ENTRY ) {
+        this->field_start = msg.fields.data_start;
+        return this->unpack_field_list_entry();
+      }
+      if ( k == RWF_FIRST_FIELD_DEFN ) {
+        this->field_start = msg.fields.set_start;
+        return this->unpack_field_list_defn();
+      }
+      break;
     case RWF_MAP:
-      if ( msg.map.iter_cnt() == 0 )
+      if ( ! msg.map.has_next( 0 ) )
         break;
       return this->unpack_map_entry();
     case RWF_ELEMENT_LIST:
-      this->field_start = msg.elist.data_start;
-      if ( msg.elist.iter_cnt() == 0 )
-        break;
-      return this->unpack_element_list_entry();
+      if ( msg.elist.set_start != 0 )
+        msg.get_field_defn_db();
+
+      k = msg.elist.next_kind( 0 );
+      if ( k == RWF_FIRST_ENTRY ) {
+        this->field_start = msg.elist.data_start;
+        return this->unpack_element_list_entry();
+      }
+      if ( k == RWF_FIRST_FIELD_DEFN ) {
+        this->field_start = msg.elist.set_start;
+        return this->unpack_element_list_defn();
+      }
+      break;
     case RWF_FILTER_LIST:
       this->field_start = msg.flist.data_start;
-      if ( msg.flist.iter_cnt() == 0 )
+      if ( ! msg.flist.has_next( 0 ) )
         break;
       return this->unpack_filter_list_entry();
     case RWF_SERIES:
-      if ( msg.series.iter_cnt() == 0 )
+      if ( ! msg.series.has_next( 0 ) )
         break;
       return this->unpack_series_entry();
     case RWF_VECTOR:
-      if ( msg.vector.iter_cnt() == 0 )
+      if ( ! msg.vector.has_next( 0 ) )
         break;
       return this->unpack_vector_entry();
     case RWF_MSG:
@@ -1814,43 +2272,58 @@ int
 RwfFieldIter::next( void ) noexcept
 {
   RwfMsg & msg = (RwfMsg &) this->iter_msg;
+  int k;
+
+  this->field_start = this->field_end;
+  this->field_end   = msg.msg_end;
+  this->field_idx++;
 
   switch ( msg.base.type_id ) {
     case RWF_FIELD_LIST:
-      if ( ++this->field_idx >= msg.fields.iter_cnt() )
-        break;
-      this->field_start = this->field_end;
-      this->field_end   = msg.msg_end;
-      return this->unpack_field_list_entry();
+      k = msg.fields.next_kind( this->field_idx );
+      if ( ( k & RWF_NORMAL_ENTRY ) != 0 ) {
+        if ( k == RWF_FIRST_ENTRY )
+          this->field_start = msg.fields.data_start;
+        return this->unpack_field_list_entry();
+      }
+      if ( ( k & RWF_FIELD_DEFN_ENTRY ) != 0 ) {
+        if ( k == RWF_FIRST_FIELD_DEFN )
+          this->field_start = msg.fields.set_start;
+        return this->unpack_field_list_defn();
+      }
+      break;
     case RWF_MAP:
-      if ( ++this->field_idx >= msg.map.iter_cnt() )
+      if ( ! msg.map.has_next( this->field_idx ) )
         break;
       return this->unpack_map_entry();
     case RWF_ELEMENT_LIST:
-      if ( ++this->field_idx >= msg.elist.iter_cnt() )
-        break;
-      this->field_start = this->field_end;
-      this->field_end   = msg.msg_end;
-      return this->unpack_element_list_entry();
+      k = msg.elist.next_kind( this->field_idx );
+      if ( (k & RWF_NORMAL_ENTRY) != 0 ) {
+        if ( k == RWF_FIRST_ENTRY )
+          this->field_start = msg.elist.data_start;
+        return this->unpack_element_list_entry();
+      }
+      if ( (k & RWF_FIELD_DEFN_ENTRY) != 0 ) {
+        if ( k == RWF_FIRST_FIELD_DEFN )
+          this->field_start = msg.elist.set_start;
+        return this->unpack_element_list_defn();
+      }
+      break;
     case RWF_FILTER_LIST:
-      if ( ++this->field_idx >= msg.flist.iter_cnt() )
+      if ( ! msg.flist.has_next( this->field_idx ) )
         break;
-      this->field_start = this->field_end;
-      this->field_end   = msg.msg_end;
       return this->unpack_filter_list_entry();
     case RWF_SERIES:
-      if ( ++this->field_idx >= msg.series.iter_cnt() )
+      if ( ! msg.series.has_next( this->field_idx ) )
         break;
       return this->unpack_series_entry();
     case RWF_VECTOR:
-      if ( ++this->field_idx >= msg.vector.iter_cnt() )
+      if ( ! msg.vector.has_next( this->field_idx ) )
         break;
       return this->unpack_vector_entry();
     case RWF_MSG:
-      this->field_idx++;
       return this->unpack_message_entry();
     case RWF_MSG_KEY:
-      this->field_idx++;
       return this->unpack_msg_key_entry();
     default:
       break;
