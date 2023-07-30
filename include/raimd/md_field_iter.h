@@ -38,6 +38,53 @@ struct MDFieldIter { /* generic field iterator */
   }
 };
 
+struct MDFieldReader { /* iterator but w bool return with err field */
+  MDFieldIter * iter;
+  MDReference   mref;
+  int           err;
+
+  MDFieldReader( MDMsg &m ) noexcept;
+  bool find( const char *fname,  size_t fnamelen ) noexcept;
+  bool find( const char *fname ) {
+    return this->find( fname, ::strlen( fname ) );
+  }
+  bool name( MDName &n ) noexcept;
+  bool first( void ) noexcept;
+  bool next( void ) noexcept;
+  bool first( MDName &n ) {
+    return this->first() && this->name( n );
+  }
+  bool next( MDName &n ) {
+    return this->next() && this->name( n );
+  }
+  MDType type( void ) noexcept;
+  bool get_value( void *val,  size_t len,  MDType t ) noexcept;
+  template <class I>
+  bool get_int( I &ival ) {
+    return this->get_value( &ival, sizeof( I ), MD_INT );
+  }
+  template <class I>
+  bool get_uint( I &ival ) {
+    return this->get_value( &ival, sizeof( I ), MD_UINT );
+  }
+  template <class F>
+  bool get_real( F &fval ) {
+    return this->get_value( &fval, sizeof( F ), MD_REAL );
+  }
+  bool get_string( char *&sval,  size_t &slen ) noexcept;
+  bool get_string( char *buf, size_t buflen, size_t &blen ) noexcept;
+  bool get_time( MDTime &time ) {
+    return this->get_value( &time, sizeof( MDTime ), MD_TIME );
+  }
+  bool get_date( MDDate &date ) {
+    return this->get_value( &date, sizeof( MDDate ), MD_DATE );
+  }
+  bool get_decimal( MDDecimal &dec ) {
+    return this->get_value( &dec, sizeof( MDDecimal ), MD_DECIMAL );
+  }
+  bool get_sub_msg( MDMsg *&msg ) noexcept;
+};
+
 struct MDIterMap {
   const char * fname;
   size_t       fname_len;

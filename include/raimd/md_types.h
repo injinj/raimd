@@ -121,8 +121,13 @@ struct MDName {
     this->fid      = 0;
   }
   bool equals( const MDName &nm ) const {
-    return nm.fnamelen == this->fnamelen &&
-           ::memcmp( nm.fname, this->fname, this->fnamelen ) == 0;
+    size_t len  = this->fnamelen,
+           len2 = nm.fnamelen;
+    if ( len > 0 && this->fname[ len - 1 ] == '\0' )
+      len--;
+    if ( len2 > 0 && nm.fname[ len2 - 1 ] == '\0' )
+      len2--;
+    return len == len2 && ::memcmp( this->fname, nm.fname, len ) == 0;
   }
 };
 /* for msg_type = { MDLIT( "MSG_TYPE" ), 4005 }; */
@@ -183,7 +188,7 @@ struct MDDecimal { /* base 10 decimal */
   MDDecimal() {}
   MDDecimal( int64_t i,  int8_t h ) : ival( i ), hint( h ) {}
   MDDecimal( double fval ) { this->set_real( fval ); }
-  MDDecimal( double fval,  int h ) noexcept;
+  void set( int64_t i,  int8_t h ) { this->ival = i; this->hint = h; }
   int parse( const char *s ) { return this->parse( s, ::strlen( s ) ); }
   int parse( const char *s,  const size_t fsize ) noexcept;
   void zero( void ) { ival = 0; hint = 0; }

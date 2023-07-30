@@ -214,6 +214,31 @@ main( int argc, char **argv )
   m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
   if ( m != NULL )
     m->print( &mout );
+#if 0
+  MDFieldReader rd( *m );
+  MDName nm;
+  if ( rd.first( nm ) ) {
+    do {
+      MDValue val;
+      printf( "%.*s : ", (int) nm.fnamelen, nm.fname );
+      switch ( rd.type() ) {
+        case MD_INT:
+          if ( rd.get_int( val.i32 ) )
+            printf( "%d", val.i32 );
+          break;
+        case MD_UINT:
+          if ( rd.get_int( val.u32 ) )
+            printf( "%u", val.u32 );
+          break;
+        default:
+          if ( rd.get_string( val.str, sz ) )
+            printf( "%.*s", (int) sz, val.str );
+          break;
+      }
+      printf( "\n" );
+    } while ( rd.next( nm ) );
+  }
+#endif
   mem.reuse();
 
   RvMsgWriter rvmsg( buf, sizeof( buf ) );
