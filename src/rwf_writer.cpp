@@ -943,43 +943,62 @@ RwfMsgWriterBase::pack_mref( uint8_t type,  MDReference &mref ) noexcept
 size_t
 RwfMsgWriterBase::time_size( const MDTime &time ) noexcept
 {
-  switch ( time.resolution ) {
-    case MD_RES_MILLISECS: return 5;
-    case MD_RES_MICROSECS: return 7;
-    case MD_RES_NANOSECS:  return 8;
-    case MD_RES_MINUTES:   return 3;
-    case MD_RES_SECONDS:   return 4;
-    default:               return 1;
+  switch ( time.resolution & ~MD_RES_NULL ) {
+    case MD_RES_MINUTES:   return 1+2; /* 2 h:m */
+    case MD_RES_SECONDS:   return 1+3; /* 3 h:m:s */
+    case MD_RES_MILLISECS: return 1+5; /* 5 h:m:s.ms */
+    case MD_RES_MICROSECS: return 1+7; /* 7 h:m:s.ms.us */
+    case MD_RES_NANOSECS:  return 1+8; /* 8 h:m:s.ms.us.n */
+    default:               return 0+1; /* 0 */
   }
 }
 
 void
 RwfMsgWriterBase::pack_time( size_t sz,  const MDTime &time ) noexcept
 {
-  if ( sz == 1 ) {
+  uint8_t  hr   = time.hour,
+           min  = time.minute,
+           sec  = time.sec;
+  uint32_t frac = time.fraction;
+  if ( --sz == 0 ) {
     this->u8( 0 );
     return;
   }
-  this->u8( sz - 1 )
-       .u8( time.hour )
-       .u8( time.minute );
-  if ( sz > 3 ) /* second */
-    this->u8( time.sec );
-  if ( sz == 5 ) /* millisec */
-    this->u16( time.fraction );
-  else if ( sz == 7 ) { /* microsec */
-    this->u16( time.fraction / 1000 )
-         .u16( time.fraction % 1000 );
+  if ( ( time.resolution & MD_RES_NULL ) != 0 ) {
+    hr   = 0;
+    min  = 0;
+    sec  = 0;
+    frac = 0;
   }
-  else if ( sz == 8 ) { /* nano encoding */
-    uint16_t milli = (uint16_t) ( time.fraction / 1000000 ),
-             nano  = (uint16_t) ( time.fraction % 1000 ),
-             micro = (uint16_t) ( time.fraction % 1000000 ) / 1000;
-    micro |= ( nano & 0xff00 ) << 3; /* shift 3 top bits into micro */
-    nano  &= 0xff;
-    this->u16( milli )
-         .u16( micro )
-         .u8 ( nano );
+  this->u8( sz )
+       .u8( hr )
+       .u8( min );
+  switch ( sz ) {
+    case 3: /* second h:m:s */
+      this->u8 ( sec );
+      break;
+    case 5: /* millisec h:m:s.ms */
+      this->u8 ( sec  )
+           .u16( frac );
+      break;
+    case 7: /* microsec h:m:s.ms.us */
+      this->u8 ( sec  )
+           .u16( frac / 1000 )
+           .u16( frac % 1000 );
+      break;
+    case 8: { /* nanosec h:m:s.ms.us.n */
+      uint16_t milli = (uint16_t) ( frac / 1000000 ),
+               nano  = (uint16_t) ( frac % 1000 ),
+               micro = (uint16_t) ( frac % 1000000 ) / 1000;
+      micro |= ( nano & 0xff00 ) << 3; /* shift 3 top bits into micro */
+      nano  &= 0xff;
+      this->u16( milli )
+           .u16( micro )
+           .u8 ( nano );
+      break;
+    }
+    case 2: /* minutes */
+    default: break;
   }
 }
 

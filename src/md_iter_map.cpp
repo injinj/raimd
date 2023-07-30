@@ -54,6 +54,37 @@ MDIterMap::copy_string( size_t i,  MDReference &mref ) noexcept
   return true;
 }
 
+static inline bool get_uint_size( void *ptr,  size_t sz,  MDReference &mref ) {
+  switch ( sz ) {
+    case 1: ((uint8_t *)  ptr)[ 0 ] = get_uint<uint8_t>( mref );  break;
+    case 2: ((uint16_t *) ptr)[ 0 ] = get_uint<uint16_t>( mref ); break;
+    case 4: ((uint32_t *) ptr)[ 0 ] = get_uint<uint32_t>( mref ); break;
+    case 8: ((uint64_t *) ptr)[ 0 ] = get_uint<uint64_t>( mref ); break;
+    default: return false;
+  }
+  return true;
+}
+
+static inline bool get_sint_size( void *ptr,  size_t sz,  MDReference &mref ) {
+  switch ( sz ) {
+    case 1: ((int8_t *)  ptr)[ 0 ] = get_int<int8_t>( mref );  break;
+    case 2: ((int16_t *) ptr)[ 0 ] = get_int<int16_t>( mref ); break;
+    case 4: ((int32_t *) ptr)[ 0 ] = get_int<int32_t>( mref ); break;
+    case 8: ((int64_t *) ptr)[ 0 ] = get_int<int64_t>( mref ); break;
+    default: return false;
+  }
+  return true;
+}
+
+static inline bool get_real_size( void *ptr,  size_t sz,  MDReference &mref ) {
+  switch ( sz ) {
+    case 4: ((float *) ptr)[ 0 ]  = get_float<float>( mref );  break;
+    case 8: ((double *) ptr)[ 0 ] = get_float<double>( mref ); break;
+    default: return false;
+  }
+  return true;
+}
+
 bool
 MDIterMap::copy_uint( size_t i,  MDReference &mref ) noexcept
 {
@@ -61,13 +92,8 @@ MDIterMap::copy_uint( size_t i,  MDReference &mref ) noexcept
   size_t sz;
   if ( ! this->index_array( i, ptr, sz ) )
     return false;
-  switch ( sz ) {
-    case 1: ((uint8_t *)  ptr)[ 0 ] = get_int<uint8_t>( mref );  break;
-    case 2: ((uint16_t *) ptr)[ 0 ] = get_int<uint16_t>( mref ); break;
-    case 4: ((uint32_t *) ptr)[ 0 ] = get_int<uint32_t>( mref ); break;
-    case 8: ((uint64_t *) ptr)[ 0 ] = get_int<uint64_t>( mref ); break;
-    default: return false;
-  }
+  if ( ! get_uint_size( ptr, sz, mref ) )
+    return false;
   if ( this->elem_count != NULL )
     this->elem_count[ 0 ]++;
   return true;
@@ -80,13 +106,8 @@ MDIterMap::copy_sint( size_t i,  MDReference &mref ) noexcept
   size_t sz;
   if ( ! this->index_array( i, ptr, sz ) )
     return false;
-  switch ( sz ) {
-    case 1: ((int8_t *)  ptr)[ 0 ] = get_int<int8_t>( mref );  break;
-    case 2: ((int16_t *) ptr)[ 0 ] = get_int<int16_t>( mref ); break;
-    case 4: ((int32_t *) ptr)[ 0 ] = get_int<int32_t>( mref ); break;
-    case 8: ((int64_t *) ptr)[ 0 ] = get_int<int64_t>( mref ); break;
-    default: return false;
-  }
+  if ( ! get_sint_size( ptr, sz, mref ) )
+    return false;
   if ( this->elem_count != NULL )
     this->elem_count[ 0 ]++;
   return true;
@@ -161,3 +182,144 @@ MDIterMap::get_map( MDMsg &msg,  MDIterMap *map,  size_t n,
   }
   return count;
 }
+
+MDFieldReader::MDFieldReader( MDMsg &m ) noexcept
+             : iter( 0 ), err( 0 )
+{
+  this->mref.ftype = MD_NODATA;
+  this->err = m.get_field_iter( this->iter );
+}
+bool
+MDFieldReader::first( void ) noexcept
+{
+  this->mref.ftype = MD_NODATA;
+  if ( this->iter != NULL )
+    this->err = this->iter->first();
+  return this->err == 0;
+}
+bool
+MDFieldReader::next( void ) noexcept
+{
+  this->mref.ftype = MD_NODATA;
+  if ( this->iter != NULL )
+    this->err = this->iter->next();
+  return this->err == 0;
+}
+bool
+MDFieldReader::find( const char *fname,  size_t fnamelen ) noexcept
+{
+  this->mref.ftype = MD_NODATA;
+  if ( this->iter != NULL )
+    this->err = this->iter->find( fname, fnamelen, this->mref );
+  return this->err == 0;
+}
+MDType
+MDFieldReader::type( void ) noexcept
+{
+  if ( this->err == 0 ) {
+    if ( this->mref.ftype == MD_NODATA )
+      this->err = this->iter->get_reference( this->mref );
+  }
+  if ( this->err != 0 )
+    this->mref.ftype = MD_NODATA;
+  return this->mref.ftype;
+}
+
+bool
+MDFieldReader::get_value( void *val,  size_t len,  MDType t ) noexcept
+{
+  if ( this->err == 0 ) {
+    if ( this->mref.ftype == MD_NODATA )
+      this->err = this->iter->get_reference( this->mref );
+  }
+  if ( this->err == 0 ) {
+    switch ( t ) {
+      case MD_UINT:
+        if ( ! get_uint_size( val, len, this->mref ) )
+          this->err = Err::BAD_CVT_NUMBER;
+        break;
+      case MD_INT:
+        if ( ! get_sint_size( val, len, this->mref ) )
+          this->err = Err::BAD_CVT_NUMBER;
+        break;
+      case MD_REAL:
+        if ( ! get_real_size( val, len, this->mref ) )
+          this->err = Err::BAD_CVT_NUMBER;
+        break;
+      case MD_TIME:
+        this->err = ((MDTime *) val)->get_time( this->mref );
+        break;
+      case MD_DATE:
+        this->err = ((MDDate *) val)->get_date( this->mref );
+        break;
+      case MD_DECIMAL:
+        this->err = ((MDDecimal *) val)->get_decimal( this->mref );
+        break;
+      default:
+        this->err = Err::BAD_FIELD_TYPE;
+        break;
+    }
+  }
+  if ( this->err != 0 ) {
+    ::memset( val, 0, len );
+    return false;
+  }
+  return this->err == 0;
+}
+
+bool
+MDFieldReader::name( MDName &n ) noexcept
+{
+  if ( this->iter != NULL )
+    this->err = this->iter->get_name( n );
+  if ( this->err != 0 )
+    n.zero();
+  return this->err == 0;
+}
+bool
+MDFieldReader::get_string( char *&buf,  size_t &len ) noexcept
+{
+  if ( this->err == 0 ) {
+    if ( this->mref.ftype == MD_NODATA )
+      this->err = this->iter->get_reference( this->mref );
+    if ( this->err == 0 )
+      this->err = this->iter->iter_msg.get_string( this->mref, buf, len );
+  }
+  if ( this->err != 0 )
+    len = 0;
+  return this->err == 0;
+}
+bool
+MDFieldReader::get_string( char *buf, size_t buflen, size_t &len ) noexcept
+{
+  if ( this->err == 0 ) {
+    if ( this->mref.ftype == MD_NODATA )
+      this->err = this->iter->get_reference( this->mref );
+    if ( this->err == 0 ) {
+      char * ptr;
+      if ( this->get_string( ptr, len ) ) {
+        if ( len > buflen - 1 )
+          len = buflen - 1;
+        ::memcpy( buf, ptr, len );
+        buf[ len ] = '\0';
+      }
+    }
+  }
+  if ( this->err != 0 )
+    len = 0;
+  return this->err == 0;
+}
+bool
+MDFieldReader::get_sub_msg( MDMsg *&msg ) noexcept
+{
+  msg = NULL;
+  if ( this->err == 0 ) {
+    if ( this->mref.ftype == MD_NODATA )
+      this->err = this->iter->get_reference( this->mref );
+    if ( this->err == 0 )
+      this->err = this->iter->iter_msg.get_sub_msg( this->mref, msg,
+                                                    this->iter );
+  }
+  return this->err == 0;
+}
+

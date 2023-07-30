@@ -2514,6 +2514,12 @@ try_again:;
         success = ( parse_month( &fptr[ 4 ], 3, m ) &&
                     parse_day( &fptr[ 8 ], 2, d ) &&
                     get_current_year( m, d, yr ) );
+      /* 2013 Jul 2 */
+      if ( ! success && test_date_sep( fptr[ 4 ], ' ', '-' ) &&
+                        test_date_sep( fptr[ 8 ], ' ', '-' ) )
+        success = ( parse_year( fptr, 4, yr ) &&
+                    parse_month( &fptr[ 5 ], 3, m ) &&
+                    parse_day( &fptr[ 9 ], 1, d ) );
       break;
     case 11: /* 08 JUL 2013, 31-Aug-2014, JUL 08 2013, Aug-31-2013,
                 06/01 05:36 */
@@ -2541,6 +2547,12 @@ try_again:;
         success = ( parse_month( fptr, 3, m ) &&
                     parse_day( &fptr[ 4 ], 1, d ) &&
                     parse_year( &fptr[ 7 ], 4, yr ) );
+      /* 2013 Jul 28 */
+      if ( ! success && test_date_sep( fptr[ 4 ], ' ', '-' ) &&
+                        test_date_sep( fptr[ 8 ], ' ', '-' ) )
+        success = ( parse_year( fptr, 4, yr ) &&
+                    parse_month( &fptr[ 5 ], 3, m ) &&
+                    parse_day( &fptr[ 9 ], 2, d ) );
       break;
     case 12: /* Jul 11, 2013 */
       if ( fptr[ 3 ] == ' ' && fptr[ 6 ] == ',' && fptr[ 7 ] == ' ' )

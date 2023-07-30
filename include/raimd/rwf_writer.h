@@ -192,11 +192,11 @@ struct RwfMsgWriterBase {
     return ilen;
   }
   static size_t int_size( int64_t ival ) {
-    if ( ival >= 0 )
-      return uint_size( (uint64_t) ival );
     uint64_t uval = (uint64_t) ival;
     uint64_t bits = ( ~(uint64_t) 0 << 7 );
     size_t   ilen = 1;
+    if ( ival >= 0 )
+      uval = ~uval;
     while ( ( uval | bits ) != uval ) {
       ilen++;
       bits <<= 8;
