@@ -410,7 +410,7 @@ TibSassFieldIter::unpack( void ) noexcept
 }
 
 TibSassMsgWriter::TibSassMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept
-    : dict( d ), buf( (uint8_t *) bb ), off( 0 ), buflen( len )
+    : dict( d ), buf( (uint8_t *) bb ), off( 0 ), buflen( len ), err( 0 )
 {
   for ( ; d != NULL; d = d->next ) {
     if ( d->dict_type[ 0 ] == 'c' ) { /* look for cfile type */
@@ -420,28 +420,28 @@ TibSassMsgWriter::TibSassMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept
   }
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_ref( MDFid fid,  MDReference &mref ) noexcept
 {
   MDLookup by( fid );
 
   if ( ! this->dict->lookup( by ) )
-    return Err::UNKNOWN_FID;
+    return this->error( Err::UNKNOWN_FID );
   return this->append_ref( fid, by.ftype, by.fsize, by.flags, mref );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_ref( const char *fname,  size_t fname_len,
                               MDReference &mref ) noexcept
 {
   MDLookup by( fname, fname_len );
 
   if ( ! this->dict->get( by ) )
-    return Err::UNKNOWN_FID;
+    return this->error( Err::UNKNOWN_FID );
   return this->append_ref( by.fid, by.ftype, by.fsize, by.flags, mref );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
                               uint8_t flags,  MDReference &mref ) noexcept
 {
@@ -458,7 +458,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
   len = tib_sass_pack_size( fsize );
   if ( ftype != MD_PARTIAL ) {
     if ( ! this->has_space( len ) )
-      return Err::NO_SPACE;
+      return this->error( Err::NO_SPACE );
   }
   if ( ftype != mref.ftype || fsize != mref.fsize ) {
     switch ( ftype ) {
@@ -468,7 +468,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
           case MD_INT:    val.u64 = (uint64_t) get_int<int64_t>( mref ); break;
           case MD_REAL:   val.u64 = (uint64_t) get_float<double>( mref ); break;
           case MD_STRING: val.u64 = parse_u64( (char *) fptr, NULL ); break;
-          default:        return Err::BAD_CVT_NUMBER;
+          default:        return this->error( Err::BAD_CVT_NUMBER );
         }
         fptr = (uint8_t *) (void *) &val;
         fendian = md_endian;
@@ -479,7 +479,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
           case MD_INT:    val.i64 = get_int<int64_t>( mref ); break;
           case MD_REAL:   val.i64 = (int64_t) get_float<double>( mref ); break;
           case MD_STRING: val.i64 = parse_i64( (char *) fptr, NULL ); break;
-          default:        return Err::BAD_CVT_NUMBER;
+          default:        return this->error( Err::BAD_CVT_NUMBER );
         }
         fptr = (uint8_t *) (void *) &val;
         fendian = md_endian;
@@ -491,7 +491,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
           case MD_INT:    val.f64 = (double) get_int<int64_t>( mref ); break;
           case MD_REAL:   val.f64 = get_float<double>( mref ); break;
           case MD_STRING: val.f64 = parse_f64( (char *) fptr, NULL ); break;
-          default:        return Err::BAD_CVT_NUMBER;
+          default:        return this->error( Err::BAD_CVT_NUMBER );
         }
         if ( fsize == 4 )
           val.f32 = (float) val.f64;
@@ -523,7 +523,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
                            goto skip_zpad;
           default:         sz = 0;
                            status = to_string( mref, sbuf, sz );
-                           if ( status != 0 ) return status;
+                           if ( status != 0 ) return this->error( status );
                            slen = sz;
                            break;
         }
@@ -541,13 +541,13 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
           case MD_INT:    val.u64 = (uint64_t) get_int<int64_t>( mref ); break;
           case MD_REAL:   val.u64 = (uint64_t) get_float<double>( mref ); break;
           case MD_STRING: val.u64 = (uint64_t) parse_bool( (char *) fptr, mref.fsize ); break;
-          default:        return Err::BAD_CVT_NUMBER;
+          default:        return this->error( Err::BAD_CVT_NUMBER );
         }
         fptr = (uint8_t *) (void *) &val;
         fendian = md_endian;
         break;
       default:
-        return Err::BAD_CVT_NUMBER;
+        return this->error( Err::BAD_CVT_NUMBER );
     }
   }
 
@@ -557,13 +557,13 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
     else
       len = tib_sass_variable_pack_size( fsize, fsize + zpad );
     if ( ! this->has_space( len ) )
-      return Err::NO_SPACE;
+      return this->error( Err::NO_SPACE );
     fid |= ( (uint16_t) flags << 14 ); /* FIXED = 2, PRIMITIVE = 1 */
     ptr[ 0 ] = (uint8_t) ( ( fid >> 8 ) & 0xffU );
     ptr[ 1 ] = (uint8_t) ( fid & 0xffU );
     if ( ftype == MD_PARTIAL ) {
       if ( fsize > 0xffffU )
-        return Err::BAD_FIELD_SIZE;
+        return this->error( Err::BAD_FIELD_SIZE );
       ptr[ 2 ] = 0; /* ( uint8_t )( ( mref.fentrysz >> 8 ) & 0xffU );*/
       ptr[ 3 ] = (uint8_t) ( mref.fentrysz & 0xffU );
       ptr[ 4 ] = (uint8_t) ( ( fsize >> 8 ) & 0xffU );
@@ -622,10 +622,10 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       ::memset( &ptr[ 2 + fsize ], 0, zpad );
   }
   this->off += len;
-  return 0;
+  return *this;
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
                                   MDDecimal &dec ) noexcept
 {
@@ -650,7 +650,7 @@ TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
       size_t    n    = ( fsize > 8 ? 8 : 4 ),
                 len  = tib_sass_pack_size( fsize );
       if ( ! this->has_space( len ) )
-        return Err::NO_SPACE;
+        return this->error( Err::NO_SPACE );
 
       switch ( dec.hint ) {
         default:
@@ -708,7 +708,7 @@ TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
       ptr[ 2 + n ] = h;
       ptr[ 2 + n+1 ] = 0;
       this->off += len;
-      return 0;
+      return *this;
     }
     mref.fsize    = sizeof( double );
     mref.fptr     = (uint8_t *) (void *) &fval;
@@ -717,10 +717,10 @@ TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
     mref.fentrysz = 0;
     return this->append_ref( fid, ftype, fsize, MD_FIXED, mref );
   }
-  return Err::BAD_CVT_NUMBER;
+  return this->error( Err::BAD_CVT_NUMBER );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
                                MDTime &time ) noexcept
 {
@@ -735,7 +735,7 @@ TibSassMsgWriter::append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
   return this->append_ref( fid, ftype, fsize, MD_FIXED, mref );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
                                MDDate &date ) noexcept
 {
@@ -750,79 +750,79 @@ TibSassMsgWriter::append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
   return this->append_ref( fid, ftype, fsize, MD_FIXED, mref );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_decimal( MDFid fid,  MDDecimal &dec ) noexcept
 {
   MDLookup by( fid );
 
   if ( ! this->dict->lookup( by ) )
-    return Err::UNKNOWN_FID;
+    return this->error( Err::UNKNOWN_FID );
   return this->append_decimal( fid, by.ftype, by.fsize, dec );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_time( MDFid fid,  MDTime &time ) noexcept
 {
   MDLookup by( fid );
 
   if ( ! this->dict->lookup( by ) )
-    return Err::UNKNOWN_FID;
+    return this->error( Err::UNKNOWN_FID );
   return this->append_time( fid, by.ftype, by.fsize, time );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_date( MDFid fid,  MDDate &date ) noexcept
 {
   MDLookup by( fid );
 
   if ( ! this->dict->lookup( by ) )
-    return Err::UNKNOWN_FID;
+    return this->error( Err::UNKNOWN_FID );
   return this->append_date( fid, by.ftype, by.fsize, date );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_decimal( const char *fname,  size_t fname_len,
                                   MDDecimal &dec ) noexcept
 {
   MDLookup by( fname, fname_len );
 
   if ( ! this->dict->get( by ) )
-    return Err::UNKNOWN_FID;
+    return this->error( Err::UNKNOWN_FID );
   return this->append_decimal( by.fid, by.ftype, by.fsize, dec );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_time( const char *fname,  size_t fname_len,
                                MDTime &time ) noexcept
 {
   MDLookup by( fname, fname_len );
 
   if ( ! this->dict->get( by ) )
-    return Err::UNKNOWN_FID;
+    return this->error( Err::UNKNOWN_FID );
   return this->append_time( by.fid, by.ftype, by.fsize, time );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_date( const char *fname,  size_t fname_len,
                                MDDate &date ) noexcept
 {
   MDLookup by( fname, fname_len );
 
   if ( ! this->dict->get( by ) )
-    return Err::UNKNOWN_FID;
+    return this->error( Err::UNKNOWN_FID );
   return this->append_date( by.fid, by.ftype, by.fsize, date );
 }
 
-int
+TibSassMsgWriter &
 TibSassMsgWriter::append_iter( MDFieldIter *iter ) noexcept
 {
   size_t len = iter->field_end - iter->field_start;
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   uint8_t * ptr = &this->buf[ this->off + 8 ];
   ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
   this->off += len;
-  return 0;
+  return *this;
 }
 
 int
@@ -838,7 +838,8 @@ TibSassMsgWriter::convert_msg( MDMsg &msg ) noexcept
         if ( (status = iter->get_name( n )) == 0 &&
              (status = iter->get_reference( mref )) == 0 ) {
           iter->get_hint_reference( href );
-          status = this->append_ref( n.fname, n.fnamelen, mref, href );
+          this->append_ref( n.fname, n.fnamelen, mref, href );
+          status = this->err;
         }
         if ( status != 0 )
           break;
@@ -846,6 +847,6 @@ TibSassMsgWriter::convert_msg( MDMsg &msg ) noexcept
     }
   }
   if ( status != Err::NOT_FOUND )
-    return 0;
-  return status;
+    return status;
+  return 0;
 }

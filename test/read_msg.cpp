@@ -106,7 +106,8 @@ filter( Writer &w,  MDMsg *m,  FieldIndex &rm,  FieldIndex &kp,
         if ( status == 0 ) {
           if ( ( rm.fld_cnt == 0 || ! rm.match( nm ) ) &&
                ( kp.fld_cnt == 0 || kp.match( nm ) ) ) {
-            status = w.append_iter( iter );
+            w.append_iter( iter );
+            status = w.err;
             fldcnt++;
           }
         }

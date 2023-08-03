@@ -80,24 +80,31 @@ struct JsonMsgWriter {
   uint8_t * buf;
   size_t    off,
             buflen;
-  int       flags;
+  int       flags,
+            err;
 
-  JsonMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 0 ),
-                                           buflen( len ), flags( 0 ) {}
+  JsonMsgWriter( void *bb,  size_t len )
+    : buf( (uint8_t *) bb ), off( 0 ), buflen( len ), flags( 0 ), err( 0 ) {}
+  JsonMsgWriter & error( int status ) {
+    if ( this->err == 0 )
+      this->err = status;
+    return *this;
+  }
   void reset( void ) {
     this->off = 0;
+    this->err = 0;
   }
   bool has_space( size_t len ) const {
     return this->off + len <= this->buflen;
   }
   int append_field_name( const char *fname,  size_t fname_len ) noexcept;
 
-  int append_field( const char *fname,  size_t fname_len,
-                    MDReference &mref ) noexcept;
-  int append_ref( MDReference &mref ) noexcept;
+  JsonMsgWriter & append_field( const char *fname,  size_t fname_len,
+                                MDReference &mref ) noexcept;
+  JsonMsgWriter & append_ref( MDReference &mref ) noexcept;
 
-  int append_msg( const char *fname,  size_t fname_len,
-                  JsonMsgWriter &submsg ) noexcept;
+  JsonMsgWriter & append_msg( const char *fname,  size_t fname_len,
+                              JsonMsgWriter &submsg ) noexcept;
   int convert_msg( MDMsg &msg ) noexcept;
 
   bool s( const char *str,  size_t len ) {
@@ -125,7 +132,8 @@ struct JsonMsgWriter {
   }
 
   template< class T >
-  int append_type( const char *fname,  size_t fname_len,  T val,  MDType t ) {
+  JsonMsgWriter & append_type( const char *fname,  size_t fname_len,  T val,
+                               MDType t ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) &val;
     mref.fsize   = sizeof( val );
@@ -135,20 +143,20 @@ struct JsonMsgWriter {
   }
 
   template< class T >
-  int append_int( const char *fname,  size_t fname_len,  T ival ) {
+  JsonMsgWriter & append_int( const char *fname,  size_t fname_len,  T ival ) {
     return this->append_type( fname, fname_len, ival, MD_INT );
   }
   template< class T >
-  int append_uint( const char *fname,  size_t fname_len,  T uval ) {
+  JsonMsgWriter & append_uint( const char *fname,  size_t fname_len,  T uval ) {
     return this->append_type( fname, fname_len, uval, MD_UINT );
   }
   template< class T >
-  int append_real( const char *fname,  size_t fname_len,  T rval ) {
+  JsonMsgWriter & append_real( const char *fname,  size_t fname_len,  T rval ) {
     return this->append_type( fname, fname_len, rval, MD_REAL );
   }
 
-  int append_string( const char *fname,  size_t fname_len,
-                     const char *str,  size_t len ) {
+  JsonMsgWriter & append_string( const char *fname,  size_t fname_len,
+                                 const char *str,  size_t len ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) str;
     mref.fsize   = len;
@@ -157,16 +165,16 @@ struct JsonMsgWriter {
     return this->append_field( fname, fname_len, mref );
   }
 
-  int append_decimal( const char *fname,  size_t fname_len,
-                      MDDecimal &dec ) {
+  JsonMsgWriter & append_decimal( const char *fname,  size_t fname_len,
+                                  MDDecimal &dec ) {
     return this->append_type( fname, fname_len, dec, MD_DECIMAL );
   }
-  int append_time( const char *fname,  size_t fname_len,
-                   MDTime &time ) {
+  JsonMsgWriter & append_time( const char *fname,  size_t fname_len,
+                               MDTime &time ) {
     return this->append_type( fname, fname_len, time, MD_TIME );
   }
-  int append_date( const char *fname,  size_t fname_len,
-                   MDDate &date ) {
+  JsonMsgWriter & append_date( const char *fname,  size_t fname_len,
+                               MDDate &date ) {
     return this->append_type( fname, fname_len, date, MD_DATE );
   }
   size_t update_hdr( void ) {

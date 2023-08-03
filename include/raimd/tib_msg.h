@@ -67,20 +67,26 @@ struct TibMsgWriter {
   uint8_t * buf;    /* output buffer */
   size_t    off,    /* index to end of data (+9 for hdr) */
             buflen; /* max length of a buf */
+  int       err;
 
   TibMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 0 ),
-                                          buflen( len ) {}
+                                          buflen( len ), err( 0 ) {}
+  TibMsgWriter & error( int status ) {
+    if ( this->err == 0 )
+      this->err = status;
+    return *this;
+  }
   void reset( void ) {
     this->off = 0;
+    this->err = 0;
   }
-  int append_ref( const char *fname,  size_t fname_len,
-                  MDReference &mref ) noexcept;
-  int append_ref( const char *fname,  size_t fname_len,
-                  MDReference &mref,  MDReference &href ) noexcept;
+  TibMsgWriter & append_ref( const char *fname,  size_t fname_len,
+                             MDReference &mref ) noexcept;
+  TibMsgWriter & append_ref( const char *fname,  size_t fname_len,
+                             MDReference &mref,  MDReference &href ) noexcept;
   bool has_space( size_t len ) const {
     return this->off + 9 + len <= this->buflen;
   }
-
   size_t update_hdr( void ) {
     this->buf[ 0 ] = 0xce;
     this->buf[ 1 ] = 0x13;
@@ -95,7 +101,8 @@ struct TibMsgWriter {
   }
 
   template< class T >
-  int append_type( const char *fname,  size_t fname_len,  T val,  MDType t ) {
+  TibMsgWriter & append_type( const char *fname,  size_t fname_len,  T val,
+                              MDType t ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) &val;
     mref.fsize   = sizeof( val );
@@ -105,20 +112,20 @@ struct TibMsgWriter {
   }
 
   template< class T >
-  int append_int( const char *fname,  size_t fname_len,  T ival ) {
+  TibMsgWriter & append_int( const char *fname,  size_t fname_len,  T ival ) {
     return this->append_type( fname, fname_len, ival, MD_INT );
   }
   template< class T >
-  int append_uint( const char *fname,  size_t fname_len,  T uval ) {
+  TibMsgWriter & append_uint( const char *fname,  size_t fname_len,  T uval ) {
     return this->append_type( fname, fname_len, uval, MD_UINT );
   }
   template< class T >
-  int append_real( const char *fname,  size_t fname_len,  T rval ) {
+  TibMsgWriter & append_real( const char *fname,  size_t fname_len,  T rval ) {
     return this->append_type( fname, fname_len, rval, MD_REAL );
   }
 
-  int append_string( const char *fname,  size_t fname_len,
-                     const char *str,  size_t len ) {
+  TibMsgWriter & append_string( const char *fname,  size_t fname_len,
+                                const char *str,  size_t len ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) str;
     mref.fsize   = len;
@@ -127,13 +134,13 @@ struct TibMsgWriter {
     return this->append_ref( fname, fname_len, mref );
   }
 
-  int append_decimal( const char *fname,  size_t fname_len,
-                      MDDecimal &dec ) noexcept;
-  int append_time( const char *fname,  size_t fname_len,
-                   MDTime &time ) noexcept;
-  int append_date( const char *fname,  size_t fname_len,
-                   MDDate &date ) noexcept;
-  int append_iter( MDFieldIter *iter ) noexcept;
+  TibMsgWriter & append_decimal( const char *fname,  size_t fname_len,
+                                 MDDecimal &dec ) noexcept;
+  TibMsgWriter & append_time( const char *fname,  size_t fname_len,
+                              MDTime &time ) noexcept;
+  TibMsgWriter & append_date( const char *fname,  size_t fname_len,
+                              MDDate &date ) noexcept;
+  TibMsgWriter & append_iter( MDFieldIter *iter ) noexcept;
   int convert_msg( MDMsg &msg ) noexcept;
 };
 
