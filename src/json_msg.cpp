@@ -367,17 +367,17 @@ JsonMsgWriter::append_field_name( const char *fname, size_t fname_len ) noexcept
   return 0;
 }
 
-int
+JsonMsgWriter &
 JsonMsgWriter::append_field( const char *fname,  size_t fname_len,
                              MDReference &mref ) noexcept
 {
   int status = this->append_field_name( fname, fname_len );
   if ( status == 0 )
-    status = this->append_ref( mref );
-  return status;
+    return this->append_ref( mref );
+  return this->error( status );
 }
 
-int
+JsonMsgWriter &
 JsonMsgWriter::append_ref( MDReference &mref ) noexcept
 {
   char * ptr;
@@ -388,7 +388,7 @@ JsonMsgWriter::append_ref( MDReference &mref ) noexcept
     case MD_PARTIAL: {
       ptr = (char *) &this->buf[ this->off ];
       if ( ! this->has_space( MDMsg::get_escaped_string_len( mref, "\"" )+1 ) )
-        return Err::NO_SPACE;
+        return this->error( Err::NO_SPACE );
       this->off += MDMsg::get_escaped_string_output( mref, "\"", ptr );
       break;
     }
@@ -397,7 +397,7 @@ JsonMsgWriter::append_ref( MDReference &mref ) noexcept
       size_t  len  = int_digs( ival );
       ptr = (char *) &this->buf[ this->off ];
       if ( ! this->has_space( len ) )
-        return Err::NO_SPACE;
+        return this->error( Err::NO_SPACE );
       this->off += int_str( ival, ptr, len );
       break;
     }
@@ -420,7 +420,7 @@ JsonMsgWriter::append_ref( MDReference &mref ) noexcept
             b = this->s( "\"", 1 );
         }
         if ( ! b )
-          return Err::NO_SPACE;
+          return this->error( Err::NO_SPACE );
         break;
       }
     /* FALLTHRU */
@@ -430,7 +430,7 @@ JsonMsgWriter::append_ref( MDReference &mref ) noexcept
       size_t   len  = uint_digs( ival );
       ptr = (char *) &this->buf[ this->off ];
       if ( ! this->has_space( len ) )
-        return Err::NO_SPACE;
+        return this->error( Err::NO_SPACE );
       this->off += uint_str( ival, ptr, len );
       break;
     }
@@ -453,14 +453,14 @@ JsonMsgWriter::append_ref( MDReference &mref ) noexcept
           break;
       }
       if ( ! b )
-        return Err::NO_SPACE;
+        return this->error( Err::NO_SPACE );
       break;
     }
     case MD_BOOLEAN: {
       bool b = ( *mref.fptr != 0 ) ?
                this->s( "true", 4 ) : this->s( "false", 5 );
       if ( ! b )
-        return Err::NO_SPACE;
+        return this->error( Err::NO_SPACE );
       break;
     }
     case MD_TIME: {
@@ -474,7 +474,7 @@ JsonMsgWriter::append_ref( MDReference &mref ) noexcept
         b = this->s( "\"", 1 );
       }
       if ( ! b )
-        return Err::NO_SPACE;
+        return this->error( Err::NO_SPACE );
       break;
     }
     case MD_DATE: {
@@ -488,23 +488,23 @@ JsonMsgWriter::append_ref( MDReference &mref ) noexcept
         b = this->s( "\"", 1 );
       }
       if ( ! b )
-        return Err::NO_SPACE;
+        return this->error( Err::NO_SPACE );
       break;
     }
     default:
       if ( ! this->s( "null", 4 ) )
-        return Err::NO_SPACE;
+        return this->error( Err::NO_SPACE );
       break;
   }
-  return 0;
+  return *this;
 }
 
-int
+JsonMsgWriter &
 JsonMsgWriter::append_msg( const char *fname,  size_t fname_len,
                            JsonMsgWriter &submsg ) noexcept
 {
   if ( ! this->has_space( fname_len + 3 ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
 
   this->buf[ this->off++ ] = '\"';
   if ( fname_len > 0 )
@@ -516,7 +516,8 @@ JsonMsgWriter::append_msg( const char *fname,  size_t fname_len,
   submsg.off    = 0;
   submsg.buflen = this->buflen - this->off;
   submsg.flags  = 0;
-  return 0;
+  submsg.err    = 0;
+  return submsg;
 }
 
 int
@@ -535,7 +536,8 @@ JsonMsgWriter::convert_msg( MDMsg &msg ) noexcept
           case MD_MESSAGE: {
             JsonMsgWriter submsg( NULL, 0 );
             MDMsg * msg2 = NULL;
-            status = this->append_msg( name.fname, name.fnamelen, submsg );
+            this->append_msg( name.fname, name.fnamelen, submsg );
+            status = this->err;
             if ( status == 0 )
               status = msg.get_sub_msg( mref, msg2, iter );
             if ( status == 0 ) {
@@ -561,8 +563,10 @@ JsonMsgWriter::convert_msg( MDMsg &msg ) noexcept
               return status;
             for ( size_t i = 0; i < num_entries; i++ ) {
               status = msg.get_array_ref( mref, i, aref );
-              if ( status == 0 )
-                status = this->append_ref( aref );
+              if ( status == 0 ) {
+                this->append_ref( aref );
+                status = this->err;
+              }
               if ( status == 0 && i + 1 < num_entries && ! this->s( ",", 1 ) )
                 status = Err::NO_SPACE;
               if ( status != 0 )
@@ -573,15 +577,17 @@ JsonMsgWriter::convert_msg( MDMsg &msg ) noexcept
             break;
           }
           default:
-            status = this->append_field( name.fname, name.fnamelen, mref );
+            this->append_field( name.fname, name.fnamelen, mref );
+            status = this->err;
             if ( status != 0 )
               return status;
+            break;
         }
       }
     }
     status = iter->next();
   }
-  if ( status == Err::NOT_FOUND )
-    return 0;
-  return status;
+  if ( status != Err::NOT_FOUND )
+    return status;
+  return 0;
 }

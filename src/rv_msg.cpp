@@ -489,7 +489,7 @@ RvFieldIter::unpack( void ) noexcept
   return 0;
 }
 
-int
+RvMsgWriter &
 RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
                          RvMsgWriter &submsg ) noexcept
 {
@@ -499,9 +499,9 @@ RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
 
   len += szbytes;
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
   ptr = &ptr[ fname_len + 1 ];
@@ -512,10 +512,11 @@ RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
   submsg.buf    = &this->buf[ this->off ];
   submsg.off    = 8;
   submsg.buflen = this->buflen - this->off;
-  return 0;
+  submsg.err    = 0;
+  return submsg;
 }
 
-int
+RvMsgWriter &
 RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
                              const char *subj,  size_t subj_len ) noexcept
 {
@@ -533,7 +534,7 @@ RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
     if ( *s == '.' ) {
       fsize += 2;
       if ( s - x >= 254 || s == x )
-        return Err::BAD_FIELD_BOUNDS;
+        return this->error( Err::BAD_FIELD_BOUNDS );
       x = s + 1;
       segs++;
     }
@@ -541,12 +542,12 @@ RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
       fsize++;
   }
   if ( segs > 255 )
-    return Err::BAD_FIELD_BOUNDS;
+    return this->error( Err::BAD_FIELD_BOUNDS );
   len += szbytes + fsize;
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
   ptr = &ptr[ fname_len + 1 ];
@@ -574,7 +575,7 @@ RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
   out[ 0 ]   = (uint8_t) segs;
 
   this->off += len;
-  return 0;
+  return *this;
 }
 
 static bool
@@ -680,7 +681,7 @@ swap8:
   return;
 }
 
-int
+RvMsgWriter &
 RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
                          MDReference &mref ) noexcept
 {
@@ -697,9 +698,9 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
 
   len += szbytes;
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
   ptr = &ptr[ fname_len + 1 ];
@@ -716,7 +717,7 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
     case MD_REAL:     ptr[ 0 ] = RV_REAL;     break;
     case MD_DATETIME: ptr[ 0 ] = RV_DATETIME; break;
     case MD_ARRAY:    if ( ! get_rv_array_type( mref, ptr[ 0 ] ) )
-                        return Err::BAD_FIELD_TYPE;
+                        return this->error( Err::BAD_FIELD_TYPE );
                       break;
   }
 
@@ -764,10 +765,10 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
       swap_rv_array( mref, ptr );
   }
   this->off += len;
-  return 0;
+  return *this;
 }
 
-int
+RvMsgWriter &
 RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
                                   char **ar,  size_t array_size,
                                   size_t fsize ) noexcept
@@ -786,9 +787,9 @@ RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
 
   len += 4 + szbytes;
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
   ptr = &ptr[ fname_len + 1 ];
@@ -822,10 +823,10 @@ RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
     ptr = &ptr[ slen ];
   }
   this->off += len;
-  return 0;
+  return *this;
 }
 
-int
+RvMsgWriter &
 RvMsgWriter::append_decimal( const char *fname,  size_t fname_len,
                              MDDecimal &dec ) noexcept
 {
@@ -835,11 +836,11 @@ RvMsgWriter::append_decimal( const char *fname,  size_t fname_len,
   int       status;
 
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
   if ( (status = dec.get_real( val )) != 0 )
-    return status;
+    return this->error( status );
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
   ptr = &ptr[ fname_len + 1 ];
@@ -855,10 +856,10 @@ RvMsgWriter::append_decimal( const char *fname,  size_t fname_len,
       ptr[ i ] = fptr[ 7 - i ];
   }
   this->off += len;
-  return 0;
+  return *this;
 }
 
-int
+RvMsgWriter &
 RvMsgWriter::append_time( const char *fname,  size_t fname_len,
                           MDTime &time ) noexcept
 {
@@ -868,9 +869,9 @@ RvMsgWriter::append_time( const char *fname,  size_t fname_len,
   size_t    len = 1 + fname_len + 1 + 1 + n + 1;
 
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
 
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
@@ -880,10 +881,10 @@ RvMsgWriter::append_time( const char *fname,  size_t fname_len,
   ptr = &ptr[ 2 ];
   ::memcpy( ptr, sbuf, n + 1 );
   this->off += len;
-  return 0;
+  return *this;
 }
 
-int
+RvMsgWriter &
 RvMsgWriter::append_date( const char *fname,  size_t fname_len,
                           MDDate &date ) noexcept
 {
@@ -893,9 +894,9 @@ RvMsgWriter::append_date( const char *fname,  size_t fname_len,
   size_t    len = 1 + fname_len + 1 + 1 + n + 1;
 
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
 
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
@@ -905,7 +906,7 @@ RvMsgWriter::append_date( const char *fname,  size_t fname_len,
   ptr = &ptr[ 2 ];
   ::memcpy( ptr, sbuf, n + 1 );
   this->off += len;
-  return 0;
+  return *this;
 }
 
 int
@@ -922,31 +923,33 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
       if ( iter->get_name( name ) == 0 && iter->get_reference( mref ) == 0 ) {
         switch ( mref.ftype ) {
           default:
-            status = this->append_ref( name.fname, name.fnamelen, mref );
+            this->append_ref( name.fname, name.fnamelen, mref );
+            status = this->err;
             break;
 
           case MD_DECIMAL:
             dec.get_decimal( mref );
             if ( dec.hint == MD_DEC_INTEGER ) {
               if ( dec.ival == (int64_t) (int16_t) dec.ival )
-                status = this->append_int<int16_t>( name.fname, name.fnamelen,
-                                                    (int16_t) dec.ival );
+                this->append_int<int16_t>( name.fname, name.fnamelen,
+                                           (int16_t) dec.ival );
               else if ( dec.ival == (int64_t) (int32_t) dec.ival )
-                status = this->append_int<int32_t>( name.fname, name.fnamelen,
-                                                    (int32_t) dec.ival );
+                this->append_int<int32_t>( name.fname, name.fnamelen,
+                                           (int32_t) dec.ival );
               else
-                status = this->append_int<int64_t>( name.fname, name.fnamelen,
-                                                    dec.ival );
+                this->append_int<int64_t>( name.fname, name.fnamelen, dec.ival );
             }
             else {
-              status = this->append_decimal( name.fname, name.fnamelen, dec );
+              this->append_decimal( name.fname, name.fnamelen, dec );
             }
+            status = this->err;
             break;
 
           case MD_MESSAGE: {
             RvMsgWriter submsg( NULL, 0 );
             MDMsg * jmsg2 = NULL;
-            status = this->append_msg( name.fname, name.fnamelen, submsg );
+            this->append_msg( name.fname, name.fnamelen, submsg );
+            status = this->err;
             if ( status == 0 )
               status = jmsg.get_sub_msg( mref, jmsg2, iter );
             if ( status == 0 ) {
@@ -1026,7 +1029,7 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
                 aref.set( ar, num_entries * asize, MD_ARRAY );
                 aref.fentrytp = MD_INT;
                 aref.fentrysz = asize;
-                status = this->append_ref( name.fname, name.fnamelen, aref );
+                this->append_ref( name.fname, name.fnamelen, aref );
               }
               else if ( atype == MD_REAL ) {
                 double * ar = (double *) jmsg.mem->make( num_entries * 8 );
@@ -1045,7 +1048,7 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
                 aref.set( ar, num_entries * 8, MD_ARRAY );
                 aref.fentrytp = MD_REAL;
                 aref.fentrysz = 8;
-                status = this->append_ref( name.fname, name.fnamelen, aref );
+                this->append_ref( name.fname, name.fnamelen, aref );
               }
               else if ( atype == MD_STRING ) {
                 char ** ar = (char **)
@@ -1058,10 +1061,12 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
                   len += slen + 1;
                 }
                 if ( status == 0 )
-                  status = this->append_string_array( name.fname, name.fnamelen,
-                                                      ar, num_entries, len );
+                  this->append_string_array( name.fname, name.fnamelen,
+                                             ar, num_entries, len );
               }
             }
+            if ( status == 0 )
+              status = this->err;
             break;
           }
         }
@@ -1076,15 +1081,15 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
   return 0;
 }
 
-int
+RvMsgWriter &
 RvMsgWriter::append_iter( MDFieldIter *iter ) noexcept
 {
   size_t len = iter->field_end - iter->field_start;
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   uint8_t * ptr = &this->buf[ this->off ];
   ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
   this->off += len;
-  return 0;
+  return *this;
 }
 

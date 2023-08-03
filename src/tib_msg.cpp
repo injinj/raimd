@@ -459,7 +459,7 @@ TibMsg::set_decimal( MDDecimal &dec,  double val,  uint8_t tib_hint ) noexcept
   return false;
 }
 
-int
+TibMsgWriter &
 TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
                           MDReference &mref ) noexcept
 {
@@ -468,7 +468,7 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
   return this->append_ref( fname, fname_len, mref, href );
 }
 
-int
+TibMsgWriter &
 TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
                           MDReference &mref,  MDReference &href ) noexcept
 {
@@ -476,19 +476,19 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
   if ( mref.ftype == MD_DECIMAL ) {
     MDDecimal dec;
     if ( (status = dec.get_decimal( mref )) != 0 )
-      return status;
+      return this->error( status );
     return this->append_decimal( fname, fname_len, dec );
   }
   else if ( mref.ftype == MD_DATE ) {
     MDDate date;
     if ( (status = date.get_date( mref )) != 0 )
-      return status;
+      return this->error( status );
     return this->append_date( fname, fname_len, date );
   }
   else if ( mref.ftype == MD_TIME ) {
     MDTime time;
     if ( (status = time.get_time( mref )) != 0 )
-      return status;
+      return this->error( status );
     if ( href.ftype == MD_UINT || href.ftype == MD_INT ) {
       uint16_t res = get_uint<uint16_t>( href );
       if ( res == TIB_HINT_MF_TIME_SECONDS /* 260 */ )
@@ -503,9 +503,9 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
                   mref.fsize;
 
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
   ptr = &ptr[ fname_len + 1 ];
@@ -552,7 +552,7 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
     /*size_t plen = ( ( mref.fentrysz <= 0xffU ) ? 2 : 5 );*/
     /* need hint data */
     if ( ! this->has_space( 2 ) )
-      return Err::NO_SPACE;
+      return this->error( Err::NO_SPACE );
     ptr = &ptr[ mref.fsize ];
     ptr[ 0 ] = MD_UINT;
     ptr[ 1 ] = (uint8_t) mref.fentrysz;
@@ -560,17 +560,17 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
   }
   else if ( href.ftype != MD_NODATA ) {
     if ( ! this->has_space( href.fsize + 2 ) )
-      return Err::NO_SPACE;
+      return this->error( Err::NO_SPACE );
     ptr = &ptr[ mref.fsize ];
     ptr[ 0 ] = href.ftype;
     ptr[ 1 ] = (uint8_t) href.fsize;
     ::memcpy( &ptr[ 2 ], href.fptr, href.fsize );
     this->off += href.fsize + 2;
   }
-  return 0;
+  return *this;
 }
 
-int
+TibMsgWriter &
 TibMsgWriter::append_decimal( const char *fname,  size_t fname_len,
                               MDDecimal &dec ) noexcept
 {
@@ -580,11 +580,11 @@ TibMsgWriter::append_decimal( const char *fname,  size_t fname_len,
   int       status;
 
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
   if ( (status = dec.get_real( val )) != 0 )
-    return status;
+    return this->error( status );
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
   ptr = &ptr[ fname_len + 1 ];
@@ -629,10 +629,10 @@ TibMsgWriter::append_decimal( const char *fname,  size_t fname_len,
   ptr[ 2 ] = h;
   this->off += len;
 
-  return 0;
+  return *this;
 }
 
-int
+TibMsgWriter &
 TibMsgWriter::append_time( const char *fname,  size_t fname_len,
                            MDTime &time ) noexcept
 {
@@ -642,9 +642,9 @@ TibMsgWriter::append_time( const char *fname,  size_t fname_len,
   size_t    len = 1 + fname_len + 1 + 1 + n + 1 + 4;
 
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
 
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
@@ -664,10 +664,10 @@ TibMsgWriter::append_time( const char *fname,  size_t fname_len,
     ptr[ 3 ] = 4; /* hint time seconds */
   this->off += len;
 
-  return 0;
+  return *this;
 }
 
-int
+TibMsgWriter &
 TibMsgWriter::append_date( const char *fname,  size_t fname_len,
                            MDDate &date ) noexcept
 {
@@ -677,9 +677,9 @@ TibMsgWriter::append_date( const char *fname,  size_t fname_len,
   size_t    len = 1 + fname_len + 1 + 1 + n + 1 + 4;
 
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
-    return Err::BAD_NAME;
+    return this->error( Err::BAD_NAME );
 
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
@@ -696,19 +696,19 @@ TibMsgWriter::append_date( const char *fname,  size_t fname_len,
   ptr[ 3 ] = 2; /* hint date */
   this->off += len;
 
-  return 0;
+  return *this;
 }
 
-int
+TibMsgWriter &
 TibMsgWriter::append_iter( MDFieldIter *iter ) noexcept
 {
   size_t len = iter->field_end - iter->field_start;
   if ( ! this->has_space( len ) )
-    return Err::NO_SPACE;
+    return this->error( Err::NO_SPACE );
   uint8_t * ptr = &this->buf[ this->off + 9 ];
   ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
   this->off += len;
-  return 0;
+  return *this;
 }
 
 int
@@ -724,7 +724,8 @@ TibMsgWriter::convert_msg( MDMsg &msg ) noexcept
         if ( (status = iter->get_name( n )) == 0 &&
              (status = iter->get_reference( mref )) == 0 ) {
           iter->get_hint_reference( href );
-          status = this->append_ref( n.fname, n.fnamelen, mref, href );
+          this->append_ref( n.fname, n.fnamelen, mref, href );
+          status = this->err;
         }
         if ( status != 0 )
           break;
@@ -732,7 +733,7 @@ TibMsgWriter::convert_msg( MDMsg &msg ) noexcept
     }
   }
   if ( status != Err::NOT_FOUND )
-    return 0;
-  return status;
+    return status;
+  return 0;
 }
 

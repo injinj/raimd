@@ -90,26 +90,32 @@ struct TibSassMsgWriter {
   uint8_t * buf;
   size_t    off,
             buflen;
+  int       err;
 
   TibSassMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept;
 
+  TibSassMsgWriter & error( int status ) {
+    if ( this->err == 0 )
+      this->err = status;
+    return *this;
+  }
   void reset( void ) {
     this->off = 0;
+    this->err = 0;
   }
-  int append_ref( MDFid fid,  MDReference &mref ) noexcept;
-  int append_ref( const char *fname,  size_t fname_len,
-                  MDReference &mref,  MDReference & ) {
+  TibSassMsgWriter & append_ref( MDFid fid,  MDReference &mref ) noexcept;
+  TibSassMsgWriter & append_ref( const char *fname,  size_t fname_len,
+                                 MDReference &mref,  MDReference & ) {
     return this->append_ref( fname, fname_len, mref );
   }
-  int append_ref( const char *fname,  size_t fname_len,
-                  MDReference &mref ) noexcept;
-  int append_ref( MDFid fid, MDType ftype, uint32_t fsize, uint8_t flags,
-                  MDReference &mref ) noexcept;
+  TibSassMsgWriter & append_ref( const char *fname,  size_t fname_len,
+                                 MDReference &mref ) noexcept;
+  TibSassMsgWriter & append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
+                                 uint8_t flags,  MDReference &mref ) noexcept;
 
   bool has_space( size_t len ) const {
     return this->off + 8 + len <= this->buflen;
   }
-
   size_t update_hdr( void ) {
     this->buf[ 0 ] = 0x11;
     this->buf[ 1 ] = 0x11;
@@ -121,9 +127,8 @@ struct TibSassMsgWriter {
     this->buf[ 7 ] = this->off & 0xffU;
     return this->off + 8;
   }
-
   template< class T >
-  int append_type( MDFid fid,  T val,  MDType t ) {
+  TibSassMsgWriter & append_type( MDFid fid,  T val,  MDType t ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) &val;
     mref.fsize   = sizeof( val );
@@ -131,9 +136,9 @@ struct TibSassMsgWriter {
     mref.fendian = md_endian;
     return this->append_ref( fid, mref );
   }
-
   template< class T >
-  int append_type( const char *fname,  size_t fname_len,  T val,  MDType t ) {
+  TibSassMsgWriter & append_type( const char *fname,  size_t fname_len,  T val,
+                                  MDType t ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) &val;
     mref.fsize   = sizeof( val );
@@ -143,32 +148,35 @@ struct TibSassMsgWriter {
   }
 
   template< class T >
-  int append_int( MDFid fid,  T ival ) {
+  TibSassMsgWriter & append_int( MDFid fid,  T ival ) {
     return this->append_type( fid, ival, MD_INT );
   }
   template< class T >
-  int append_uint( MDFid fid,  T uval ) {
+  TibSassMsgWriter & append_uint( MDFid fid,  T uval ) {
     return this->append_type( fid, uval, MD_UINT );
   }
   template< class T >
-  int append_real( MDFid fid,  T rval ) {
+  TibSassMsgWriter & append_real( MDFid fid,  T rval ) {
     return this->append_type( fid, rval, MD_REAL );
   }
 
   template< class T >
-  int append_int( const char *fname,  size_t fname_len,  T ival ) {
+  TibSassMsgWriter & append_int( const char *fname,  size_t fname_len,
+                                 T ival ) {
     return this->append_type( fname, fname_len, ival, MD_INT );
   }
   template< class T >
-  int append_uint( const char *fname,  size_t fname_len,  T uval ) {
+  TibSassMsgWriter & append_uint( const char *fname,  size_t fname_len,
+                                  T uval ) {
     return this->append_type( fname, fname_len, uval, MD_UINT );
   }
   template< class T >
-  int append_real( const char *fname,  size_t fname_len,  T rval ) {
+  TibSassMsgWriter & append_real( const char *fname,  size_t fname_len,
+                                  T rval ) {
     return this->append_type( fname, fname_len, rval, MD_REAL );
   }
 
-  int append_string( MDFid fid,  const char *str,  size_t len ) {
+  TibSassMsgWriter & append_string( MDFid fid,  const char *str,  size_t len ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) str;
     mref.fsize   = len;
@@ -177,8 +185,8 @@ struct TibSassMsgWriter {
     return this->append_ref( fid, mref );
   }
 
-  int append_string( const char *fname,  size_t fname_len,
-                     const char *str,  size_t len ) {
+  TibSassMsgWriter & append_string( const char *fname,  size_t fname_len,
+                                    const char *str,  size_t len ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) str;
     mref.fsize   = len;
@@ -187,24 +195,24 @@ struct TibSassMsgWriter {
     return this->append_ref( fname, fname_len, mref );
   }
 
-  int append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
-                      MDDecimal &dec ) noexcept;
-  int append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
-                   MDTime &time ) noexcept;
-  int append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
-                   MDDate &date ) noexcept;
+  TibSassMsgWriter & append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
+                                     MDDecimal &dec ) noexcept;
+  TibSassMsgWriter & append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
+                                  MDTime &time ) noexcept;
+  TibSassMsgWriter & append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
+                                  MDDate &date ) noexcept;
 
-  int append_decimal( MDFid fid,  MDDecimal &dec ) noexcept;
-  int append_time( MDFid,  MDTime &time ) noexcept;
-  int append_date( MDFid,  MDDate &date ) noexcept;
+  TibSassMsgWriter & append_decimal( MDFid fid,  MDDecimal &dec ) noexcept;
+  TibSassMsgWriter & append_time( MDFid,  MDTime &time ) noexcept;
+  TibSassMsgWriter & append_date( MDFid,  MDDate &date ) noexcept;
 
-  int append_decimal( const char *fname,  size_t fname_len,
-                      MDDecimal &dec ) noexcept;
-  int append_time( const char *fname,  size_t fname_len,
-                   MDTime &time ) noexcept;
-  int append_date( const char *fname,  size_t fname_len,
-                   MDDate &date ) noexcept;
-  int append_iter( MDFieldIter *iter ) noexcept;
+  TibSassMsgWriter & append_decimal( const char *fname,  size_t fname_len,
+                                  MDDecimal &dec ) noexcept;
+  TibSassMsgWriter & append_time( const char *fname,  size_t fname_len,
+                                  MDTime &time ) noexcept;
+  TibSassMsgWriter & append_date( const char *fname,  size_t fname_len,
+                                  MDDate &date ) noexcept;
+  TibSassMsgWriter & append_iter( MDFieldIter *iter ) noexcept;
   int convert_msg( MDMsg &msg ) noexcept;
 };
 

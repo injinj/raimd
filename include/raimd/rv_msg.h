@@ -58,18 +58,25 @@ struct RvMsgWriter {
   uint8_t * buf;
   size_t    off,
             buflen;
+  int       err;
 
   RvMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 8 ),
-                                         buflen( len ) {}
+                                         buflen( len ), err( 0 ) {}
+  RvMsgWriter & error( int status ) {
+    if ( this->err == 0 )
+      this->err = status;
+    return *this;
+  }
   void reset( void ) {
     this->off = 8;
+    this->err = 0;
   }
-  int append_ref( const char *fname,  size_t fname_len,
-                  MDReference &mref,  MDReference & ) {
+  RvMsgWriter & append_ref( const char *fname,  size_t fname_len,
+                            MDReference &mref,  MDReference & ) {
     return this->append_ref( fname, fname_len, mref );
   }
-  int append_ref( const char *fname,  size_t fname_len,
-                  MDReference &mref ) noexcept;
+  RvMsgWriter & append_ref( const char *fname,  size_t fname_len,
+                            MDReference &mref ) noexcept;
   bool has_space( size_t len ) const {
     return this->off + len <= this->buflen;
   }
@@ -89,15 +96,16 @@ struct RvMsgWriter {
    * msg.append_msg( "m", 2, submsg );
    * submsg.append_int<int32_t>( "i", 2, 100 );
    * len = msg.update_hdr( submsg ); */
-  int append_msg( const char *fname,  size_t fname_len,
-                  RvMsgWriter &submsg ) noexcept;
+  RvMsgWriter & append_msg( const char *fname,  size_t fname_len,
+                            RvMsgWriter &submsg ) noexcept;
   size_t update_hdr( RvMsgWriter &submsg,  uint32_t suf_len = 0 ) {
     this->off += submsg.update_hdr() + suf_len;
     return this->update_hdr();
   }
 
   template< class T >
-  int append_type( const char *fname,  size_t fname_len,  T val,  MDType t ) {
+  RvMsgWriter & append_type( const char *fname,  size_t fname_len,  T val,
+                             MDType t ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) &val;
     mref.fsize   = sizeof( val );
@@ -107,19 +115,19 @@ struct RvMsgWriter {
   } 
     
   template< class T >
-  int append_int( const char *fname,  size_t fname_len,  T ival ) {
+  RvMsgWriter & append_int( const char *fname,  size_t fname_len,  T ival ) {
     return this->append_type( fname, fname_len, ival, MD_INT );
   }
   template< class T >
-  int append_uint( const char *fname,  size_t fname_len,  T uval ) {
+  RvMsgWriter & append_uint( const char *fname,  size_t fname_len,  T uval ) {
     return this->append_type( fname, fname_len, uval, MD_UINT );
   }
   template< class T >
-  int append_real( const char *fname,  size_t fname_len,  T rval ) {
+  RvMsgWriter & append_real( const char *fname,  size_t fname_len,  T rval ) {
     return this->append_type( fname, fname_len, rval, MD_REAL );
   }
   template< class T >
-  int append_ipdata( const char *fname,  size_t fname_len,  T val ) {
+  RvMsgWriter & append_ipdata( const char *fname,  size_t fname_len,  T val ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) &val;
     mref.fsize   = sizeof( val );
@@ -127,8 +135,12 @@ struct RvMsgWriter {
     mref.fendian = MD_BIG; /* alredy in network order */
     return this->append_ref( fname, fname_len, mref );
   }
-  int append_string( const char *fname,  size_t fname_len,
-                     const char *str,  size_t len ) {
+  RvMsgWriter & append_string( const char *fname,  const char *str ) {
+    return this->append_string( fname, ::strlen( fname ) + 1, str,
+                                ::strlen( str ) + 1 );
+  }
+  RvMsgWriter & append_string( const char *fname,  size_t fname_len,
+                               const char *str,  size_t len ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) str;
     mref.fsize   = len;
@@ -136,8 +148,8 @@ struct RvMsgWriter {
     mref.fendian = md_endian;
     return this->append_ref( fname, fname_len, mref );
   }
-  int append_opaque( const char *fname,  size_t fname_len,
-                     const void *ptr,  size_t len ) {
+  RvMsgWriter & append_opaque( const char *fname,  size_t fname_len,
+                               const void *ptr,  size_t len ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) ptr;
     mref.fsize   = len;
@@ -146,17 +158,18 @@ struct RvMsgWriter {
     return this->append_ref( fname, fname_len, mref );
   }
   /* subject format is string "XYZ.REC.INST.EX" */
-  int append_subject( const char *fname,  size_t fname_len,
-                      const char *subj,  size_t subj_len = 0 ) noexcept;
-  int append_decimal( const char *fname,  size_t fname_len,
-                      MDDecimal &dec ) noexcept;
-  int append_time( const char *fname,  size_t fname_len,
-                   MDTime &time ) noexcept;
-  int append_date( const char *fname,  size_t fname_len,
-                   MDDate &date ) noexcept;
-  int append_string_array( const char *fname,  size_t fname_len,  char **ar,
-                           size_t array_size,  size_t fsize ) noexcept;
-  int append_iter( MDFieldIter *iter ) noexcept;
+  RvMsgWriter & append_subject( const char *fname,  size_t fname_len,
+                              const char *subj,  size_t subj_len = 0 ) noexcept;
+  RvMsgWriter & append_decimal( const char *fname,  size_t fname_len,
+                                MDDecimal &dec ) noexcept;
+  RvMsgWriter & append_time( const char *fname,  size_t fname_len,
+                             MDTime &time ) noexcept;
+  RvMsgWriter & append_date( const char *fname,  size_t fname_len,
+                             MDDate &date ) noexcept;
+  RvMsgWriter & append_string_array( const char *fname,  size_t fname_len,
+                                     char **ar,  size_t array_size,
+                                     size_t fsize ) noexcept;
+  RvMsgWriter & append_iter( MDFieldIter *iter ) noexcept;
   int convert_msg( MDMsg &jmsg ) noexcept;
 };
 
