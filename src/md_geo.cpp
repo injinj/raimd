@@ -4,10 +4,11 @@
 using namespace rai;
 using namespace md;
 
+static const char GeoMsg_proto_string[] = "MD_GEO";
 const char *
 GeoMsg::get_proto_string( void ) noexcept
 {
-  return "MD_GEO";
+  return GeoMsg_proto_string;
 }
 
 uint32_t
@@ -24,7 +25,8 @@ static MDMatch geomsg_match = {
   .buf         = { GeoData::geo8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = GeoMsg::is_geomsg,
-  .unpack      = GeoMsg::unpack
+  .unpack      = GeoMsg::unpack,
+  .name        = GeoMsg_proto_string
 };
 
 static bool

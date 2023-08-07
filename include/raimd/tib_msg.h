@@ -63,6 +63,49 @@ struct TibFieldIter : public MDFieldIter {
   int unpack( void ) noexcept;
 };
 
+enum {
+  TIB_NODATA   = 0,
+  TIB_MESSAGE  = 1,
+  TIB_STRING   = 2,
+  TIB_OPAQUE   = 3,
+  TIB_BOOLEAN  = 4,
+  TIB_INT      = 5,
+  TIB_UINT     = 6,
+  TIB_REAL     = 7,
+  TIB_ARRAY    = 8,
+  TIB_PARTIAL  = 9,
+  TIB_IPDATA   = 10
+#define TIB_MAX_TYPE 11
+};
+
+enum {
+  TIB_HINT_NONE            = 0,   /* no hint */
+  TIB_HINT_DENOM_2         = 1,   /* 1/2 */
+  TIB_HINT_DENOM_4         = 2,
+  TIB_HINT_DENOM_8         = 3,
+  TIB_HINT_DENOM_16        = 4,
+  TIB_HINT_DENOM_32        = 5,
+  TIB_HINT_DENOM_64        = 6,
+  TIB_HINT_DENOM_128       = 7,
+  TIB_HINT_DENOM_256       = 8,   /* 1/256 */
+  TIB_HINT_PRECISION_1     = 17,  /* 10^-1 */
+  TIB_HINT_PRECISION_2     = 18,
+  TIB_HINT_PRECISION_3     = 19,
+  TIB_HINT_PRECISION_4     = 20,
+  TIB_HINT_PRECISION_5     = 21,
+  TIB_HINT_PRECISION_6     = 22,
+  TIB_HINT_PRECISION_7     = 23,
+  TIB_HINT_PRECISION_8     = 24,
+  TIB_HINT_PRECISION_9     = 25,   /* 10^-9 */
+  TIB_HINT_BLANK_VALUE     = 127,  /* no value */
+  TIB_HINT_DATE_TYPE       = 256,  /* SASS TSS_STIME */
+  TIB_HINT_TIME_TYPE       = 257,  /* SASS TSS_SDATE */
+  TIB_HINT_MF_DATE_TYPE    = 258,  /* marketfeed date */
+  TIB_HINT_MF_TIME_TYPE    = 259,  /* marketfeed time */
+  TIB_HINT_MF_TIME_SECONDS = 260,  /* marketfeed time_seconds */
+  TIB_HINT_MF_ENUM         = 261   /* marketfeed enum */
+};
+
 struct TibMsgWriter {
   uint8_t * buf;    /* output buffer */
   size_t    off,    /* index to end of data (+9 for hdr) */
@@ -140,8 +183,10 @@ struct TibMsgWriter {
                               MDTime &time ) noexcept;
   TibMsgWriter & append_date( const char *fname,  size_t fname_len,
                               MDDate &date ) noexcept;
+  TibMsgWriter & append_enum( const char *fname,  size_t fname_len,
+                              MDEnum &enu ) noexcept;
   TibMsgWriter & append_iter( MDFieldIter *iter ) noexcept;
-  int convert_msg( MDMsg &msg ) noexcept;
+  int convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept;
 };
 
 }

@@ -7,19 +7,55 @@
 using namespace rai;
 using namespace md;
 
-const char * RwfMsg::get_proto_string( void ) noexcept { return "RWF"; }
-uint32_t     RwfMsg::get_type_id( void ) noexcept      { return RWF_FIELD_LIST_TYPE_ID; }
+static const char RwfMsg_proto_string[]         = "RWF_MSG",
+                  RwfFieldList_proto_string[]   = "RWF_FIELD_LIST",
+                  RwfMap_proto_string[]         = "RWF_MAP",
+                  RwfElementList_proto_string[] = "RWF_ELEMENT_LIST",
+                  RwfFilterList_proto_string[]  = "RWF_FILTER_LIST",
+                  RwfSeries_proto_string[]      = "RWF_SERIES",
+                  RwfVector_proto_string[]      = "RWF_VECTOR",
+                  RwfMsgKey_proto_string[]      = "RWF_MSG_KEY";
+const char *
+RwfMsg::get_proto_string( void ) noexcept
+{
+  switch ( this->base.type_id ) {
+    default:
+    case RWF_MSG:          return RwfMsg_proto_string;
+    case RWF_FIELD_LIST:   return RwfFieldList_proto_string;
+    case RWF_MAP:          return RwfMap_proto_string;
+    case RWF_ELEMENT_LIST: return RwfElementList_proto_string;
+    case RWF_FILTER_LIST:  return RwfFilterList_proto_string;
+    case RWF_SERIES:       return RwfSeries_proto_string;
+    case RWF_VECTOR:       return RwfVector_proto_string;
+    case RWF_MSG_KEY:      return RwfMsgKey_proto_string;
+  }
+}
+
+uint32_t
+RwfMsg::get_type_id( void ) noexcept
+{
+  switch ( this->base.type_id ) {
+    default:
+    case RWF_MSG:          return RWF_MSG_TYPE_ID;
+    case RWF_FIELD_LIST:   return RWF_FIELD_LIST_TYPE_ID;
+    case RWF_MAP:          return RWF_MAP_TYPE_ID;
+    case RWF_ELEMENT_LIST: return RWF_ELEMENT_LIST_TYPE_ID;
+    case RWF_SERIES:       return RWF_SERIES_TYPE_ID;
+    case RWF_VECTOR:       return RWF_VECTOR_TYPE_ID;
+    case RWF_MSG_KEY:      return RWF_MSG_KEY_TYPE_ID;
+  }
+}
 
 static MDMatch rwf_match[] = {
   {0,   4,1,0, { 0x25, 0xcd, 0xab, 0xca }, { RWF_FIELD_LIST_TYPE_ID },
-                                                    RwfMsg::is_rwf_field_list,   (md_msg_unpack_f) RwfMsg::unpack_field_list },
-  {0,0xff,1,0, { 0 }, { RWF_MAP_TYPE_ID },          RwfMsg::is_rwf_map,          (md_msg_unpack_f) RwfMsg::unpack_map },
-  {0,0xff,1,0, { 0 }, { RWF_ELEMENT_LIST_TYPE_ID }, RwfMsg::is_rwf_element_list, (md_msg_unpack_f) RwfMsg::unpack_element_list },
-  {0,0xff,1,0, { 0 }, { RWF_FILTER_LIST_TYPE_ID },  RwfMsg::is_rwf_filter_list,  (md_msg_unpack_f) RwfMsg::unpack_filter_list },
-  {0,0xff,1,0, { 0 }, { RWF_SERIES_TYPE_ID },       RwfMsg::is_rwf_series,       (md_msg_unpack_f) RwfMsg::unpack_series },
-  {0,0xff,1,0, { 0 }, { RWF_VECTOR_TYPE_ID },       RwfMsg::is_rwf_vector,       (md_msg_unpack_f) RwfMsg::unpack_vector },
-  {0,0xff,1,0, { 0 }, { RWF_MSG_TYPE_ID },          RwfMsg::is_rwf_message,      (md_msg_unpack_f) RwfMsg::unpack_message },
-  {0,0xff,1,0, { 0 }, { RWF_MSG_KEY_TYPE_ID },      RwfMsg::is_rwf_msg_key,      (md_msg_unpack_f) RwfMsg::unpack_msg_key }
+                                                    RwfMsg::is_rwf_field_list,   (md_msg_unpack_f) RwfMsg::unpack_field_list,   RwfFieldList_proto_string },
+  {0,0xff,1,0, { 0 }, { RWF_MAP_TYPE_ID },          RwfMsg::is_rwf_map,          (md_msg_unpack_f) RwfMsg::unpack_map,          RwfMap_proto_string },
+  {0,0xff,1,0, { 0 }, { RWF_ELEMENT_LIST_TYPE_ID }, RwfMsg::is_rwf_element_list, (md_msg_unpack_f) RwfMsg::unpack_element_list, RwfElementList_proto_string },
+  {0,0xff,1,0, { 0 }, { RWF_FILTER_LIST_TYPE_ID },  RwfMsg::is_rwf_filter_list,  (md_msg_unpack_f) RwfMsg::unpack_filter_list,  RwfFilterList_proto_string },
+  {0,0xff,1,0, { 0 }, { RWF_SERIES_TYPE_ID },       RwfMsg::is_rwf_series,       (md_msg_unpack_f) RwfMsg::unpack_series,       RwfSeries_proto_string },
+  {0,0xff,1,0, { 0 }, { RWF_VECTOR_TYPE_ID },       RwfMsg::is_rwf_vector,       (md_msg_unpack_f) RwfMsg::unpack_vector,       RwfVector_proto_string },
+  {0,0xff,1,0, { 0 }, { RWF_MSG_TYPE_ID },          RwfMsg::is_rwf_message,      (md_msg_unpack_f) RwfMsg::unpack_message,      RwfMsg_proto_string },
+  {0,0xff,1,0, { 0 }, { RWF_MSG_KEY_TYPE_ID },      RwfMsg::is_rwf_msg_key,      (md_msg_unpack_f) RwfMsg::unpack_msg_key,      RwfMsgKey_proto_string }
 };
 
 void
@@ -491,17 +527,32 @@ RwfMsgHdr::ref_iter( size_t which,  RwfFieldIter &iter ) noexcept
     case POST_RIGHTS: iter.set_uint( this->post_rights ); break;
     case CONTAINER:
       if ( this->data_end >= this->data_start ) {
-        #define n( x ) it.name = x; it.namelen = sizeof( x )
-        switch ( this->container_type ) {
-          case RWF_FIELD_LIST:   n( "field_list" );   break;
-          case RWF_ELEMENT_LIST: n( "element_list" ); break;
-          case RWF_FILTER_LIST:  n( "filter_list" );  break;
-          case RWF_VECTOR:       n( "vector" );       break;
-          case RWF_MAP:          n( "map" );          break;
-          case RWF_SERIES:       n( "series" );       break;
-          default: break;
+        it.namelen = 0;
+        if ( this->container_type == RWF_FIELD_LIST ) {
+          uint8_t * hdr =
+            &((uint8_t *) iter.iter_msg.msg_buf)[ this->data_start ];
+          if ( ( hdr[ 0 ] & RwfFieldListHdr::HAS_FIELD_LIST_INFO ) != 0 ) {
+            uint16_t flist = ( hdr[ 3 ] << 8 ) | hdr[ 4 ];
+            if ( flist != 0 ) {
+              int n = ::snprintf( buf, sizeof( buf ), "field_list [%u]", flist );
+              it.name = iter.iter_msg.mem->stralloc( n, buf );
+              it.namelen = n + 1;
+            }
+          }
         }
-        #undef n
+        if ( it.namelen == 0 ) {
+          #define n( x ) it.name = x; it.namelen = sizeof( x )
+          switch ( this->container_type ) {
+            case RWF_FIELD_LIST:   n( "field_list" );   break;
+            case RWF_ELEMENT_LIST: n( "element_list" ); break;
+            case RWF_FILTER_LIST:  n( "filter_list" );  break;
+            case RWF_VECTOR:       n( "vector" );       break;
+            case RWF_MAP:          n( "map" );          break;
+            case RWF_SERIES:       n( "series" );       break;
+            default: break;
+          }
+          #undef n
+        }
         iter.field_start = this->data_start;
         iter.fsize       = this->data_end - this->data_start;
         iter.field_end   = this->data_end;

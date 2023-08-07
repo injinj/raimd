@@ -126,7 +126,7 @@ main( int argc, char **argv )
 
       char buf[ sizeof( minput ) * 8 ];
       RvMsgWriter rvmsg( buf, sizeof( buf ) );
-      n = rvmsg.convert_msg( *ctx.msg );
+      n = rvmsg.convert_msg( *ctx.msg, false );
       if ( n == 0 ) {
         printf( "converting to rv:\n" );
         rvmsg.update_hdr();

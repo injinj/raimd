@@ -1,6 +1,8 @@
 #ifndef __rai_raimd__sass_h__
 #define __rai_raimd__sass_h__
 
+namespace rai {
+namespace md {
 #define SASS_DEF_MSG_TYPE( DEF ) \
   DEF( VERIFY ) \
   DEF( UPDATE ) \
@@ -87,17 +89,6 @@
   DEF( FEED_NOT_ACCEPTING )
 #endif
 
-static void
-short_string( unsigned short x,  char *buf )
-{
-  for ( unsigned short i = 10000; i >= 10; i /= 10 ) {
-    if ( i < x )
-      *buf++ = ( ( x / i ) % 10 ) + '0';
-  }
-  *buf++ = ( x % 10 ) + '0';
-  *buf = '\0';
-}
-
 #define SASS_DEF_STRING( ENUM ) \
   static const char ENUM ## _STRING[] = #ENUM ;
 #define SASS_DEF_ENUM_TYPE( ENUM ) \
@@ -112,16 +103,8 @@ enum SassMsgType {
   MAX_MSG_TYPE
 };
 
-static const char *
-sass_msg_type_string( unsigned short msg_type,  char *buf )
-{
-  if ( msg_type < MAX_MSG_TYPE ) {
-    static const char *msg_type_string[] = { SASS_DEF_MSG_TYPE( SASS_DEF_ENUM_STRING ) };
-    return msg_type_string[ msg_type ];
-  }
-  short_string( msg_type, buf );
-  return buf;
-}
+extern const char * sass_msg_type_string( unsigned short msg_type,
+                                          char *buf ) noexcept;
 
 #define SASS_DEF_ENUM_STATUS( ENUM ) \
   ENUM ## _STATUS ,
@@ -133,16 +116,30 @@ enum SassRecStatus {
   MAX_REC_STATUS
 };
 
-static const char *
-sass_rec_status_string( unsigned short rec_status,  char *buf )
-{
-  if ( rec_status < MAX_REC_STATUS ) {
-    static const char *rec_status_string[] = { SASS_DEF_REC_STATUS( SASS_DEF_ENUM_STRING ) };
-    return rec_status_string[ rec_status ];
+extern const char * sass_rec_status_string( unsigned short rec_status,
+                                            char *buf ) noexcept;
+
+extern const char   SASS_MSG_TYPE[],
+                    SASS_REC_TYPE[],
+                    SASS_SEQ_NO[],
+                    SASS_REC_STATUS[];
+static const size_t SASS_MSG_TYPE_LEN   = sizeof( "MSG_TYPE" ),
+                    SASS_REC_TYPE_LEN   = sizeof( "REC_TYPE" ),
+                    SASS_SEQ_NO_LEN     = sizeof( "SEQ_NO" ),
+                    SASS_REC_STATUS_LEN = sizeof( "REC_STATUS" );
+static inline bool is_sass_hdr( const MDName &n ) {
+  if ( n.fnamelen >= SASS_SEQ_NO_LEN - 1 ) {
+    if ( n.fname[ 3 ] == '_' &&
+         ( n.fname[ 0 ] == 'R' || n.fname[ 0 ] == 'M' || n.fname[ 0 ] == 'S' ) ) {
+      return ( n.equals( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN ) ||
+               n.equals( SASS_REC_TYPE, SASS_REC_TYPE_LEN ) ||
+               n.equals( SASS_SEQ_NO, SASS_SEQ_NO_LEN ) ||
+               n.equals( SASS_REC_STATUS, SASS_REC_STATUS_LEN ) );
+    }
   }
-  short_string( rec_status, buf );
-  return buf;
+  return false;
 }
+
 #if 0
 #include <stdio.h>
 int
@@ -156,4 +153,6 @@ main( void )
   return 0;
 }
 #endif
+}
+}
 #endif

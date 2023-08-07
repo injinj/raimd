@@ -6,13 +6,16 @@
 #include <raimd/md_dict.h>
 #include <raimd/cfile.h>
 #include <raimd/app_a.h>
+#include <raimd/flistmap.h>
 #include <raimd/enum_def.h>
 #include <raimd/json_msg.h>
 #include <raimd/tib_msg.h>
 #include <raimd/rv_msg.h>
 #include <raimd/tib_sass_msg.h>
+#include <raimd/sass.h>
 #include <raimd/mf_msg.h>
 #include <raimd/rwf_msg.h>
+#include <raimd/md_hash_tab.h>
 
 using namespace rai;
 using namespace md;
@@ -22,7 +25,7 @@ load_dict_files( const char *path ) noexcept
 {
   MDDictBuild dict_build;
   MDDict * dict = NULL;
-  int x, y;
+  int x, y, z;
   dict_build.debug_flags = MD_DICT_PRINT_FILES;
   if ( (x = CFile::parse_path( dict_build, path, "tss_fields.cf" )) == 0 ) {
     CFile::parse_path( dict_build, path, "tss_records.cf" );
@@ -34,16 +37,26 @@ load_dict_files( const char *path ) noexcept
     dict_build.index_dict( "app_a", dict ); /* dict is a list */
   }
   dict_build.clear_build();
+  if ( (z = FlistMap::parse_path( dict_build, path, "flistmapping" )) == 0 ) {
+    dict_build.index_dict( "flist", dict );
+  }
+  dict_build.clear_build();
   if ( dict != NULL ) { /* print which dictionaries loaded */
     fprintf( stderr, "%s dict loaded (size: %u)\n", dict->dict_type,
              dict->dict_size );
-    if ( dict->next != NULL )
+    if ( dict->next != NULL ) {
       fprintf( stderr, "%s dict loaded (size: %u)\n", dict->next->dict_type,
                dict->next->dict_size );
+      if ( dict->next->next != NULL ) {
+        fprintf( stderr, "%s dict loaded (size: %u)\n",
+                 dict->next->next->dict_type, dict->next->next->dict_size );
+      }
+    }
     return dict;
   }
-  fprintf( stderr, "cfile status %d+%s, RDM status %d+%s\n",
-          x, Err::err( x )->descr, y, Err::err( y )->descr );
+  fprintf( stderr, "cfile status %d+%s, RDM status %d+%s flist status %d+%s\n",
+          x, Err::err( x )->descr, y, Err::err( y )->descr,
+          z, Err::err( z )->descr );
   return NULL;
 }
 
@@ -93,11 +106,12 @@ struct FieldIndex {
 template< class Writer >
 int
 filter( Writer &w,  MDMsg *m,  FieldIndex &rm,  FieldIndex &kp,
-        size_t &msg_sz )
+        size_t &msg_sz,  uint32_t &fldcnt )
 {
   MDFieldIter *iter;
   MDName nm;
-  int status, fldcnt = 0;
+  int status;
+  fldcnt = 0;
   msg_sz = 0;
   if ( (status = m->get_field_iter( iter )) == 0 ) {
     if ( (status = iter->first()) == 0 ) {
@@ -117,9 +131,9 @@ filter( Writer &w,  MDMsg *m,  FieldIndex &rm,  FieldIndex &kp,
     }
   }
   if ( status != Err::NOT_FOUND )
-    return 0;
+    return status;
   msg_sz = w.update_hdr();
-  return fldcnt;
+  return 0;
 }
 
 static void *
@@ -226,6 +240,46 @@ struct WildIndex {
   }
 };
 
+struct SubKey {
+  const char * subj;
+  size_t       len;
+
+  size_t hash( void ) const {
+    size_t key = 5381;
+    for ( size_t i = 0; i < this->len; i++ ) {
+      size_t c = (size_t) (uint8_t) this->subj[ i ];
+      key = c ^ ( ( key << 5 ) + key );
+    }
+    return key;
+  }
+  bool equals( const SubKey &k ) const {
+    return k.len == this->len &&
+           ::memcmp( k.subj, this->subj, this->len ) == 0;
+  }
+  SubKey( const char *s,  size_t l ) : subj( s ), len( l ) {}
+};
+
+struct SubData : public SubKey {
+  uint16_t rec_type,
+           flist;
+  uint32_t seqno;
+
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  SubData( const char *s,  size_t len,  uint16_t t,  uint16_t f,  uint32_t n )
+    : SubKey( s, len ), rec_type( t ), flist( f ), seqno( n ) {}
+
+  static SubData * make( const char *subj,  size_t len,  uint16_t rec_type,
+                         uint16_t flist,  uint32_t seqno ) {
+    void * m = ::malloc( sizeof( SubData ) + len + 1 );
+    char * p = &((char *) m)[ sizeof( SubData ) ];
+    ::memcpy( p, subj, len );
+    p[ len ] = '\0';
+    return new ( m ) SubData( p, len, rec_type, flist, seqno );
+  }
+};
+
+typedef MDHashTabT<SubKey, SubData> SubHT;
+
 static const char *
 get_arg( int argc, char *argv[], int b, const char *f,
          const char *def ) noexcept
@@ -241,7 +295,10 @@ main( int argc, char **argv )
 {
   MDOutput mout, bout; /* message output, uses printf to stdout */
   MDMsgMem mem;  /* memory for printing (converting numbers to strings) */
-  MDDict * dict = NULL; /* dictinonaries, cfile and RDM/appendix_a */
+  MDDict * dict       = NULL, /* dictinonaries, cfile and RDM/appendix_a */
+         * cfile_dict = NULL,
+         * rdm_dict   = NULL,
+         * flist_dict = NULL;
   char subj[ 1024 ], size[ 128 ];
   size_t sz, buflen = 0;
   const char * fn     = get_arg( argc, argv, 1, "-f", NULL ),
@@ -249,10 +306,12 @@ main( int argc, char **argv )
              * path   = get_arg( argc, argv, 1, "-p", ::getenv( "cfile_path" ) ),
              * rmfld  = get_arg( argc, argv, 1, "-r", NULL ),
              * kpfld  = get_arg( argc, argv, 1, "-k", NULL ),
+             * fmt    = get_arg( argc, argv, 1, "-t", NULL ),
              * sub    = get_arg( argc, argv, 1, "-s", NULL );
   bool         quiet  = get_arg( argc, argv, 0, "-q", NULL ) != NULL,
                binout = false;
   char * buf = NULL;
+  uint32_t cvt_type_id = 0;
   uint64_t msg_count = 0, err_cnt = 0, discard_cnt = 0;
 
   if ( get_arg( argc, argv, 0, "-h", NULL ) != NULL ) {
@@ -260,7 +319,15 @@ main( int argc, char **argv )
       "Usage: %s [-f file] [-o out] [-p cfile_path] [-r flds] "
                 "[-k flds] [-s subs ] [-q]\n"
       "Test reading messages from files on command line\n"
-      "Each file is formatted as any number of these lines:\n"
+      "  -f file           = replay file to read\n"
+      "  -o file           = output file to write\n"
+      "  -p cfile_path     = load dictionary files from path\n"
+      "  -r fields         = remove fields from message\n"
+      "  -k fields         = keep fields in message\n"
+      "  -t format         = convert message to (eg TIBMSG,RVMSG,RWFMSG)\n"
+      "  -s wildcard       = filter subjects using wildcard\n"
+      "  -q                = quiet, no printing of messages\n"
+      "A file is a binary dump of messages, each with these lines:\n"
       "<subject>\n"
       "<num-bytes>\n"
       "<blob-of-data\n"
@@ -273,6 +340,16 @@ main( int argc, char **argv )
   }
   if ( path != NULL )
     dict = load_dict_files( path );
+  if ( dict != NULL ) {
+    for ( MDDict *d = dict; d != NULL; d = d->next ) {
+      if ( d->dict_type[ 0 ] == 'c' )
+        cfile_dict = d;
+      else if ( d->dict_type[ 0 ] == 'a' )
+        rdm_dict = d;
+      else if ( d->dict_type[ 0 ] == 'f' )
+        flist_dict = d;
+    }
+  }
   if ( out != NULL ) {
     if ( ::strcmp( out, "-" ) == 0 )
       quiet = true;
@@ -282,8 +359,38 @@ main( int argc, char **argv )
     }
     binout = true;
   }
+  md_init_auto_unpack();
+  if ( fmt != NULL ) {
+    uint32_t  i;
+    MDMatch * m;
+    for ( m = MDMsg::first_match( i ); m; m = MDMsg::next_match( i ) ) {
+      if ( ::strcasecmp( m->name, fmt ) == 0 ) {
+        cvt_type_id = m->hint[ 0 ];
+        break;
+      }
+    }
+    switch ( cvt_type_id ) {
+      case JSON_TYPE_ID:
+      case MARKETFEED_TYPE_ID:
+      case RVMSG_TYPE_ID:
+      case RWF_FIELD_LIST_TYPE_ID:
+      case RWF_MSG_TYPE_ID:
+      case TIBMSG_TYPE_ID:
+      case TIB_SASS_TYPE_ID:
+        break;
+      default:
+        fprintf( stderr, "format \"%s\" %s, types:\n", fmt,
+                 cvt_type_id == 0 ? "not found" : "converter not implemented" );
+        for ( m = MDMsg::first_match( i ); m; m = MDMsg::next_match( i ) ) {
+          if ( m->hint[ 0 ] != 0 )
+            fprintf( stderr, "  %s : %x\n", m->name, m->hint[ 0 ] );
+        }
+        return 1;
+    }
+  }
   if ( ! quiet ) 
     printf( "reading from %s\n", ( fn == NULL ? "stdin" : fn ) );
+
   FieldIndex rm, kp;
   WildIndex  wild;
   rm.fld = (MDName *) ::malloc( sizeof( MDName ) * argc * 2 );
@@ -343,9 +450,13 @@ main( int argc, char **argv )
     perror( fn );
     return 1;
   }
+  SubHT sub_ht( 128 );
   for (;;) {
-    if ( fgets( subj, sizeof( subj ), fp ) == NULL ||
-         fgets( size, sizeof( size ), fp ) == NULL )
+    if ( fgets( subj, sizeof( subj ), fp ) == NULL )
+      break;
+    if ( subj[ 0 ] <= ' ' || subj[ 0 ] == '#' )
+      continue;
+    if ( fgets( size, sizeof( size ), fp ) == NULL )
       break;
     if ( (sz = atoi( size )) == 0 )
       break;
@@ -377,51 +488,258 @@ main( int argc, char **argv )
     if ( 2 < argc && ::strstr( subj, argv[ 2 ] ) == NULL )
       continue; */
     /* try to unpack it */
+    mem.reuse(); /* reset mem for next msg */
     MDMsg * m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
-    void * msg = NULL;
-    size_t msg_sz = 0;
-    int fldcnt = 0;
-    if ( m == NULL )
+    void * msg = buf;
+    size_t msg_sz = sz;
+    uint32_t fldcnt = 0;
+    int status = -1;
+    if ( m == NULL ) {
       err_cnt++;
-    /* print it */
-    else if ( ! quiet ) {
-      mout.printf( "\n## %s (fmt %s)\n", subj, m->get_proto_string() );
-      /*m->print( &mout );*/
+      continue;
     }
     if ( rm.fld_cnt != 0 || kp.fld_cnt != 0 ) {
-      msg_sz = sz + 1024;
+      size_t buf_sz = msg_sz * 2;
+      void * buf    = mem.make( buf_sz );
       if ( m->get_type_id() == TIBMSG_TYPE_ID ) {
-        TibMsgWriter w( msg = mem.make( msg_sz ), msg_sz );
-        fldcnt = filter<TibMsgWriter>( w, m, rm, kp, msg_sz );
+        TibMsgWriter w( buf, buf_sz );
+        status = filter<TibMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
+        m = NULL;
+        if ( status == 0 && fldcnt > 0 ) {
+          msg = w.buf;
+          m = TibMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+        }
       }
       else if ( m->get_type_id() == RVMSG_TYPE_ID ) {
-        RvMsgWriter w( msg = mem.make( msg_sz ), msg_sz );
-        fldcnt = filter<RvMsgWriter>( w, m, rm, kp, msg_sz );
+        RvMsgWriter w( buf, buf_sz );
+        status = filter<RvMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
+        m = NULL;
+        if ( status == 0 && fldcnt > 0 ) {
+          msg = w.buf;
+          m = RvMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+        }
       }
       else if ( m->get_type_id() == TIB_SASS_TYPE_ID ) {
-        TibSassMsgWriter w( dict, msg = mem.make( msg_sz ), msg_sz );
-        fldcnt = filter<TibSassMsgWriter>( w, m, rm, kp, msg_sz );
+        TibSassMsgWriter w( cfile_dict, buf, buf_sz );
+        status = filter<TibSassMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
+        m = NULL;
+        if ( status == 0 && fldcnt > 0 ) {
+          msg = w.buf;
+          m = TibSassMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+        }
       }
-      else {
-        msg = NULL;
-        msg_sz = 0;
-        fldcnt = 0;
-      }
-      if ( msg_sz == 0 ) {
+      if ( status != 0 ) {
         err_cnt++;
-      }
-      else if ( ! quiet ) {
-        MDMsg * m2 = MDMsg::unpack( msg, 0, msg_sz, 0, dict, mem );
-        m2->print( &mout );
+        continue;
       }
     }
-    else if ( ! quiet ) {
+    if ( cvt_type_id != 0 && m != NULL ) {
+      size_t   buf_sz     = msg_sz * 16;
+      void   * buf        = mem.make( buf_sz );
+      uint16_t flist      = 0,
+               rec_type   = 0;
+      uint32_t seqno      = 0;
+      bool     is_initial = false;
+
+      switch ( m->get_type_id() ) {
+        case MARKETFEED_TYPE_ID: {
+          MktfdMsg & mf = *(MktfdMsg *) m;
+          is_initial = ( mf.func == 340 );
+          flist = mf.flist;
+          break;
+        }
+        case RWF_MSG_TYPE_ID: {
+          RwfMsg & rwf = *(RwfMsg *) m;
+          is_initial = ( rwf.msg.msg_class == REFRESH_MSG_CLASS );
+          RwfMsg * fl = rwf.get_container_msg();
+          if ( fl != NULL )
+            flist = fl->fields.flist;
+          break;
+        }
+        case RWF_FIELD_LIST_TYPE_ID: {
+          RwfMsg & rwf = *(RwfMsg *) m;
+          flist = rwf.fields.flist;
+          break;
+        }
+        default:
+          break;
+      }
+      status = -1;
+      if ( cvt_type_id == TIBMSG_TYPE_ID || cvt_type_id == TIB_SASS_TYPE_ID ) {
+        if ( flist != 0 && flist_dict != NULL && cfile_dict != NULL ) {
+          MDLookup by( flist );
+          if ( flist_dict->lookup( by ) ) {
+            MDLookup fc( by.fname, by.fname_len );
+            if ( cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE ) {
+              rec_type = fc.fid;
+
+              SubKey k( subj, slen );
+              SubData * data;
+              size_t pos;
+              if ( (data = sub_ht.find( k, pos )) == NULL ) {
+                sub_ht.insert( pos, SubData::make( subj, slen, rec_type, flist,
+                                                   ++seqno ) );
+              }
+              else {
+                data->rec_type = rec_type;
+                data->flist    = flist;
+                seqno          = ++data->seqno;
+              }
+            }
+          }
+        }
+        else {
+          SubKey k( subj, slen );
+          SubData * data = sub_ht.find( k );
+          if ( data != NULL ) {
+            rec_type = data->rec_type;
+            flist    = data->flist;
+            seqno    = ++data->seqno;
+          }
+        }
+      }
+      if ( seqno == 0 ) {
+        SubKey k( subj, slen );
+        SubData * data;
+        size_t pos;
+        if ( (data = sub_ht.find( k, pos )) == NULL ) {
+          sub_ht.insert( pos, SubData::make( subj, slen, rec_type, flist,
+                                             ++seqno ) );
+        }
+        else {
+          rec_type = data->rec_type;
+          flist    = data->flist;
+          seqno    = ++data->seqno;
+        }
+      }
+      switch ( cvt_type_id ) {
+        case JSON_TYPE_ID: {
+          JsonMsgWriter w( buf, buf_sz );
+          if ( (status = w.convert_msg( *m )) == 0 ) {
+            msg    = w.buf;
+            msg_sz = w.update_hdr();
+            m = JsonMsg::unpack( msg, 0, msg_sz, 0, dict, mem );
+          }
+          break;
+        }
+        case MARKETFEED_TYPE_ID: {
+          break;
+        }
+        case RVMSG_TYPE_ID: {
+          RvMsgWriter w( buf, buf_sz );
+          uint16_t t = ( is_initial ? 8 : 1 );
+          w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , t )
+           .append_uint( SASS_REC_TYPE  , SASS_REC_TYPE_LEN  , rec_type )
+           .append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
+           .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, (uint16_t) 0 );
+          if ( (status = w.convert_msg( *m, true )) == 0 ) {
+            msg    = w.buf;
+            msg_sz = w.update_hdr();
+            m = RvMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+          }
+          break;
+        }
+        case RWF_MSG_TYPE_ID: {
+          RwfMsgClass msg_class = ( is_initial ? REFRESH_MSG_CLASS :
+                                                 UPDATE_MSG_CLASS );
+          uint32_t stream_id = MDDict::dict_hash( subj, slen );
+          RwfMsgWriter w( mem, rdm_dict, buf, buf_sz,
+                          msg_class, MARKET_PRICE_DOMAIN, stream_id );
+          if ( is_initial )
+            w.set( X_CLEAR_CACHE, X_REFRESH_COMPLETE );
+          w.add_seq_num( seqno )
+           .add_msg_key()
+           .name( subj, slen )
+           .name_type( NAME_TYPE_RIC )
+           .end_msg_key();
+          RwfFieldListWriter & fl = w.add_field_list();
+          if ( flist != 0 )
+            fl.add_flist( flist );
+          status = w.err;
+          if ( status == 0 )
+            status = fl.convert_msg( *m );
+          if ( status == 0 )
+            w.end_msg();
+          if ( (status = w.err) == 0 ) {
+            msg    = w.buf;
+            msg_sz = w.off;
+            m = RwfMsg::unpack_message( msg, 0, msg_sz, 0, rdm_dict, mem );
+          }
+          break;
+        }
+        case RWF_FIELD_LIST_TYPE_ID: {
+          RwfFieldListWriter w( mem, rdm_dict, buf, buf_sz );
+          if ( flist != 0 )
+            w.add_flist( flist );
+          if ( (status = w.convert_msg( *m )) == 0 ) {
+            msg    = w.buf;
+            msg_sz = w.update_hdr();
+            m = RwfMsg::unpack_field_list( msg, 0, msg_sz, 0, rdm_dict, mem );
+          }
+          break;
+        }
+        case TIBMSG_TYPE_ID: {
+          TibMsgWriter w( buf, buf_sz );
+          uint16_t t = ( is_initial ? 8 : 1 );
+          w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , t )
+           .append_uint( SASS_REC_TYPE  , SASS_REC_TYPE_LEN  , rec_type )
+           .append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
+           .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, 0 );
+          if ( (status = w.convert_msg( *m, true )) == 0 ) {
+            msg    = w.buf;
+            msg_sz = w.update_hdr();
+            m = TibMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+          }
+          break;
+        }
+        case TIB_SASS_TYPE_ID: {
+          TibSassMsgWriter w( cfile_dict, buf, buf_sz );
+          uint16_t t = ( is_initial ? 8 : 1 );
+          w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , t )
+           .append_uint( SASS_REC_TYPE  , SASS_REC_TYPE_LEN  , rec_type )
+           .append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
+           .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, 0 );
+          if ( (status = w.convert_msg( *m, true )) == 0 ) {
+            msg    = w.buf;
+            msg_sz = w.update_hdr();
+            m = TibSassMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+          }
+          break;
+        }
+      }
+      if ( status != 0 || m == NULL ) {
+        if ( m != NULL ) {
+          mout.printf( "%s: seqno %u error %d\n", subj, seqno, status );
+          m->print( &mout );
+        }
+        err_cnt++;
+        continue;
+      }
+    }
+    if ( ! quiet && m != NULL ) {
+      /* print it */
+      mout.printf( "\n## %s (fmt %s)\n", subj, m->get_proto_string() );
       m->print( &mout );
     }
     /*cmp_msg( mout, m, dict, msg, msg_sz );*/
     if ( binout ) {
-      if ( fldcnt > 0 ) {
-        bout.printf( "%s\n%" PRIu64 "\n", subj, msg_sz );
+      if ( m != NULL ) {
+        switch ( m->get_type_id() ) {
+          case RWF_FIELD_LIST_TYPE_ID:
+          case RWF_MSG_TYPE_ID:
+            if ( get_u32<MD_BIG>( msg ) != RWF_FIELD_LIST_TYPE_ID ) {
+              uint8_t buf[ 8 ];
+              set_u32<MD_BIG>( buf, RWF_FIELD_LIST_TYPE_ID );
+              set_u32<MD_BIG>( &buf[ 4 ], ((RwfMsg *) m)->base.type_id );
+              bout.printf( "%s\n%" PRIu64 "\n", subj, msg_sz + 8 );
+              bout.write( buf, 8 );
+              break;
+            }
+            /* FALLTHRU */
+          default:
+            bout.printf( "%s\n%" PRIu64 "\n", subj, msg_sz );
+            break;
+        }
         if ( bout.write( msg, msg_sz ) != msg_sz )
           err_cnt++;
       }
@@ -430,7 +748,6 @@ main( int argc, char **argv )
       }
     }
     msg_count++;
-    mem.reuse(); /* reset mem for next msg */
   }
   /*if ( ! quiet )*/ {
     fprintf( stderr, "found %" PRIu64 " messages, %" PRIu64 " erorrs\n",

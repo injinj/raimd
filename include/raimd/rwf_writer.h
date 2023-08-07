@@ -523,28 +523,45 @@ struct RwfMsgKeyWriter : public RwfMsgWriterBase {
 struct RwfFieldListWriter : public RwfMsgWriterBase {
   uint16_t nflds,
            flist,
+           dict_id,
            set_nflds,
            set_id;
   uint32_t set_size;
   RwfFieldListSet * set;
+  int      unk_fid;
 
   void * operator new( size_t, void *ptr ) { return ptr; }
   RwfFieldListWriter( MDMsgMem &m,  MDDict *d,  void *bb,  size_t len )
-    : RwfMsgWriterBase( W_FIELD_LIST, m, d, bb, len ), nflds( 0 ), flist( 0 ) {
+    : RwfMsgWriterBase( W_FIELD_LIST, m, d, bb, len ), nflds( 0 ),
+      flist( 0 ), dict_id( 1 ) {
     this->reset();
   }
   void reset( void ) {
     this->RwfMsgWriterBase::reset( 7 );
     this->nflds     = 0;
     this->flist     = 0;
+    this->dict_id   = 1;
     this->set_nflds = 0;
     this->set_id    = 0;
     this->set_size  = 0;
     this->set       = NULL;
+    this->unk_fid   = 0;
   }
   size_t update_hdr( void ) noexcept;
   RwfFieldListWriter & set_error( int e ) {
     this->error( e );
+    return *this;
+  }
+  RwfFieldListWriter & unknown_fid( void ) {
+    this->unk_fid++;
+    return *this;
+  }
+  RwfFieldListWriter & add_flist( uint16_t fl ) {
+    this->flist = fl;
+    return *this;
+  }
+  RwfFieldListWriter & add_dict_id( uint16_t id ) {
+    this->dict_id = id;
     return *this;
   }
   bool match_set( MDFid fid ) noexcept;
@@ -705,6 +722,7 @@ struct RwfFieldListWriter : public RwfMsgWriterBase {
        Ts... args ) {
     return (writer.*cb)( *this, args... );
   }
+  int convert_msg( MDMsg &msg ) noexcept;
 };
 
 enum RwfFieldSetKind {

@@ -4,10 +4,11 @@
 using namespace rai;
 using namespace md;
 
+static const char SetMsg_proto_string[] = "MD_SET";
 const char *
 SetMsg::get_proto_string( void ) noexcept
 {
-  return "MD_SET";
+  return SetMsg_proto_string;
 }
 
 uint32_t
@@ -24,7 +25,8 @@ static MDMatch setmsg_match = {
   .buf         = { SetData::set8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = SetMsg::is_setmsg,
-  .unpack      = SetMsg::unpack
+  .unpack      = SetMsg::unpack,
+  .name        = SetMsg_proto_string
 };
 
 static bool

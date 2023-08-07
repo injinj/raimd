@@ -2,50 +2,18 @@
 #include <raimd/rv_msg.h>
 #include <raimd/tib_msg.h>
 #include <raimd/tib_sass_msg.h>
+#include <raimd/rwf_msg.h>
 #include <raimd/md_dict.h>
+#include <raimd/sass.h>
 
 using namespace rai;
 using namespace md;
 
-namespace rai {
-namespace md {
-  static const uint8_t RV_TINY_SIZE  = 120; /* 78 */
-  static const uint8_t RV_SHORT_SIZE = 121; /* 79 */
-  static const uint8_t RV_LONG_SIZE  = 122; /* 7a */
-  static const size_t MAX_RV_SHORT_SIZE = 0x7530; /* 30000 */
-
-  enum {
-    RV_BADDATA   = 0,
-    RV_RVMSG     = 1,
-    RV_SUBJECT   = 2,
-    RV_DATETIME  = 3,
-    RV_OPAQUE    = 7,
-    RV_STRING    = 8,
-    RV_BOOLEAN   = 9,
-    RV_IPDATA    = 10,  /* 0a */
-    RV_INT       = 11,  /* 0b */
-    RV_UINT      = 12,  /* 0c */
-    RV_REAL      = 13,  /* 0d */
-    RV_ENCRYPTED = 32,  /* 20 */
-    RV_ARRAY_I8  = 34,  /* 22 */
-    RV_ARRAY_U8  = 35,  /* 23 */
-    RV_ARRAY_I16 = 36,  /* 24 */
-    RV_ARRAY_U16 = 37,  /* 25 */
-    RV_ARRAY_I32 = 38,  /* 26 */
-    RV_ARRAY_U32 = 39,  /* 27 */
-    RV_ARRAY_I64 = 40,  /* 28 */
-    RV_ARRAY_U64 = 41,  /* 29 */
-    RV_ARRAY_F32 = 44,  /* 2c */
-    RV_ARRAY_F64 = 45,  /* 2d */
-    RV_ARRAY_STR = 48   /* 30 */
-  };
-}
-}
-
+static const char RvMsg_proto_string[] = "RVMSG";
 const char *
 RvMsg::get_proto_string( void ) noexcept
 {
-  return "RVMSG";
+  return RvMsg_proto_string;
 }
 
 uint32_t
@@ -62,7 +30,8 @@ static MDMatch rvmsg_match = {
   .buf         = { 0x99, 0x55, 0xee, 0xaa },
   .hint        = { RVMSG_TYPE_ID, 0 },
   .is_msg_type = RvMsg::is_rvmsg,
-  .unpack      = RvMsg::unpack
+  .unpack      = RvMsg::unpack,
+  .name        = RvMsg_proto_string
 };
 
 bool
@@ -139,8 +108,9 @@ RvMsg::opaque_extract( uint8_t *bb,  size_t off,  size_t end,  MDDict *d,
   static uint8_t tibrv_encap_QFORM[] = { 7, '_','Q','F','O','R','M', 0 };
   static uint8_t tibrv_encap_data[]  = { 7, '_','d','a','t','a','_', 0 };
   static uint8_t tibrv_encap_RAIMSG[]= { 8, '_','R','A','I','M','S','G', 0 };
+  static uint8_t tibrv_encap_RWF[]   = { 8, '_','R','W','F','M','S','G', 0 };
   size_t i, fsize, szbytes = 0;
-  bool is_tibmsg = false, is_qform = false, is_data = false;
+  bool is_tibmsg = false, is_qform = false, is_data = false, is_rwf = false;
 
   i = sizeof( tibrv_encap_TIBMSG );
   if ( ! (is_tibmsg = cmp_field( bb, off, tibrv_encap_TIBMSG, i )) ) {
@@ -150,7 +120,10 @@ RvMsg::opaque_extract( uint8_t *bb,  size_t off,  size_t end,  MDDict *d,
       if ( ! (is_data = cmp_field( bb, off, tibrv_encap_data, i )) ) {
         i = sizeof( tibrv_encap_RAIMSG );
         if ( ! (is_tibmsg = cmp_field( bb, off, tibrv_encap_RAIMSG, i )) ) {
-          return NULL;
+          i = sizeof( tibrv_encap_RWF );
+          if ( ! (is_rwf = cmp_field( bb, off, tibrv_encap_RWF, i )) ) {
+            return NULL;
+          }
         }
       }
     }
@@ -187,6 +160,8 @@ RvMsg::opaque_extract( uint8_t *bb,  size_t off,  size_t end,  MDDict *d,
     return TibMsg::unpack( bb, off, end, 0, d, m );
   if ( ( is_qform || is_data ) && TibSassMsg::is_tibsassmsg( bb, off, end, 0))
     return TibSassMsg::unpack( bb, off, end, 0, d, m );
+  if ( is_rwf )
+    return RwfMsg::unpack_message( bb, off, end, 0, d, m );
   return NULL;
 }
 
@@ -685,16 +660,15 @@ RvMsgWriter &
 RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
                          MDReference &mref ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off ];
-  size_t    len = 1 + fname_len + 1 + mref.fsize,
-            szbytes;
+  uint8_t * ptr   = &this->buf[ this->off ];
+  size_t    fsize = mref.fsize;
 
-  if ( mref.fsize < RV_TINY_SIZE )
-    szbytes = 1;
-  else if ( mref.fsize < MAX_RV_SHORT_SIZE )
-    szbytes = 3;
-  else
-    szbytes = 5;
+  if ( mref.ftype == MD_STRING &&
+       ( fsize == 0 || mref.fptr[ fsize - 1 ] != '\0' ) )
+    fsize++;
+
+  size_t    len     = 1 + fname_len + 1 + fsize,
+            szbytes = rv_size_bytes( fsize );
 
   len += szbytes;
   if ( ! this->has_space( len ) )
@@ -720,31 +694,13 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
                         return this->error( Err::BAD_FIELD_TYPE );
                       break;
   }
-
-  if ( szbytes == 1 ) {
-    ptr[ 1 ] = (uint8_t) mref.fsize;
-    ptr = &ptr[ 2 ];
-  }
-  else if ( szbytes == 3 ) {
-    ptr[ 1 ] = RV_SHORT_SIZE;
-    ptr[ 2 ] = ( ( mref.fsize + 2 ) >> 8 ) & 0xffU;
-    ptr[ 3 ] = ( mref.fsize + 2 ) & 0xffU;
-    ptr = &ptr[ 4 ];
-  }
-  else {
-    ptr[ 1 ] = RV_LONG_SIZE;
-    ptr[ 2 ] = ( ( mref.fsize + 4 ) >> 24 ) & 0xffU;
-    ptr[ 3 ] = ( ( mref.fsize + 4 ) >> 16 ) & 0xffU;
-    ptr[ 4 ] = ( ( mref.fsize + 4 ) >> 8 ) & 0xffU;
-    ptr[ 5 ] = ( mref.fsize + 4 ) & 0xffU;
-    ptr = &ptr[ 6 ];
-  }
+  ptr += 1 + pack_rv_size( &ptr[ 1 ], fsize, szbytes );
   /* invert endian, for little -> big */
-  if ( mref.fendian != MD_BIG && mref.fsize > 1 &&
+  if ( mref.fendian != MD_BIG && fsize > 1 &&
        ( mref.ftype == MD_UINT || mref.ftype == MD_INT ||
          mref.ftype == MD_REAL || mref.ftype == MD_DATETIME ||
          mref.ftype == MD_IPDATA ) ) {
-    size_t off = mref.fsize;
+    size_t off = fsize;
     ptr[ 0 ] = mref.fptr[ --off ];
     ptr[ 1 ] = mref.fptr[ --off ];
     if ( off > 0 ) {
@@ -760,9 +716,13 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
   }
   else {
     ::memcpy( ptr, mref.fptr, mref.fsize );
-    if ( mref.fendian == MD_LITTLE && mref.ftype == MD_ARRAY &&
-         mref.fentrysz > 1 )
-      swap_rv_array( mref, ptr );
+    if ( fsize > mref.fsize )
+      ptr[ mref.fsize ] = '\0';
+    else {
+      if ( mref.fendian == MD_LITTLE && mref.ftype == MD_ARRAY &&
+           mref.fentrysz > 1 )
+        swap_rv_array( mref, ptr );
+    }
   }
   this->off += len;
   return *this;
@@ -775,17 +735,10 @@ RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
 {
   uint8_t * ptr = &this->buf[ this->off ];
   size_t    len = 1 + fname_len + 1 + fsize,
-            szbytes;
+            szbytes = rv_size_bytes( fsize + 4 );
 
   fsize += 4; /* array size */
-  if ( fsize < RV_TINY_SIZE )
-    szbytes = 1;
-  else if ( fsize < MAX_RV_SHORT_SIZE )
-    szbytes = 3;
-  else
-    szbytes = 5;
-
-  len += 4 + szbytes;
+  len   += 4 + szbytes;
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
   if ( fname_len > 0xff )
@@ -794,25 +747,8 @@ RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
   ::memcpy( &ptr[ 1 ], fname, fname_len );
   ptr = &ptr[ fname_len + 1 ];
   ptr[ 0 ] = RV_ARRAY_STR;
+  ptr += 1 + pack_rv_size( &ptr[ 1 ], fsize, szbytes );
 
-  if ( szbytes == 1 ) {
-    ptr[ 1 ] = (uint8_t) fsize;
-    ptr = &ptr[ 2 ];
-  }
-  else if ( szbytes == 3 ) {
-    ptr[ 1 ] = RV_SHORT_SIZE;
-    ptr[ 2 ] = ( ( fsize + 2 ) >> 8 ) & 0xffU;
-    ptr[ 3 ] = ( fsize + 2 ) & 0xffU;
-    ptr = &ptr[ 4 ];
-  }
-  else {
-    ptr[ 1 ] = RV_LONG_SIZE;
-    ptr[ 2 ] = ( ( fsize + 4 ) >> 24 ) & 0xffU;
-    ptr[ 3 ] = ( ( fsize + 4 ) >> 16 ) & 0xffU;
-    ptr[ 4 ] = ( ( fsize + 4 ) >> 8 ) & 0xffU;
-    ptr[ 5 ] = ( fsize + 4 ) & 0xffU;
-    ptr = &ptr[ 6 ];
-  }
   uint32_t tmp = (uint32_t) array_size;
   tmp = get_u32<MD_BIG>( &tmp );
   ::memcpy( ptr, &tmp, 4 );
@@ -909,8 +845,32 @@ RvMsgWriter::append_date( const char *fname,  size_t fname_len,
   return *this;
 }
 
+RvMsgWriter &
+RvMsgWriter::append_enum( const char *fname,  size_t fname_len,
+                          MDEnum &enu ) noexcept
+{
+  uint8_t * ptr = &this->buf[ this->off ];
+  size_t    len = 1 + fname_len + 1 + 1 + enu.disp_len + 1;
+
+  if ( ! this->has_space( len ) )
+    return this->error( Err::NO_SPACE );
+  if ( fname_len > 0xff )
+    return this->error( Err::BAD_NAME );
+
+  ptr[ 0 ] = (uint8_t) fname_len;
+  ::memcpy( &ptr[ 1 ], fname, fname_len );
+  ptr = &ptr[ fname_len + 1 ];
+  ptr[ 0 ] = (uint8_t) RV_STRING;
+  ptr[ 1 ] = (uint8_t) ( enu.disp_len + 1 );
+  ptr = &ptr[ 2 ];
+  ::memcpy( ptr, enu.disp, enu.disp_len );
+  ptr[ enu.disp_len ] = '\0';
+  this->off += len;
+  return *this;
+}
+
 int
-RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
+RvMsgWriter::convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept
 {
   MDFieldIter *iter;
   int status;
@@ -921,12 +881,34 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
       MDReference mref;
       MDDecimal   dec;
       if ( iter->get_name( name ) == 0 && iter->get_reference( mref ) == 0 ) {
+        if ( skip_hdr && is_sass_hdr( name ) )
+          continue;
         switch ( mref.ftype ) {
           default:
             this->append_ref( name.fname, name.fnamelen, mref );
             status = this->err;
             break;
 
+          case MD_TIME: {
+            MDTime time;
+            time.get_time( mref );
+            this->append_time( name.fname, name.fnamelen, time );
+            break;
+          }
+          case MD_DATE: {
+            MDDate date;
+            date.get_date( mref );
+            this->append_date( name.fname, name.fnamelen, date );
+            break;
+          }
+          case MD_ENUM: {
+            MDEnum enu;
+            if ( mref.ftype == MD_ENUM && iter->get_enum( mref, enu ) == 0 )
+              this->append_enum( name.fname, name.fnamelen, enu );
+            else
+              mref.ftype = MD_UINT;
+            break;
+          }
           case MD_DECIMAL:
             dec.get_decimal( mref );
             if ( dec.hint == MD_DEC_INTEGER ) {
@@ -944,7 +926,6 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
             }
             status = this->err;
             break;
-
           case MD_MESSAGE: {
             RvMsgWriter submsg( NULL, 0 );
             MDMsg * jmsg2 = NULL;
@@ -953,7 +934,7 @@ RvMsgWriter::convert_msg( MDMsg &jmsg ) noexcept
             if ( status == 0 )
               status = jmsg.get_sub_msg( mref, jmsg2, iter );
             if ( status == 0 ) {
-              status = submsg.convert_msg( *jmsg2 );
+              status = submsg.convert_msg( *jmsg2, false );
               if ( status == 0 )
                 this->update_hdr( submsg );
             }

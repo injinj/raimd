@@ -4,10 +4,11 @@
 using namespace rai;
 using namespace md;
 
+static const char JsonMsg_proto_string[] = "JSON";
 const char *
 JsonMsg::get_proto_string( void ) noexcept
 {
-  return "JSON";
+  return JsonMsg_proto_string;
 }
 
 uint32_t
@@ -24,7 +25,8 @@ static MDMatch json_match = {
   .buf         = { '{', 0, 0, 0 },
   .hint        = { JSON_TYPE_ID, 0 },
   .is_msg_type = JsonMsg::is_jsonmsg,
-  .unpack      = (md_msg_unpack_f) JsonMsg::unpack
+  .unpack      = (md_msg_unpack_f) JsonMsg::unpack,
+  .name        = JsonMsg_proto_string
 };
 
 bool
