@@ -5,6 +5,7 @@
 #include <raimd/cfile.h>
 #include <raimd/app_a.h>
 #include <raimd/enum_def.h>
+#include <raimd/flistmap.h>
 
 using namespace rai;
 using namespace md;
@@ -48,11 +49,21 @@ main( int argc, char **argv )
     path = argv[ path_arg + 1 ];
   /* load RDM dictionary */
   dict_build.debug_flags = MD_DICT_PRINT_FILES;
+  if ( FlistMap::parse_path( dict_build, path, "flistmapping" ) == 0 ) {
+    dict_build.index_dict( "flist", dict );
+    if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs ) {
+      test_lookup( dict_build, dict );
+      printf( "\n" );
+    }
+  }
+  dict_build.clear_build();
   if ( AppA::parse_path( dict_build, path, "RDMFieldDictionary" ) == 0 ) {
     EnumDef::parse_path( dict_build, path, "enumtype.def" );
     dict_build.index_dict( "app_a", dict );
-    if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs )
+    if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs ) {
       test_lookup( dict_build, dict );
+      printf( "\n" );
+    }
   }
   /* if generating, don't load cfiles */
   if ( gen_fields ) {
@@ -80,6 +91,7 @@ main( int argc, char **argv )
       CFile::parse_path( dict_build, path, "tss_records.cf" );
       dict_build.index_dict( "cfile", dict );
       test_lookup( dict_build, dict );
+      printf( "\n" );
     }
     MDDict * str_dict = NULL;
     dict_build.clear_build();

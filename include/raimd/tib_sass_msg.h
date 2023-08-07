@@ -85,12 +85,41 @@ struct TibSassFieldIter : public MDFieldIter {
   }
 };
 
+enum {
+  TSS_HINT_NONE            = 0,   /* no hint */
+  TSS_HINT_DENOM_2         = 1,   /* 1/2 */
+  TSS_HINT_DENOM_4         = 2,
+  TSS_HINT_DENOM_8         = 3,
+  TSS_HINT_DENOM_16        = 4,
+  TSS_HINT_DENOM_32        = 5,
+  TSS_HINT_DENOM_64        = 6,
+  TSS_HINT_DENOM_128       = 7,
+  TSS_HINT_DENOM_256       = 8,   /* 1/256 */
+  TSS_HINT_PRECISION_1     = 17,  /* 10^-1 */
+  TSS_HINT_PRECISION_2     = 18,
+  TSS_HINT_PRECISION_3     = 19,
+  TSS_HINT_PRECISION_4     = 20,
+  TSS_HINT_PRECISION_5     = 21,
+  TSS_HINT_PRECISION_6     = 22,
+  TSS_HINT_PRECISION_7     = 23,
+  TSS_HINT_PRECISION_8     = 24,
+  TSS_HINT_PRECISION_9     = 25,   /* 10^-9 */
+  TSS_HINT_BLANK_VALUE     = 127,  /* no value */
+  TSS_HINT_DATE_TYPE       = 256,  /* SASS TSS_STIME */
+  TSS_HINT_TIME_TYPE       = 257,  /* SASS TSS_SDATE */
+  TSS_HINT_MF_DATE_TYPE    = 258,  /* marketfeed date */
+  TSS_HINT_MF_TIME_TYPE    = 259,  /* marketfeed time */
+  TSS_HINT_MF_TIME_SECONDS = 260,  /* marketfeed time_seconds */
+  TSS_HINT_MF_ENUM         = 261   /* marketfeed enum */
+};
+
 struct TibSassMsgWriter {
   MDDict  * dict;
   uint8_t * buf;
   size_t    off,
             buflen;
-  int       err;
+  int       err,
+            unk_fid;
 
   TibSassMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept;
 
@@ -99,9 +128,14 @@ struct TibSassMsgWriter {
       this->err = status;
     return *this;
   }
+  TibSassMsgWriter & unknown_fid( void ) {
+    this->unk_fid++;
+    return *this;
+  }
   void reset( void ) {
-    this->off = 0;
-    this->err = 0;
+    this->off     = 0;
+    this->err     = 0;
+    this->unk_fid = 0;
   }
   TibSassMsgWriter & append_ref( MDFid fid,  MDReference &mref ) noexcept;
   TibSassMsgWriter & append_ref( const char *fname,  size_t fname_len,
@@ -201,6 +235,8 @@ struct TibSassMsgWriter {
                                   MDTime &time ) noexcept;
   TibSassMsgWriter & append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
                                   MDDate &date ) noexcept;
+  TibSassMsgWriter & append_enum( MDFid fid,  MDType ftype,  uint32_t fsize,
+                                  MDEnum &enu ) noexcept;
 
   TibSassMsgWriter & append_decimal( MDFid fid,  MDDecimal &dec ) noexcept;
   TibSassMsgWriter & append_time( MDFid,  MDTime &time ) noexcept;
@@ -212,8 +248,10 @@ struct TibSassMsgWriter {
                                   MDTime &time ) noexcept;
   TibSassMsgWriter & append_date( const char *fname,  size_t fname_len,
                                   MDDate &date ) noexcept;
+  TibSassMsgWriter & append_enum( const char *fname,  size_t fname_len,
+                                  MDEnum &enu ) noexcept;
   TibSassMsgWriter & append_iter( MDFieldIter *iter ) noexcept;
-  int convert_msg( MDMsg &msg ) noexcept;
+  int convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept;
 };
 
 }

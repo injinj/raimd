@@ -4,10 +4,11 @@
 using namespace rai;
 using namespace md;
 
+static const char ZSetMsg_proto_string[] = "MD_ZSET";
 const char *
 ZSetMsg::get_proto_string( void ) noexcept
 {
-  return "MD_ZSET";
+  return ZSetMsg_proto_string;
 }
 
 uint32_t
@@ -24,7 +25,8 @@ static MDMatch zsetmsg_match = {
   .buf         = { ZSetData::zst8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = ZSetMsg::is_zsetmsg,
-  .unpack      = ZSetMsg::unpack
+  .unpack      = ZSetMsg::unpack,
+  .name        = ZSetMsg_proto_string
 };
 
 static bool

@@ -139,6 +139,7 @@ struct MDMatch { /* match msg features in the header */
 
   md_is_msg_type_f is_msg_type; /* test whether msg matches */
   md_msg_unpack_f  unpack;      /* wrap the msg in a decoder */
+  const char     * name;
 };
 
 struct MDMatchGroup {
@@ -241,6 +242,8 @@ struct MDMsg {
   /* Print buffer hex values */
   static void print_hex( MDOutput *out,  const void *msgBuf,
                          size_t offset,  size_t length ) noexcept;
+  static MDMatch *first_match( uint32_t &i ) noexcept;
+  static MDMatch *next_match( uint32_t &i ) noexcept;
   /* Used by field iterators to creae a sub message */
   virtual const char *get_proto_string( void ) noexcept;
   virtual uint32_t get_type_id( void ) noexcept;

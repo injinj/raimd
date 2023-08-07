@@ -4,10 +4,11 @@
 using namespace rai;
 using namespace md;
 
+static const char HashMsg_proto_string[] = "MD_HASH";
 const char *
 HashMsg::get_proto_string( void ) noexcept
 {
-  return "MD_HASH";
+  return HashMsg_proto_string;
 }
 
 uint32_t
@@ -24,7 +25,8 @@ static MDMatch hashmsg_match = {
   .buf         = { HashData::hsh8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = HashMsg::is_hashmsg,
-  .unpack      = HashMsg::unpack
+  .unpack      = HashMsg::unpack,
+  .name        = HashMsg_proto_string
 };
 
 static bool

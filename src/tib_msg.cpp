@@ -1,60 +1,16 @@
 #include <stdio.h>
 #include <raimd/tib_msg.h>
 #include <raimd/md_dict.h>
+#include <raimd/sass.h>
 
 using namespace rai;
 using namespace md;
 
-namespace rai {
-namespace md {
-  enum {
-    TIB_NODATA   = 0,
-    TIB_MESSAGE  = 1,
-    TIB_STRING   = 2,
-    TIB_OPAQUE   = 3,
-    TIB_BOOLEAN  = 4,
-    TIB_INT      = 5,
-    TIB_UINT     = 6,
-    TIB_REAL     = 7,
-    TIB_ARRAY    = 8,
-    TIB_PARTIAL  = 9,
-    TIB_IPDATA   = 10
-  };
-
-  enum {
-    TIB_HINT_NONE            = 0,   /* no hint */
-    TIB_HINT_DENOM_2         = 1,   /* 1/2 */
-    TIB_HINT_DENOM_4         = 2,
-    TIB_HINT_DENOM_8         = 3,
-    TIB_HINT_DENOM_16        = 4,
-    TIB_HINT_DENOM_32        = 5,
-    TIB_HINT_DENOM_64        = 6,
-    TIB_HINT_DENOM_128       = 7,
-    TIB_HINT_DENOM_256       = 8,   /* 1/256 */
-    TIB_HINT_PRECISION_1     = 17,  /* 10^-1 */
-    TIB_HINT_PRECISION_2     = 18,
-    TIB_HINT_PRECISION_3     = 19,
-    TIB_HINT_PRECISION_4     = 20,
-    TIB_HINT_PRECISION_5     = 21,
-    TIB_HINT_PRECISION_6     = 22,
-    TIB_HINT_PRECISION_7     = 23,
-    TIB_HINT_PRECISION_8     = 24,
-    TIB_HINT_PRECISION_9     = 25,   /* 10^-9 */
-    TIB_HINT_BLANK_VALUE     = 127,  /* no value */
-    TIB_HINT_DATE_TYPE       = 256,  /* SASS TSS_STIME */
-    TIB_HINT_TIME_TYPE       = 257,  /* SASS TSS_SDATE */
-    TIB_HINT_MF_DATE_TYPE    = 258,  /* marketfeed date */
-    TIB_HINT_MF_TIME_TYPE    = 259,  /* marketfeed time */
-    TIB_HINT_MF_TIME_SECONDS = 260,  /* marketfeed time_seconds */
-    TIB_HINT_MF_ENUM         = 261   /* marketfeed enum */
-  };
-}
-}
-
+static const char TibMsg_proto_string[] = "TIBMSG";
 const char *
 TibMsg::get_proto_string( void ) noexcept
 {
-  return "TIBMSG";
+  return TibMsg_proto_string;
 }
 
 uint32_t
@@ -71,7 +27,8 @@ static MDMatch tibmsg_match = {
   .buf         = { 0xce, 0x13, 0xaa, 0x1f },
   .hint        = { RAIMSG_TYPE_ID, 0x3f4c369e },
   .is_msg_type = TibMsg::is_tibmsg,
-  .unpack      = (md_msg_unpack_f) TibMsg::unpack
+  .unpack      = (md_msg_unpack_f) TibMsg::unpack,
+  .name        = TibMsg_proto_string
 };
 
 bool
@@ -351,32 +308,40 @@ TibFieldIter::unpack( void ) noexcept
   this->field_end = i;
   /* determine if decimal */
   if ( this->hint_size > 0 ) {
-    if ( this->type == TIB_REAL || this->type == TIB_STRING ) {
+    if ( this->type == TIB_REAL || this->type == TIB_STRING ||
+         this->type == TIB_INT || this->type == TIB_UINT ) {
       MDReference href;
       if ( this->get_hint_reference( href ) == 0 ) {
-        uint32_t hint = get_int<uint32_t>( href );
-        if ( this->type == TIB_REAL ) {
-          if ( hint <= TIB_HINT_DENOM_256 ||
-               ( hint >= 16 && hint < 32 ) ||
-               hint == TIB_HINT_BLANK_VALUE ) {
-            this->type = MD_DECIMAL;
-            this->decimal_hint = hint;
+        if ( this->type == TIB_REAL || this->type == TIB_STRING ) {
+          uint32_t hint = get_int<uint32_t>( href );
+          if ( this->type == TIB_REAL ) {
+            if ( hint <= TIB_HINT_DENOM_256 ||
+                 ( hint >= 16 && hint < 32 ) ||
+                 hint == TIB_HINT_BLANK_VALUE ) {
+              this->type = MD_DECIMAL;
+              this->decimal_hint = hint;
+            }
+          }
+          else {
+            switch ( hint ) {
+              case TIB_HINT_DATE_TYPE:
+              case TIB_HINT_MF_DATE_TYPE:
+                this->type = MD_DATE;
+                break;
+              case TIB_HINT_TIME_TYPE:
+              case TIB_HINT_MF_TIME_TYPE:
+              case TIB_HINT_MF_TIME_SECONDS:
+                this->type = MD_TIME;
+                break;
+              default:
+                break;
+            }
           }
         }
-        else {
-          switch ( hint ) {
-            case TIB_HINT_DATE_TYPE:
-            case TIB_HINT_MF_DATE_TYPE:
-              this->type = MD_DATE;
-              break;
-            case TIB_HINT_TIME_TYPE:
-            case TIB_HINT_MF_TIME_TYPE:
-            case TIB_HINT_MF_TIME_SECONDS:
-              this->type = MD_TIME;
-              break;
-            default:
-              break;
-          }
+        else if ( this->type == TIB_INT || this->type == TIB_UINT ) {
+          uint32_t hint = get_int<uint32_t>( href );
+          if ( hint == TIB_HINT_MF_ENUM )
+            this->type = MD_ENUM;
         }
       }
     }
@@ -498,9 +463,13 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
     }
     return this->append_time( fname, fname_len, time );
   }
+  size_t fsize = mref.fsize;
+  if ( mref.ftype == MD_STRING &&
+       ( fsize == 0 || mref.fptr[ fsize - 1 ] != '\0' ) )
+    fsize++;
+
   uint8_t * ptr = &this->buf[ this->off + 9 ];
-  size_t    len = 1 + fname_len + 1 + ( mref.fsize <= 0xffU ? 1 : 4 ) +
-                  mref.fsize;
+  size_t    len = 1 + fname_len + 1 + ( fsize <= 0xffU ? 1 : 4 ) + fsize;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
@@ -509,26 +478,33 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
   ptr[ 0 ] = (uint8_t) fname_len;
   ::memcpy( &ptr[ 1 ], fname, fname_len );
   ptr = &ptr[ fname_len + 1 ];
-  ptr[ 0 ] = (uint8_t) ( mref.ftype & 0xfU ) | /* one byte size */
-             (uint8_t) ( mref.fsize <= 0xffU ? 0 : 0x80U ); /* 4 byte size */
-  if ( href.ftype != MD_NODATA || mref.ftype == MD_PARTIAL )
+
+  uint8_t x = (uint8_t) ( mref.ftype & 0xfU ) | /* one byte size */
+              (uint8_t) ( fsize <= 0xffU ? 0 : 0x80U ); /* 4 byte size */
+  if ( mref.ftype >= TIB_MAX_TYPE ) {
+    if ( mref.ftype == MD_ENUM || mref.ftype == MD_STAMP )
+      x = ( x & ~0xf ) | MD_UINT;
+    else
+      x = ( x & ~0xf ) | MD_OPAQUE;
+  }
+  ptr[ 0 ] = x;
+  if ( href.ftype != MD_NODATA || mref.ftype == MD_PARTIAL ||
+       mref.ftype == MD_ENUM )
     ptr[ 0 ] |= 0x40;
-  if ( mref.fsize <= 0xffU ) {
-    ptr[ 1 ] = (uint8_t) mref.fsize;
+  if ( fsize <= 0xffU ) {
+    ptr[ 1 ] = (uint8_t) fsize;
     ptr = &ptr[ 2 ];
   }
   else {
-    ptr[ 1 ] = (uint8_t) ( ( mref.fsize >> 24 ) & 0xffU );
-    ptr[ 2 ] = (uint8_t) ( ( mref.fsize >> 16 ) & 0xffU );
-    ptr[ 3 ] = (uint8_t) ( ( mref.fsize >> 8 ) & 0xffU );
-    ptr[ 4 ] = (uint8_t) ( mref.fsize & 0xffU );
+    ptr[ 1 ] = (uint8_t) ( ( fsize >> 24 ) & 0xffU );
+    ptr[ 2 ] = (uint8_t) ( ( fsize >> 16 ) & 0xffU );
+    ptr[ 3 ] = (uint8_t) ( ( fsize >> 8 ) & 0xffU );
+    ptr[ 4 ] = (uint8_t) ( fsize & 0xffU );
     ptr = &ptr[ 5 ];
   }
   /* invert endian, for little -> big */
-  if ( mref.fendian != MD_BIG &&
-       ( mref.ftype == MD_UINT || mref.ftype == MD_INT ||
-         mref.ftype == MD_REAL ) ) {
-    size_t off = mref.fsize;
+  if ( mref.fendian != MD_BIG && is_endian_type( mref.ftype ) ) {
+    size_t off = fsize;
     ptr[ 0 ] = mref.fptr[ --off ];
     if ( off > 0 ) {
       ptr[ 1 ] = mref.fptr[ --off ];
@@ -546,6 +522,8 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
   }
   else {
     ::memcpy( ptr, mref.fptr, mref.fsize );
+    if ( fsize > mref.fsize )
+      ptr[ mref.fsize ] = '\0';
   }
   this->off += len;
   if ( mref.ftype == MD_PARTIAL ) {
@@ -557,6 +535,16 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
     ptr[ 0 ] = MD_UINT;
     ptr[ 1 ] = (uint8_t) mref.fentrysz;
     this->off += 2;
+  }
+  else if ( mref.ftype == MD_ENUM ) {
+    if ( ! this->has_space( 4 ) )
+      return this->error( Err::NO_SPACE );
+    ptr = &ptr[ mref.fsize ];
+    ptr[ 0 ] = MD_UINT;
+    ptr[ 1 ] = 2;
+    ptr[ 2 ] = (uint8_t) ( TIB_HINT_MF_ENUM >> 8 );
+    ptr[ 3 ] = (uint8_t) ( TIB_HINT_MF_ENUM & 0xff );
+    this->off += 4;
   }
   else if ( href.ftype != MD_NODATA ) {
     if ( ! this->has_space( href.fsize + 2 ) )
@@ -657,11 +645,11 @@ TibMsgWriter::append_time( const char *fname,  size_t fname_len,
   ptr = &ptr[ n + 1 ];
   ptr[ 0 ] = (uint8_t) MD_UINT;
   ptr[ 1 ] = 2; /* uint size */
-  ptr[ 2 ] = 1;
-  if ( ( time.resolution & ~MD_RES_NULL ) >= MD_RES_MINUTES )
-    ptr[ 3 ] = 3; /* hint time */
-  else
-    ptr[ 3 ] = 4; /* hint time seconds */
+  uint16_t hint = 
+    ( ( time.resolution & ~MD_RES_NULL ) >= MD_RES_MINUTES ) ?
+      TIB_HINT_MF_TIME_TYPE : TIB_HINT_MF_TIME_SECONDS;
+  ptr[ 2 ] = (uint8_t) ( hint >> 8 );
+  ptr[ 3 ] = (uint8_t) ( hint & 0xff );
   this->off += len;
 
   return *this;
@@ -692,8 +680,39 @@ TibMsgWriter::append_date( const char *fname,  size_t fname_len,
   ptr = &ptr[ n + 1 ];
   ptr[ 0 ] = (uint8_t) MD_UINT;
   ptr[ 1 ] = 2; /* uint size */
-  ptr[ 2 ] = 1;
-  ptr[ 3 ] = 2; /* hint date */
+  ptr[ 2 ] = (uint8_t) ( TIB_HINT_MF_DATE_TYPE >> 8 );
+  ptr[ 3 ] = (uint8_t) ( TIB_HINT_MF_DATE_TYPE & 0xff ); /* hint date */
+  this->off += len;
+
+  return *this;
+}
+
+TibMsgWriter &
+TibMsgWriter::append_enum( const char *fname,  size_t fname_len,
+                           MDEnum &enu ) noexcept
+{
+  uint8_t * ptr = &this->buf[ this->off + 9 ];
+  size_t    len = 1 + fname_len + 1 + 1 + enu.disp_len + 1 + 4;
+
+  if ( ! this->has_space( len ) )
+    return this->error( Err::NO_SPACE );
+  if ( fname_len > 0xff )
+    return this->error( Err::BAD_NAME );
+
+  ptr[ 0 ] = (uint8_t) fname_len;
+  ::memcpy( &ptr[ 1 ], fname, fname_len );
+  ptr = &ptr[ fname_len + 1 ];
+  ptr[ 0 ] = (uint8_t) MD_STRING | 0x40U; /* string with hint */
+  ptr[ 1 ] = (uint8_t) ( enu.disp_len + 1 );
+  ptr = &ptr[ 2 ];
+
+  ::memcpy( ptr, enu.disp, enu.disp_len );
+  ptr[ enu.disp_len ] = '\0';
+  ptr = &ptr[ enu.disp_len + 1 ];
+  ptr[ 0 ] = (uint8_t) MD_UINT;
+  ptr[ 1 ] = 2; /* uint size */
+  ptr[ 2 ] = (uint8_t) ( TIB_HINT_MF_ENUM >> 8 );
+  ptr[ 3 ] = (uint8_t) ( TIB_HINT_MF_ENUM & 0xff ); /* hint date */
   this->off += len;
 
   return *this;
@@ -712,7 +731,7 @@ TibMsgWriter::append_iter( MDFieldIter *iter ) noexcept
 }
 
 int
-TibMsgWriter::convert_msg( MDMsg &msg ) noexcept
+TibMsgWriter::convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept
 {
   MDFieldIter *iter;
   int status;
@@ -721,10 +740,22 @@ TibMsgWriter::convert_msg( MDMsg &msg ) noexcept
       do {
         MDName      n;
         MDReference mref, href;
+        MDEnum      enu;
         if ( (status = iter->get_name( n )) == 0 &&
              (status = iter->get_reference( mref )) == 0 ) {
-          iter->get_hint_reference( href );
-          this->append_ref( n.fname, n.fnamelen, mref, href );
+          if ( skip_hdr && is_sass_hdr( n ) )
+            continue;
+          if ( mref.ftype == MD_ENUM ) {
+            if ( iter->get_enum( mref, enu ) == 0 )
+              this->append_enum( n.fname, n.fnamelen, enu );
+            else
+              this->append_uint( n.fname, n.fnamelen,
+                                 get_uint<uint16_t>( mref ) );
+          }
+          else {
+            iter->get_hint_reference( href );
+            this->append_ref( n.fname, n.fnamelen, mref, href );
+          }
           status = this->err;
         }
         if ( status != 0 )

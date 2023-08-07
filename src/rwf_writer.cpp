@@ -943,7 +943,9 @@ RwfMsgWriterBase::pack_mref( uint8_t type,  MDReference &mref ) noexcept
 size_t
 RwfMsgWriterBase::time_size( const MDTime &time ) noexcept
 {
-  switch ( time.resolution & ~MD_RES_NULL ) {
+  if ( ( time.resolution & MD_RES_NULL ) != 0 )
+    return 0+1;
+  switch ( time.resolution ) {
     case MD_RES_MINUTES:   return 1+2; /* 2 h:m */
     case MD_RES_SECONDS:   return 1+3; /* 3 h:m:s */
     case MD_RES_MILLISECS: return 1+5; /* 5 h:m:s.ms */
@@ -1008,17 +1010,17 @@ RwfFieldListWriter::update_hdr( void ) noexcept
 /*
  * three cases:
  *
- * flags:u8   HAS_STANDARD_DATA | HAS_FIELD_LIST_INFO
+ * flags:u8  HAS_STANDARD_DATA | HAS_FIELD_LIST_INFO
  * info_size:u8 dict_id:u8 flist:u16
  * nflds:u16
  * data
  *
- * flags:u8   HAS_SET_ID | HAS_SET_DATA | HAS_FIELD_LIST_INFO
+ * flags:u8  HAS_SET_ID | HAS_SET_DATA | HAS_FIELD_LIST_INFO
  * info_size:u8 dict_id:u8 flist:u16
  * set_id:u16
  * data
  *
- * flags:u8   HAS_SET_ID | HAS_SET_DATA | HAS_STANDARD_DATA | HAS_FIELD_LIST_INFO
+ * flags:u8  HAS_SET_ID | HAS_SET_DATA | HAS_STANDARD_DATA | HAS_FIELD_LIST_INFO
  * info_size:u8 dict_id:u8 flist:u16
  * set_id:u16
  * set_size:u16
@@ -1046,7 +1048,7 @@ RwfFieldListWriter::update_hdr( void ) noexcept
 
     hdr.u8( flags )
        .u8 ( 3 )  /* info size */
-       .u8 ( 1 )  /* dict id */
+       .u8 ( this->dict_id )  /* dict id */
        .u16( this->flist )
        .u16( 0x8000 | this->set_id );
     if ( this->set_nflds < this->nflds )
@@ -1057,7 +1059,7 @@ RwfFieldListWriter::update_hdr( void ) noexcept
     hdr.u8 ( RwfFieldListHdr::HAS_FIELD_LIST_INFO |
              RwfFieldListHdr::HAS_STANDARD_DATA )
        .u8 ( 3 )  /* info size */
-       .u8 ( 1 )  /* dict id */
+       .u8 ( this->dict_id )  /* dict id */
        .u16( this->flist )
        .u16( this->nflds );
   }
@@ -1120,7 +1122,7 @@ RwfFieldListWriter::append_ival( const char *fname,  size_t fname_len,
 {
   MDLookup by( fname, fname_len );
   if ( this->dict == NULL || ! this->dict->get( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_ival( by, ival, ilen, t );
 }
 
@@ -1132,7 +1134,7 @@ RwfFieldListWriter::append_ival( MDFid fid,  const void *ival, size_t ilen,
     return this->append_set_ival( ival, ilen, t );
   MDLookup by( fid );
   if ( this->dict == NULL || ! this->dict->lookup( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_ival( by, ival, ilen, t );
 }
 
@@ -1218,7 +1220,7 @@ RwfFieldListWriter::append_ref( MDFid fid,  MDReference &mref ) noexcept
 {
   MDLookup by( fid );
   if ( this->dict == NULL || ! this->dict->lookup( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_ref( fid, by.ftype, by.fsize, mref );
 }
 
@@ -1228,7 +1230,7 @@ RwfFieldListWriter::append_ref( const char *fname,  size_t fname_len,
 {
   MDLookup by( fname, fname_len );
   if ( this->dict == NULL || ! this->dict->get( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_ref( by.fid, by.ftype, by.fsize, mref );
 }
 
@@ -1438,7 +1440,7 @@ RwfFieldListWriter::append_decimal( MDFid fid,  MDDecimal &dec ) noexcept
 {
   MDLookup by( fid );
   if ( this->dict == NULL || ! this->dict->lookup( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_decimal( by.fid, by.ftype, by.fsize, dec );
 }
 
@@ -1447,7 +1449,7 @@ RwfFieldListWriter::append_time( MDFid fid,  MDTime &time ) noexcept
 {
   MDLookup by( fid );
   if ( this->dict == NULL || ! this->dict->lookup( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_time( by.fid, by.ftype, by.fsize, time );
 }
 
@@ -1456,7 +1458,7 @@ RwfFieldListWriter::append_date( MDFid fid,  MDDate &date ) noexcept
 {
   MDLookup by( fid );
   if ( this->dict == NULL || ! this->dict->lookup( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_date( by.fid, by.ftype, by.fsize, date );
 }
 
@@ -1466,7 +1468,7 @@ RwfFieldListWriter::append_decimal( const char *fname,  size_t fname_len,
 {
   MDLookup by( fname, fname_len );
   if ( this->dict == NULL || ! this->dict->get( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_decimal( by.fid, by.ftype, by.fsize, dec );
 }
 
@@ -1476,7 +1478,7 @@ RwfFieldListWriter::append_time( const char *fname,  size_t fname_len,
 {
   MDLookup by( fname, fname_len );
   if ( this->dict == NULL || ! this->dict->get( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_time( by.fid, by.ftype, by.fsize, time );
 }
 
@@ -1486,7 +1488,7 @@ RwfFieldListWriter::append_date( const char *fname,  size_t fname_len,
 {
   MDLookup by( fname, fname_len );
   if ( this->dict == NULL || ! this->dict->get( by ) )
-    return this->set_error( Err::UNKNOWN_FID );
+    return this->unknown_fid();
   return this->append_date( by.fid, by.ftype, by.fsize, date );
 }
 
@@ -1508,6 +1510,32 @@ RwfFieldListWriter::append_set_ref( MDReference &mref ) noexcept
     this->nflds++;
   }
   return *this;
+}
+
+int
+RwfFieldListWriter::convert_msg( MDMsg &msg ) noexcept
+{
+  MDFieldIter *iter;
+  int status;
+  if ( (status = msg.get_field_iter( iter )) == 0 ) {
+    if ( (status = iter->first()) == 0 ) {
+      do {
+        MDName      n;
+        MDReference mref, href;
+        MDEnum      enu;
+        if ( (status = iter->get_name( n )) == 0 &&
+             (status = iter->get_reference( mref )) == 0 ) {
+          this->append_ref( n.fname, n.fnamelen, mref );
+          status = this->err;
+        }
+        if ( status != 0 )
+          break;
+      } while ( (status = iter->next()) == 0 );
+    }
+  }
+  if ( status != Err::NOT_FOUND )
+    return status;
+  return 0;
 }
 
 size_t

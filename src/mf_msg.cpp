@@ -5,10 +5,11 @@
 using namespace rai;
 using namespace md;
 
+static const char MktfdMsg_proto_string[] = "MARKETFEED";
 const char *
 MktfdMsg::get_proto_string( void ) noexcept
 {
-  return "MARKETFEED";
+  return MktfdMsg_proto_string;
 }
 
 uint32_t
@@ -25,7 +26,8 @@ static MDMatch mktfd_match = {
   .buf         = { 0x1c },
   .hint        = { MARKETFEED_TYPE_ID },
   .is_msg_type = MktfdMsg::is_marketfeed,
-  .unpack      = (md_msg_unpack_f) MktfdMsg::unpack
+  .unpack      = (md_msg_unpack_f) MktfdMsg::unpack,
+  .name        = MktfdMsg_proto_string
 };
 
 namespace rai {
@@ -357,6 +359,7 @@ MktfdFieldIter::get_hint_reference( MDReference &mref ) noexcept
 int
 MktfdFieldIter::get_enum( MDReference &mref,  MDEnum &enu ) noexcept
 {
+  enu.zero();
   if ( mref.ftype == MD_ENUM ) {
     if ( this->iter_msg.dict != NULL ) {
       enu.val = get_uint<uint16_t>( mref );
@@ -365,7 +368,6 @@ MktfdFieldIter::get_enum( MDReference &mref,  MDEnum &enu ) noexcept
         return 0;
     }
   }
-  enu.zero();
   return Err::NO_ENUM;
 }
 

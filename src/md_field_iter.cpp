@@ -14,6 +14,44 @@
 using namespace rai;
 using namespace md;
 
+static void
+short_string( unsigned short x,  char *buf ) noexcept
+{
+  for ( unsigned short i = 10000; i >= 10; i /= 10 ) {
+    if ( i < x )
+      *buf++ = ( ( x / i ) % 10 ) + '0';
+  }
+  *buf++ = ( x % 10 ) + '0';
+  *buf = '\0';
+}
+
+const char *
+rai::md::sass_msg_type_string( unsigned short msg_type,  char *buf ) noexcept
+{
+  if ( msg_type < MAX_MSG_TYPE ) {
+    static const char *msg_type_string[] = { SASS_DEF_MSG_TYPE( SASS_DEF_ENUM_STRING ) };
+    return msg_type_string[ msg_type ];
+  }
+  short_string( msg_type, buf );
+  return buf;
+}
+
+const char *
+rai::md::sass_rec_status_string( unsigned short rec_status, char *buf ) noexcept
+{
+  if ( rec_status < MAX_REC_STATUS ) {
+    static const char *rec_status_string[] = { SASS_DEF_REC_STATUS( SASS_DEF_ENUM_STRING ) };
+    return rec_status_string[ rec_status ];
+  }
+  short_string( rec_status, buf );
+  return buf;
+}
+
+const char rai::md::SASS_MSG_TYPE[]   = "MSG_TYPE",
+           rai::md::SASS_REC_TYPE[]   = "REC_TYPE",
+           rai::md::SASS_SEQ_NO[]     = "SEQ_NO",
+           rai::md::SASS_REC_STATUS[] = "REC_STATUS";
+
 const char * MDMsg::get_proto_string( void ) noexcept
 { return "NO PROTOCOL"; }
 uint32_t MDMsg::get_type_id( void ) noexcept
@@ -1156,9 +1194,11 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
         char tmp_buf[ 32 ];
         if ( fname_buf[ 0 ] >= 'M' && fname_buf[ 1 ] >= 'E' && fname_buf[ 2 ] >= 'C' &&
              fname_buf[ 3 ] == '_' ) {
-          if ( MDDict::dict_equals( fname_buf, fname_len, "MSG_TYPE", 8 ) )
+          if ( MDDict::dict_equals( fname_buf, fname_len, SASS_MSG_TYPE,
+                                    SASS_MSG_TYPE_LEN ) )
             extra = sass_msg_type_string( get_int<int16_t>( mref ), tmp_buf );
-          else if ( MDDict::dict_equals( fname_buf, fname_len, "REC_STATUS", 10 ) )
+          else if ( MDDict::dict_equals( fname_buf, fname_len, SASS_REC_STATUS,
+                                         SASS_REC_STATUS_LEN ) )
             extra = sass_rec_status_string( get_int<int16_t>( mref ), tmp_buf );
         }
         out->puts( str );
@@ -1795,6 +1835,54 @@ MDDecimal::get_real( double &res ) const noexcept
         return 0;
       }
       f /= 10.0;
+    }
+  }
+  res = 0;
+  return Err::BAD_DECIMAL;
+}
+
+int
+MDDecimal::get_integer( int64_t &res ) const noexcept
+{
+  int64_t val  = this->ival;
+  int     hint = this->hint;
+
+  if ( hint >= -10 && hint <= 10 ) {
+    switch ( hint ) {
+      case MD_DEC_NULL:     res = 0;           return 0;
+      case MD_DEC_INF:      res = 0;           return 0;
+      case MD_DEC_NINF:     res = 0;           return 0;
+      case MD_DEC_NAN:      res = 0;           return 0;
+      case MD_DEC_NNAN:     res = 0;           return 0;
+      case MD_DEC_INTEGER:  res = val;         return 0;
+      case MD_DEC_FRAC_2:   res = val / 2.0;   return 0;
+      case MD_DEC_FRAC_4:   res = val / 4.0;   return 0;
+      case MD_DEC_FRAC_8:   res = val / 8.0;   return 0;
+      case MD_DEC_FRAC_16:  res = val / 16.0;  return 0;
+      case MD_DEC_FRAC_32:  res = val / 32.0;  return 0;
+      case MD_DEC_FRAC_64:  res = val / 64.0;  return 0;
+      case MD_DEC_FRAC_128: res = val / 128.0; return 0;
+      case MD_DEC_FRAC_256: res = val / 256.0; return 0;
+      case MD_DEC_FRAC_512: res = val / 512.0; return 0;
+      default: break;
+    }
+  }
+  else if ( hint >= MD_DEC_LOGp10_1 ) {
+    for ( ; ; hint-- ) {
+      if ( hint <= MD_DEC_LOGp10_9 ) {
+        res = val * md_dec_powers_i[ hint - 10 ];
+        return 0;
+      }
+      val *= 10;
+    }
+  }
+  else if ( hint <= MD_DEC_LOGn10_1 ) {
+    for ( ; ; hint++ ) {
+      if ( hint >= MD_DEC_LOGn10_9 ) {
+        res = val / md_dec_powers_f[ -(hint + 10) ];
+        return 0;
+      }
+      val /= 10;
     }
   }
   res = 0;

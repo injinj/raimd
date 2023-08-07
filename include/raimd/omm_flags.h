@@ -420,7 +420,10 @@ enum RwfMsgSerial {
   X_QUALIFIED_STREAM      = 41, /* Ack, Request, Refresh, Status flags */
   X_REFRESH_COMPLETE      = 42, /* Refresh flags */
   X_SOLICITED             = 43, /* Refresh flags */
-  X_STREAMING             = 44  /* Request flags */
+  X_STREAMING             = 44, /* Request flags */
+
+  /* space holders */
+  X_U4, X_U5, X_U6, X_U7, X_U8, X_U9, X_U10, X_U11, X_U12, X_U13, X_U14, X_U15
 };
 
 #define RWF_MSG_SERIAL_COUNT 45
@@ -513,135 +516,165 @@ struct RwfMsgFlagMap {
 
 #ifndef DEFINE_RWF_MSG_DECODER
 extern const RwfMsgFlagMap * rwf_flags_map[ RWF_MSG_CLASS_COUNT ];
-#else
-const RwfSerialMask
-map_Ack[] = {
-  { X_HAS_EXTENDED_HEADER, 0x01 },
-  { X_HAS_TEXT           , 0x02 },
-  { X_PRIVATE_STREAM     , 0x04 },
-  { X_HAS_SEQ_NUM        , 0x08 },
-  { X_HAS_MSG_KEY        , 0x10 },
-  { X_HAS_NAK_CODE       , 0x20 },
-  { X_QUALIFIED_STREAM   , 0x40 }
-},
-map_Close[] = {
-  { X_HAS_EXTENDED_HEADER, 0x01 },
-  { X_ACK_FLAG           , 0x02 },
-  { X_HAS_BATCH          , 0x04 }
-},
-map_Generic[] = {
-  { X_HAS_EXTENDED_HEADER  , 0x01 },
-  { X_HAS_PERM_DATA        , 0x02 },
-  { X_HAS_MSG_KEY          , 0x04 },
-  { X_HAS_SEQ_NUM          , 0x08 },
-  { X_MESSAGE_COMPLETE     , 0x10 },
-  { X_HAS_SECONDARY_SEQ_NUM, 0x20 },
-  { X_HAS_PART_NUM         , 0x40 },
-  { X_HAS_REQ_MSG_KEY      , 0x80 }
-},
-map_MsgKey[] = {
-  { X_HAS_SERVICE_ID, 0x01 },
-  { X_HAS_NAME      , 0x02 },
-  { X_HAS_NAME_TYPE , 0x04 },
-  { X_HAS_FILTER    , 0x08 },
-  { X_HAS_IDENTIFIER, 0x10 },
-  { X_HAS_ATTRIB    , 0x20 }
-},
-map_Post[] = {
-  { X_HAS_EXTENDED_HEADER , 0x001 },
-  { X_HAS_POST_ID         , 0x002 },
-  { X_HAS_MSG_KEY         , 0x004 },
-  { X_HAS_SEQ_NUM         , 0x008 },
-  { X_POST_COMPLETE       , 0x020 },
-  { X_ACK_FLAG            , 0x040 },
-  { X_HAS_PERM_DATA       , 0x080 },
-  { X_HAS_PART_NUM        , 0x100 },
-  { X_HAS_POST_USER_RIGHTS, 0x200 }
-},
-map_Refresh[] = {
-  { X_HAS_EXTENDED_HEADER, 0x0001 },
-  { X_HAS_PERM_DATA      , 0x0002 },
-  { X_HAS_MSG_KEY        , 0x0008 },
-  { X_HAS_SEQ_NUM        , 0x0010 },
-  { X_SOLICITED          , 0x0020 },
-  { X_REFRESH_COMPLETE   , 0x0040 },
-  { X_HAS_QOS            , 0x0080 },
-  { X_CLEAR_CACHE        , 0x0100 },
-  { X_DO_NOT_CACHE       , 0x0200 },
-  { X_PRIVATE_STREAM     , 0x0400 },
-  { X_HAS_POST_USER_INFO , 0x0800 },
-  { X_HAS_PART_NUM       , 0x1000 },
-  { X_HAS_REQ_MSG_KEY    , 0x2000 },
-  { X_QUALIFIED_STREAM   , 0x4000 }
-},
-map_Request[] = {
-  { X_HAS_EXTENDED_HEADER , 0x0001 },
-  { X_HAS_PRIORITY        , 0x0002 },
-  { X_STREAMING           , 0x0004 },
-  { X_MSG_KEY_IN_UPDATES  , 0x0008 },
-  { X_CONF_INFO_IN_UPDATES, 0x0010 },
-  { X_NO_REFRESH          , 0x0020 },
-  { X_HAS_QOS             , 0x0040 },
-  { X_HAS_WORST_QOS       , 0x0080 },
-  { X_PRIVATE_STREAM      , 0x0100 },
-  { X_PAUSE_FLAG          , 0x0200 },
-  { X_HAS_VIEW            , 0x0400 },
-  { X_HAS_BATCH           , 0x0800 },
-  { X_QUALIFIED_STREAM    , 0x1000 }
-},
-map_Update[] = {
-  { X_HAS_EXTENDED_HEADER, 0x001 },
-  { X_HAS_PERM_DATA      , 0x002 },
-  { X_HAS_MSG_KEY        , 0x008 },
-  { X_HAS_SEQ_NUM        , 0x010 },
-  { X_HAS_CONF_INFO      , 0x020 },
-  { X_DO_NOT_CACHE       , 0x040 },
-  { X_DO_NOT_CONFLATE    , 0x080 },
-  { X_DO_NOT_RIPPLE      , 0x100 },
-  { X_HAS_POST_USER_INFO , 0x200 },
-  { X_DISCARDABLE        , 0x400 }
-},
-map_Status[] = {
-  { X_HAS_EXTENDED_HEADER, 0x001 },
-  { X_HAS_PERM_DATA      , 0x002 },
-  { X_HAS_MSG_KEY        , 0x008 },
-  { X_HAS_GROUP_ID       , 0x010 },
-  { X_HAS_STATE          , 0x020 },
-  { X_CLEAR_CACHE        , 0x040 },
-  { X_PRIVATE_STREAM     , 0x080 },
-  { X_HAS_POST_USER_INFO , 0x100 },
-  { X_HAS_REQ_MSG_KEY    , 0x200 },
-  { X_QUALIFIED_STREAM   , 0x400 }
-};
+#endif
 
-const RwfMsgFlagMap
-msg_key_class = {
-  map_MsgKey, sizeof( map_MsgKey ) / sizeof( map_MsgKey[ 0 ] ), MSG_KEY_CLASS
-},
-request_msg_class = {
-  map_Request, sizeof( map_Request ) / sizeof( map_Request[ 0 ] ), REQUEST_MSG_CLASS
-},
-refresh_msg_class = {
-  map_Refresh, sizeof( map_Refresh ) / sizeof( map_Refresh[ 0 ] ), REFRESH_MSG_CLASS
-},
-status_msg_class = {
-  map_Status, sizeof( map_Status ) / sizeof( map_Status[ 0 ] ), STATUS_MSG_CLASS
-},
-update_msg_class = {
-  map_Update, sizeof( map_Update ) / sizeof( map_Update[ 0 ] ), UPDATE_MSG_CLASS
-},
-close_msg_class = {
-  map_Close, sizeof( map_Close ) / sizeof( map_Close[ 0 ] ), CLOSE_MSG_CLASS
-},
-ack_msg_class = {
-  map_Ack, sizeof( map_Ack ) / sizeof( map_Ack[ 0 ] ), ACK_MSG_CLASS
-},
-generic_msg_class = {
-  map_Generic, sizeof( map_Generic ) / sizeof( map_Generic[ 0 ] ), GENERIC_MSG_CLASS
-},
-post_msg_class = {
-  map_Post, sizeof( map_Post ) / sizeof( map_Post[ 0 ] ), POST_MSG_CLASS
+#define E( x, y, z ) RWF_ ## x ## _ ## y = z
+#define F( y, z ) { X ## _ ## y, z }
+
+#define E3( x, y, z, x2, y2, z2, x3, y3, z3 ) \
+E( x, y, z ), E( x2, y2, z2 ), E( x3, y3, z3 )
+
+#define F3( y, z, y2, z2, y3, z3 ) \
+F( y, z ), F( y2, z2 ), F( y3, z3 )
+#define Z( x, n ) \
+static const uint16_t x ## _FLAG_CNT = n;
+
+#ifdef DEFINE_RWF_MSG_DECODER
+/* this defines map_REQUEST[] = {} and enum */
+#define M15( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9, y10, z10, y11, z11, y12, z12, y13, z13, y14, z14, y15, z15 ) \
+enum { \
+  E3( x, y, z, x, y2, z2, x, y3, z3 ), \
+  E3( x, y4, z4, x, y5, z5, x, y6, z6 ), \
+  E3( x, y7, z7, x, y8, z8, x, y9, z9 ), \
+  E3( x, y10, z10, x, y11, z11, x, y12, z12 ), \
+  E3( x, y13, z13, x, y14, z14, x, y15, z15 ) \
+}; \
+const RwfSerialMask map_ ## x[] = { \
+  F3( y, z,  y2, z2,  y3, z3 ), \
+  F3( y4, z4, y5, z5, y6, z6 ), \
+  F3( y7, z7, y8, z8, y9, z9 ), \
+  F3( y10, z10, y11, z11, y12, z12 ), \
+  F3( y13, z13, y14, z14, y15, z15 ) \
+}
+#else
+/* this only defines enum { RWF_REQUEST_STREAMING ... } */
+#define M15( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9, y10, z10, y11, z11, y12, z12, y13, z13, y14, z14, y15, z15 ) \
+enum { \
+  E3( x, y, z, x, y2, z2, x, y3, z3 ), \
+  E3( x, y4, z4, x, y5, z5, x, y6, z6 ), \
+  E3( x, y7, z7, x, y8, z8, x, y9, z9 ), \
+  E3( x, y10, z10, x, y11, z11, x, y12, z12 ), \
+  E3( x, y13, z13, x, y14, z14, x, y15, z15 ) \
 };
+#endif
+
+#define M14( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9, y10, z10, y11, z11, y12, z12, y13, z13, y14, z14 ) \
+  Z( x, 14 ); M15( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9, y10, z10, y11, z11, y12, z12, y13, z13, y14, z14, U15, 0x8000 )
+#define M13( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9, y10, z10, y11, z11, y12, z12, y13, z13 ) \
+  Z( x, 13 ); M15( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9, y10, z10, y11, z11, y12, z12, y13, z13, U14, 0x4000, U15, 0x8000 )
+#define M10( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9, y10, z10 ) \
+  Z( x, 10 ); M15( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9, y10, z10, U11, 0x800, U12, 0x1000, U13, 0x2000, U14, 0x4000, U15, 0x8000 )
+#define  M9( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9 ) \
+  Z( x,  9 ); M15( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, y9, z9, U10, 0x400, U11, 0x800, U12, 0x1000, U13, 0x2000, U14, 0x4000, U15, 0x8000 )
+#define  M8( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8 ) \
+  Z( x,  8 ); M15( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, y8, z8, U9, 0x200, U10, 0x400, U11, 0x800, U12, 0x1000, U13, 0x2000, U14, 0x4000, U15, 0x8000 )
+#define  M7( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7 ) \
+  Z( x,  7 ); M15( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, y7, z7, U8, 0x100, U9, 0x200, U10, 0x400, U11, 0x800, U12, 0x1000, U13, 0x2000, U14, 0x4000, U15, 0x8000 )
+#define  M6( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6 ) \
+  Z( x,  6 ); M15( x, y, z, y2, z2, y3, z3, y4, z4, y5, z5, y6, z6, U7, 0x80, U8, 0x100, U9, 0x200, U10, 0x400, U11, 0x800, U12, 0x1000, U13, 0x2000, U14, 0x4000, U15, 0x8000 )
+#define  M3( x, y, z, y2, z2, y3, z3 ) \
+  Z( x,  3 ); M15( x, y, z, y2, z2, y3, z3, U4, 0x10, U5, 0x20, U6, 0x40, U7, 0x80, U8, 0x100, U9, 0x200, U10, 0x400, U11, 0x800, U12, 0x1000, U13, 0x2000, U14, 0x4000, U15, 0x8000 )
+
+M7 ( ACK,     HAS_EXTENDED_HEADER  , 0x01,
+              HAS_TEXT             , 0x02,
+              PRIVATE_STREAM       , 0x04,
+              HAS_SEQ_NUM          , 0x08,
+              HAS_MSG_KEY          , 0x10,
+              HAS_NAK_CODE         , 0x20,
+              QUALIFIED_STREAM     , 0x40 );
+
+M3 ( CLOSE,   HAS_EXTENDED_HEADER  , 0x01,
+              ACK_FLAG             , 0x02,
+              HAS_BATCH            , 0x04 );
+
+M8 ( GENERIC, HAS_EXTENDED_HEADER  , 0x01,
+              HAS_PERM_DATA        , 0x02,
+              HAS_MSG_KEY          , 0x04,
+              HAS_SEQ_NUM          , 0x08,
+              MESSAGE_COMPLETE     , 0x10,
+              HAS_SECONDARY_SEQ_NUM, 0x20,
+              HAS_PART_NUM         , 0x40,
+              HAS_REQ_MSG_KEY      , 0x80 );
+
+M6 ( MSGKEY,  HAS_SERVICE_ID       , 0x01,
+              HAS_NAME             , 0x02,
+              HAS_NAME_TYPE        , 0x04,
+              HAS_FILTER           , 0x08,
+              HAS_IDENTIFIER       , 0x10,
+              HAS_ATTRIB           , 0x20 );
+
+M9 ( POST,    HAS_EXTENDED_HEADER , 0x001,
+              HAS_POST_ID         , 0x002,
+              HAS_MSG_KEY         , 0x004,
+              HAS_SEQ_NUM         , 0x008,
+              POST_COMPLETE       , 0x020,
+              ACK_FLAG            , 0x040,
+              HAS_PERM_DATA       , 0x080,
+              HAS_PART_NUM        , 0x100,
+              HAS_POST_USER_RIGHTS, 0x200 );
+
+M14( REFRESH, HAS_EXTENDED_HEADER , 0x0001,
+              HAS_PERM_DATA       , 0x0002,
+              HAS_MSG_KEY         , 0x0008,
+              HAS_SEQ_NUM         , 0x0010,
+              SOLICITED           , 0x0020,
+              REFRESH_COMPLETE    , 0x0040,
+              HAS_QOS             , 0x0080,
+              CLEAR_CACHE         , 0x0100,
+              DO_NOT_CACHE        , 0x0200,
+              PRIVATE_STREAM      , 0x0400,
+              HAS_POST_USER_INFO  , 0x0800,
+              HAS_PART_NUM        , 0x1000,
+              HAS_REQ_MSG_KEY     , 0x2000,
+              QUALIFIED_STREAM    , 0x4000 );
+
+M13( REQUEST, HAS_EXTENDED_HEADER , 0x0001,
+              HAS_PRIORITY        , 0x0002,
+              STREAMING           , 0x0004,
+              MSG_KEY_IN_UPDATES  , 0x0008,
+              CONF_INFO_IN_UPDATES, 0x0010,
+              NO_REFRESH          , 0x0020,
+              HAS_QOS             , 0x0040,
+              HAS_WORST_QOS       , 0x0080,
+              PRIVATE_STREAM      , 0x0100,
+              PAUSE_FLAG          , 0x0200,
+              HAS_VIEW            , 0x0400,
+              HAS_BATCH           , 0x0800,
+              QUALIFIED_STREAM    , 0x1000 );
+
+M10( UPDATE,  HAS_EXTENDED_HEADER, 0x001,
+              HAS_PERM_DATA      , 0x002,
+              HAS_MSG_KEY        , 0x008,
+              HAS_SEQ_NUM        , 0x010,
+              HAS_CONF_INFO      , 0x020,
+              DO_NOT_CACHE       , 0x040,
+              DO_NOT_CONFLATE    , 0x080,
+              DO_NOT_RIPPLE      , 0x100,
+              HAS_POST_USER_INFO , 0x200,
+              DISCARDABLE        , 0x400 );
+
+M10( STATUS,  HAS_EXTENDED_HEADER, 0x001,
+              HAS_PERM_DATA      , 0x002,
+              HAS_MSG_KEY        , 0x008,
+              HAS_GROUP_ID       , 0x010,
+              HAS_STATE          , 0x020,
+              CLEAR_CACHE        , 0x040,
+              PRIVATE_STREAM     , 0x080,
+              HAS_POST_USER_INFO , 0x100,
+              HAS_REQ_MSG_KEY    , 0x200,
+              QUALIFIED_STREAM   , 0x400 );
+
+#ifdef DEFINE_RWF_MSG_DECODER
+const RwfMsgFlagMap
+msg_key_class     = { map_MSGKEY , MSGKEY_FLAG_CNT , MSG_KEY_CLASS     },
+request_msg_class = { map_REQUEST, REQUEST_FLAG_CNT, REQUEST_MSG_CLASS },
+refresh_msg_class = { map_REFRESH, REFRESH_FLAG_CNT, REFRESH_MSG_CLASS },
+status_msg_class  = { map_STATUS , STATUS_FLAG_CNT , STATUS_MSG_CLASS  },
+update_msg_class  = { map_UPDATE , UPDATE_FLAG_CNT , UPDATE_MSG_CLASS  },
+close_msg_class   = { map_CLOSE  , CLOSE_FLAG_CNT  , CLOSE_MSG_CLASS   },
+ack_msg_class     = { map_ACK    , ACK_FLAG_CNT    , ACK_MSG_CLASS     },
+generic_msg_class = { map_GENERIC, GENERIC_FLAG_CNT, GENERIC_MSG_CLASS },
+post_msg_class    = { map_POST   , POST_FLAG_CNT   , POST_MSG_CLASS    };
 
 const RwfMsgFlagMap * rwf_flags_map[ RWF_MSG_CLASS_COUNT ] = {
   &msg_key_class,
@@ -655,6 +688,20 @@ const RwfMsgFlagMap * rwf_flags_map[ RWF_MSG_CLASS_COUNT ] = {
   &post_msg_class
 };
 #endif
+
+#undef E
+#undef F
+#undef Z
+#undef E3
+#undef F3
+#undef M15
+#undef M14
+#undef M13
+#undef M10
+#undef M9
+#undef M8
+#undef M7
+#undef M3
 
 }
 }

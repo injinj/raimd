@@ -23,10 +23,11 @@ double HyperLogLog::ht_beta[] = {};
 using namespace rai;
 using namespace md;
 
+static const char HLLMsg_proto_string[] = "MD_HYPERLOGLOG";
 const char *
 HLLMsg::get_proto_string( void ) noexcept
 {
-  return "MD_HYPERLOGLOG";
+  return HLLMsg_proto_string;
 }
 
 uint32_t
@@ -43,7 +44,8 @@ static MDMatch hllmsg_match = {
   .buf         = { 0x02, 0x06, 0x0e, 0x06 },
   .hint        = { 0 },
   .is_msg_type = HLLMsg::is_hllmsg,
-  .unpack      = HLLMsg::unpack
+  .unpack      = HLLMsg::unpack,
+  .name        = HLLMsg_proto_string
 };
 
 bool

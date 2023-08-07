@@ -715,6 +715,7 @@ bool
 MDDict::get_enum_map_text( uint32_t map_num,  uint16_t val,  const char *&disp,
                            size_t &disp_len ) noexcept
 {
+  static char mt[ 256 ];
   if ( map_num >= this->map_count )
     return false;
   uint32_t * maptab = (uint32_t *) (void *)
@@ -724,33 +725,35 @@ MDDict::get_enum_map_text( uint32_t map_num,  uint16_t val,  const char *&disp,
   MDEnumMap * map  = (MDEnumMap *) (void *) &maptab[ maptab[ map_num ] ];
   uint16_t  * vidx = map->value();
   uint8_t   * vmap = map->map();
-  if ( val > map->max_value )
-    return false;
   disp_len = map->max_len; /* all enum text is the same size */
-  if ( vidx == NULL ) {
-    disp = (char *) &vmap[ val * disp_len ];
-    return true;
-  }
-  else {
-    uint32_t size = map->value_cnt, k = 0, piv;
-    for (;;) {
-      if ( size == 0 )
-        break;
-      piv = size / 2;
-      if ( val <= vidx[ k + piv ] ) {
-        size = piv;
-      }
-      else {
-        size -= piv + 1;
-        k    += piv + 1;
-      }
-    }
-    if ( vidx[ k ] == val ) {
-      disp = (char *) &vmap[ k * disp_len ];
+  if ( val <= map->max_value ) {
+    if ( vidx == NULL ) {
+      disp = (char *) &vmap[ val * disp_len ];
       return true;
     }
+    else {
+      uint32_t size = map->value_cnt, k = 0, piv;
+      for (;;) {
+        if ( size == 0 )
+          break;
+        piv = size / 2;
+        if ( val <= vidx[ k + piv ] ) {
+          size = piv;
+        }
+        else {
+          size -= piv + 1;
+          k    += piv + 1;
+        }
+      }
+      if ( vidx[ k ] == val ) {
+        disp = (char *) &vmap[ k * disp_len ];
+        return true;
+      }
+    }
   }
-  disp = NULL;
+  if ( mt[ 0 ] == 0 )
+    ::memset( mt, ' ', sizeof( mt ) );
+  disp = mt;
   return false;
 }
 

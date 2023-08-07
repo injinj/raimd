@@ -4,10 +4,11 @@
 using namespace rai;
 using namespace md;
 
+static const char ListMsg_proto_string[] = "MD_LIST";
 const char *
 ListMsg::get_proto_string( void ) noexcept
 {
-  return "MD_LIST";
+  return ListMsg_proto_string;
 }
 
 uint32_t
@@ -24,7 +25,8 @@ static MDMatch listmsg_match = {
   .buf         = { ListData::lst8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = ListMsg::is_listmsg,
-  .unpack      = ListMsg::unpack
+  .unpack      = ListMsg::unpack,
+  .name        = ListMsg_proto_string
 };
 
 static bool

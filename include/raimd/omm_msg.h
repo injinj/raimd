@@ -282,6 +282,38 @@ struct RwfDecoder : public DecodeT<RwfDecoder> {
     DecodeT( &((uint8_t *) b)[ off ], &((uint8_t *) b)[ end ] ) {}
 };
 
+struct RwfMsgPeek {
+  uint16_t header_size;
+  uint8_t  msg_class,
+           domain_type;
+  uint32_t stream_id;
+  uint16_t msg_flags;
+  uint8_t  container_type;
+
+  bool decode( const void *buf,  size_t buflen ) {
+    RwfDecoder hdr( buf, 0, buflen );
+    hdr.u16( this->header_size    )
+       .u8 ( this->msg_class      )
+       .u8 ( this->domain_type    )
+       .u32( this->stream_id      )
+       .u15( this->msg_flags      )
+       .u8 ( this->container_type );
+    return hdr.ok;
+  }
+  static uint8_t get_msg_class( const void *buf,  size_t buflen ) {
+    if ( buflen > 2 )
+      return ((uint8_t *) buf)[ 2 ];
+    return RWF_MSG_CLASS_COUNT;
+  }
+  static uint16_t get_msg_flags( const void *buf,  size_t buflen ) {
+    uint16_t msg_flags = 0;
+    if ( buflen > 8 )
+      get_u15_prefix( &((uint8_t *) buf)[ 8 ], &((uint8_t *) buf)[ buflen ],
+                      msg_flags );
+    return msg_flags;
+  }
+};
+
 extern const uint64_t rwf_msg_always_present[ RWF_MSG_CLASS_COUNT ],
                       rwf_msg_maybe_present[ RWF_MSG_CLASS_COUNT ],
                       rwf_msg_flag_only[ RWF_MSG_CLASS_COUNT ];

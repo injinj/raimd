@@ -4,10 +4,11 @@
 using namespace rai;
 using namespace md;
 
+static const char StreamMsg_proto_string[] = "MD_STREAM";
 const char *
 StreamMsg::get_proto_string( void ) noexcept
 {
-  return "MD_STREAM";
+  return StreamMsg_proto_string;
 }
 
 uint32_t
@@ -24,7 +25,8 @@ static MDMatch streammsg_match = {
   .buf         = { StreamData::str8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = StreamMsg::is_streammsg,
-  .unpack      = StreamMsg::unpack
+  .unpack      = StreamMsg::unpack,
+  .name        = StreamMsg_proto_string
 };
 
 bool

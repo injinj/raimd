@@ -17,7 +17,7 @@ md_get_version( void )
 namespace rai {
 namespace md {
 
-static const uint32_t MAX_MSG_CLASS   = 64,
+static const uint32_t MAX_MSG_CLASS   = 256,
                       MATCH_HASH_SIZE = 256;
 
 static uint32_t md_group_cnt,    /* size of md_match_group */
@@ -33,6 +33,23 @@ static struct {
 static uint8_t md_match_ftype[ MATCH_HASH_SIZE ];
 
 }
+}
+
+MDMatch *
+MDMsg::first_match( uint32_t &i ) noexcept
+{
+  i = 0;
+  if ( i == md_add_cnt )
+    return NULL;
+  return md_match_arr[ i ];
+}
+
+MDMatch *
+MDMsg::next_match( uint32_t &i ) noexcept
+{
+  if ( ++i >= md_add_cnt )
+    return NULL;
+  return md_match_arr[ i ];
 }
 
 void

@@ -121,13 +121,15 @@ struct MDName {
     this->fid      = 0;
   }
   bool equals( const MDName &nm ) const {
-    size_t len  = this->fnamelen,
-           len2 = nm.fnamelen;
+    return this->equals( nm.fname, nm.fnamelen );
+  }
+  bool equals( const char *fname,  size_t len2 ) const {
+    size_t len  = this->fnamelen;
     if ( len > 0 && this->fname[ len - 1 ] == '\0' )
       len--;
-    if ( len2 > 0 && nm.fname[ len2 - 1 ] == '\0' )
+    if ( len2 > 0 && fname[ len2 - 1 ] == '\0' )
       len2--;
-    return len == len2 && ::memcmp( this->fname, nm.fname, len ) == 0;
+    return len == len2 && ::memcmp( this->fname, fname, len ) == 0;
   }
 };
 /* for msg_type = { MDLIT( "MSG_TYPE" ), 4005 }; */
@@ -193,6 +195,7 @@ struct MDDecimal { /* base 10 decimal */
   int parse( const char *s,  const size_t fsize ) noexcept;
   void zero( void ) { ival = 0; hint = 0; }
   int get_real( double &val ) const noexcept;
+  int get_integer( int64_t &val ) const noexcept;
   /*void degrade( int8_t new_hint ) noexcept;*/
   int degrade( void ) noexcept;
   void set_real( double fval ) noexcept;
@@ -210,6 +213,9 @@ struct MDTime {
   MDTime() {}
   MDTime( uint8_t h,  uint8_t m,  uint8_t s,  uint32_t f,  uint8_t r )
     : hour( h ), minute( m ), sec( s ), resolution( r ), fraction( f ) {}
+  MDTime( const MDTime &t )
+    : hour( t.hour ), minute( t.minute ), sec( t.sec ),
+      resolution( t.resolution ), fraction( t.fraction ) {}
   int parse( const char *fptr, const size_t fsize ) noexcept;
   void zero( void ) { hour = 0; minute = 0; sec = 0; resolution = 0;
                       fraction = 0; }

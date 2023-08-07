@@ -54,6 +54,79 @@ struct RvFieldIter : public MDFieldIter {
   int unpack( void ) noexcept;
 };
 
+enum {
+  RV_BADDATA   = 0,
+  RV_RVMSG     = 1,
+  RV_SUBJECT   = 2,
+  RV_DATETIME  = 3,
+  RV_OPAQUE    = 7,
+  RV_STRING    = 8,
+  RV_BOOLEAN   = 9,
+  RV_IPDATA    = 10,  /* 0a */
+  RV_INT       = 11,  /* 0b */
+  RV_UINT      = 12,  /* 0c */
+  RV_REAL      = 13,  /* 0d */
+  RV_ENCRYPTED = 32,  /* 20 */
+  RV_ARRAY_I8  = 34,  /* 22 */
+  RV_ARRAY_U8  = 35,  /* 23 */
+  RV_ARRAY_I16 = 36,  /* 24 */
+  RV_ARRAY_U16 = 37,  /* 25 */
+  RV_ARRAY_I32 = 38,  /* 26 */
+  RV_ARRAY_U32 = 39,  /* 27 */
+  RV_ARRAY_I64 = 40,  /* 28 */
+  RV_ARRAY_U64 = 41,  /* 29 */
+  RV_ARRAY_F32 = 44,  /* 2c */
+  RV_ARRAY_F64 = 45,  /* 2d */
+  RV_ARRAY_STR = 48   /* 30 */
+};
+
+static const uint8_t RV_TINY_SIZE  = 120; /* 78 */
+static const uint8_t RV_SHORT_SIZE = 121; /* 79 */
+static const uint8_t RV_LONG_SIZE  = 122; /* 7a */
+static const size_t MAX_RV_SHORT_SIZE = 0x7530; /* 30000 */
+
+static inline size_t
+rv_size_bytes( uint32_t fsize )
+{
+  if ( fsize < RV_TINY_SIZE )
+    return 1;
+  if ( fsize < MAX_RV_SHORT_SIZE )
+    return 3;
+  return 5;
+}
+static inline size_t
+pack_rv_size( uint8_t *ptr,  uint32_t fsize, size_t szbytes )
+{
+  if ( szbytes == 1 ) {
+    ptr[ 0 ] = (uint8_t) fsize;
+  }
+  else if ( szbytes == 3 ) {
+    ptr[ 0 ] = RV_SHORT_SIZE;
+    ptr[ 1 ] = ( ( fsize + 2 ) >> 8 ) & 0xffU;
+    ptr[ 2 ] = ( fsize + 2 ) & 0xffU;
+  }
+  else {
+    ptr[ 0 ] = RV_LONG_SIZE;
+    ptr[ 1 ] = ( ( fsize + 4 ) >> 24 ) & 0xffU;
+    ptr[ 2 ] = ( ( fsize + 4 ) >> 16 ) & 0xffU;
+    ptr[ 3 ] = ( ( fsize + 4 ) >> 8 ) & 0xffU;
+    ptr[ 4 ] = ( fsize + 4 ) & 0xffU;
+  }
+  return szbytes;
+}
+static inline uint32_t
+append_rv_field_hdr( uint8_t *buf,  const char *fname,  size_t fname_len,
+                     uint32_t msg_len,  uint32_t msg_enc )
+{
+  uint32_t msg_off = 0;
+  buf[ msg_off++ ] = (uint8_t) fname_len;
+  ::memcpy( &buf[ msg_off ], fname, fname_len );
+  msg_off += fname_len;
+  buf[ msg_off++ ] = ( msg_enc == MD_STRING ) ? 8 : 7/*RV_OPAQUE*/;
+  msg_off += pack_rv_size( &buf[ msg_off ], msg_len, rv_size_bytes( msg_len ) );
+  return msg_off;
+}
+
 struct RvMsgWriter {
   uint8_t * buf;
   size_t    off,
@@ -166,11 +239,13 @@ struct RvMsgWriter {
                              MDTime &time ) noexcept;
   RvMsgWriter & append_date( const char *fname,  size_t fname_len,
                              MDDate &date ) noexcept;
+  RvMsgWriter & append_enum( const char *fname,  size_t fname_len,
+                             MDEnum &enu ) noexcept;
   RvMsgWriter & append_string_array( const char *fname,  size_t fname_len,
                                      char **ar,  size_t array_size,
                                      size_t fsize ) noexcept;
   RvMsgWriter & append_iter( MDFieldIter *iter ) noexcept;
-  int convert_msg( MDMsg &jmsg ) noexcept;
+  int convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept;
 };
 
 }
