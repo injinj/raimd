@@ -290,6 +290,17 @@ get_arg( int argc, char *argv[], int b, const char *f,
   return def; /* default value */
 }
 
+template<class Writer>
+void append_hdr( Writer &w,  bool is_initial,  uint16_t rec_type,
+                 uint16_t seqno,  uint16_t status )
+{
+  uint16_t t = ( is_initial ? 8 : 1 );
+  w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , t )
+   .append_uint( SASS_REC_TYPE  , SASS_REC_TYPE_LEN  , rec_type )
+   .append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
+   .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, status );
+}
+
 int
 main( int argc, char **argv )
 {
@@ -299,8 +310,6 @@ main( int argc, char **argv )
          * cfile_dict = NULL,
          * rdm_dict   = NULL,
          * flist_dict = NULL;
-  char subj[ 1024 ], size[ 128 ];
-  size_t sz, buflen = 0;
   const char * fn     = get_arg( argc, argv, 1, "-f", NULL ),
              * out    = get_arg( argc, argv, 1, "-o", NULL ),
              * path   = get_arg( argc, argv, 1, "-p", ::getenv( "cfile_path" ) ),
@@ -310,9 +319,7 @@ main( int argc, char **argv )
              * sub    = get_arg( argc, argv, 1, "-s", NULL );
   bool         quiet  = get_arg( argc, argv, 0, "-q", NULL ) != NULL,
                binout = false;
-  char * buf = NULL;
   uint32_t cvt_type_id = 0;
-  uint64_t msg_count = 0, err_cnt = 0, discard_cnt = 0;
 
   if ( get_arg( argc, argv, 0, "-h", NULL ) != NULL ) {
     fprintf( stderr,
@@ -450,7 +457,16 @@ main( int argc, char **argv )
     perror( fn );
     return 1;
   }
-  SubHT sub_ht( 128 );
+  SubHT    sub_ht( 128 );
+  char     subj[ 1024 ],
+           size[ 128 ];
+  size_t   sz,
+           buflen      = 0;
+  char   * buf         = NULL;
+  uint64_t msg_count   = 0,
+           err_cnt     = 0,
+           discard_cnt = 0;
+
   for (;;) {
     if ( fgets( subj, sizeof( subj ), fp ) == NULL )
       break;
@@ -627,11 +643,7 @@ main( int argc, char **argv )
         }
         case RVMSG_TYPE_ID: {
           RvMsgWriter w( buf, buf_sz );
-          uint16_t t = ( is_initial ? 8 : 1 );
-          w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , t )
-           .append_uint( SASS_REC_TYPE  , SASS_REC_TYPE_LEN  , rec_type )
-           .append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
-           .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, (uint16_t) 0 );
+          append_hdr<RvMsgWriter>( w, is_initial, rec_type, seqno, 0 );
           if ( (status = w.convert_msg( *m, true )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
@@ -680,11 +692,7 @@ main( int argc, char **argv )
         }
         case TIBMSG_TYPE_ID: {
           TibMsgWriter w( buf, buf_sz );
-          uint16_t t = ( is_initial ? 8 : 1 );
-          w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , t )
-           .append_uint( SASS_REC_TYPE  , SASS_REC_TYPE_LEN  , rec_type )
-           .append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
-           .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, 0 );
+          append_hdr<TibMsgWriter>( w, is_initial, rec_type, seqno, 0 );
           if ( (status = w.convert_msg( *m, true )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
@@ -694,11 +702,7 @@ main( int argc, char **argv )
         }
         case TIB_SASS_TYPE_ID: {
           TibSassMsgWriter w( cfile_dict, buf, buf_sz );
-          uint16_t t = ( is_initial ? 8 : 1 );
-          w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , t )
-           .append_uint( SASS_REC_TYPE  , SASS_REC_TYPE_LEN  , rec_type )
-           .append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
-           .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, 0 );
+          append_hdr<TibSassMsgWriter>( w, is_initial, rec_type, seqno, 0 );
           if ( (status = w.convert_msg( *m, true )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
