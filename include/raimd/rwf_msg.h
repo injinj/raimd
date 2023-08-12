@@ -9,6 +9,8 @@ namespace md {
 
 bool rwf_type_size_to_md_type( uint8_t type,  MDType &ftype,  uint32_t &fsize ) noexcept;
 bool rwf_primitive_to_md_type( uint8_t type,  MDType &ftype ) noexcept;
+struct RwfMsg;
+uint16_t rwf_to_sass_msg_type( RwfMsg &rwf ) noexcept;
 
 struct RwfFieldListSet {
   uint16_t count,

@@ -147,6 +147,7 @@ test_variable( void )
 
   MDDictBuild dict_build;
   MDDict * str_dict = NULL;
+  MDMsgMem mem;
   char buf[ 1024 ];
 
   CFile::parse_string( dict_build, str, ::strlen( str ) );
@@ -160,7 +161,7 @@ test_variable( void )
   static char session_data[] = "sam.abcdefgh";
   static char digest_data[]  = "0123456789abcdef";
 
-  TibSassMsgWriter w( str_dict, buf, sizeof( buf ) );
+  TibSassMsgWriter w( mem, str_dict, buf, sizeof( buf ) );
 
   w.append_string( session, sizeof( session ), session_data,
                    ::strlen( session_data ) );
@@ -172,13 +173,12 @@ test_variable( void )
   w.append_uint<uint8_t>( ack, sizeof( ack ), false );
   size_t sz = w.update_hdr();
 
-  MDMsgMem mem;
   MDMsg  * m;
-  m = MDMsg::unpack( buf, 0, sz, 0, str_dict, mem );
+  m = MDMsg::unpack( w.buf, 0, sz, 0, str_dict, mem );
   if ( m != NULL ) {
     MDOutput mout;
     printf( "var msg test\n" );
-    mout.print_hex( buf, sz );
+    mout.print_hex( w.buf, sz );
     printf( "var msg sz %" PRIu64 "\n", sz );
     m->print( &mout );
   }
@@ -199,19 +199,19 @@ main( int argc, char **argv )
   MDMsgMem mem;
   MDDict * dict;
   MDMsg  * m;
-  char buf[ 1024 ];
+  char buf[ 64 ];
   size_t sz;
 
   dict = load_dict_files( ::getenv( "cfile_path" ) );
   /*md_init_auto_unpack();*/
 
-  TibMsgWriter tibmsg( buf, sizeof( buf ) );
+  TibMsgWriter tibmsg( mem, buf, sizeof( buf ) );
   sz = test_write<TibMsgWriter>( tibmsg );
   printf( "TibMsg test:\n" );
-  mout.print_hex( buf, sz );
+  mout.print_hex( tibmsg.buf, sz );
   printf( "tibmsg sz %" PRIu64 "\n", sz );
 
-  m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
+  m = MDMsg::unpack( tibmsg.buf, 0, sz, 0, dict, mem );
   if ( m != NULL )
     m->print( &mout );
 #if 0
@@ -241,19 +241,19 @@ main( int argc, char **argv )
 #endif
   mem.reuse();
 
-  RvMsgWriter rvmsg( buf, sizeof( buf ) );
+  RvMsgWriter rvmsg( mem, buf, sizeof( buf ) );
   sz = test_write<RvMsgWriter>( rvmsg );
   printf( "RvMsg test:\n" );
-  mout.print_hex( buf, sz );
+  mout.print_hex( rvmsg.buf, sz );
   printf( "rvmsg sz %" PRIu64 "\n", sz );
 
-  m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
+  m = MDMsg::unpack( rvmsg.buf, 0, sz, 0, dict, mem );
   if ( m != NULL )
     m->print( &mout );
   mem.reuse();
 
-  RvMsgWriter rvmsg2( buf, sizeof( buf ) );
-  RvMsgWriter submsg( NULL, 0 );
+  RvMsgWriter rvmsg2( mem, buf, sizeof( buf ) );
+  RvMsgWriter submsg( mem, NULL, 0 );
   rvmsg2.append_string( "mtype", 6, "D", 2 );
   rvmsg2.append_subject( "sub", 4, "TEST.REC.XYZ.NaE" );
   rvmsg2.append_msg( "data", 5, submsg );
@@ -267,22 +267,22 @@ main( int argc, char **argv )
   submsg.append_int<int32_t>( "vupd", 5, 2 );
   sz = rvmsg2.update_hdr( submsg );
   printf( "RvMsg test2:\n" );
-  mout.print_hex( buf, sz );
+  mout.print_hex( rvmsg2.buf, sz );
   printf( "rvmsg2 sz %" PRIu64 "\n", sz );
 
-  m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
+  m = MDMsg::unpack( rvmsg2.buf, 0, sz, 0, dict, mem );
   if ( m != NULL )
     m->print( &mout );
   mem.reuse();
 
   if ( dict != NULL ) {
-    TibSassMsgWriter tibsassmsg( dict, buf, sizeof( buf ) );
+    TibSassMsgWriter tibsassmsg( mem, dict, buf, sizeof( buf ) );
     sz = test_write<TibSassMsgWriter>( tibsassmsg );
     printf( "TibSassMsg test:\n" );
-    mout.print_hex( buf, sz );
+    mout.print_hex( tibsassmsg.buf, sz );
     printf( "tibsassmsg sz %" PRIu64 "\n", sz );
 
-    m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
+    m = MDMsg::unpack( tibsassmsg.buf, 0, sz, 0, dict, mem );
     if ( m != NULL )
       m->print( &mout );
     mem.reuse();
@@ -290,10 +290,10 @@ main( int argc, char **argv )
     RwfFieldListWriter rwfmsg( mem, dict, buf, sizeof( buf ) );
     sz = test_write<RwfFieldListWriter>( rwfmsg );
     printf( "RwfMsg test:\n" );
-    mout.print_hex( buf, sz );
+    mout.print_hex( rwfmsg.buf, sz );
     printf( "rwfmsg sz %" PRIu64 "\n", sz );
 
-    m = MDMsg::unpack( buf, 0, sz, RWF_FIELD_LIST_TYPE_ID, dict, mem );
+    m = MDMsg::unpack( rwfmsg.buf, 0, sz, RWF_FIELD_LIST_TYPE_ID, dict, mem );
     if ( m != NULL )
       m->print( &mout );
     mem.reuse();

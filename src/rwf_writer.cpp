@@ -2,6 +2,7 @@
 #include <raimd/rwf_msg.h>
 #include <raimd/md_dict.h>
 #include <raimd/app_a.h>
+#include <raimd/sass.h>
 
 using namespace rai;
 using namespace md;
@@ -1513,7 +1514,7 @@ RwfFieldListWriter::append_set_ref( MDReference &mref ) noexcept
 }
 
 int
-RwfFieldListWriter::convert_msg( MDMsg &msg ) noexcept
+RwfFieldListWriter::convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept
 {
   MDFieldIter *iter;
   int status;
@@ -1525,6 +1526,8 @@ RwfFieldListWriter::convert_msg( MDMsg &msg ) noexcept
         MDEnum      enu;
         if ( (status = iter->get_name( n )) == 0 &&
              (status = iter->get_reference( mref )) == 0 ) {
+          if ( skip_hdr && is_sass_hdr( n ) )
+            continue;
           this->append_ref( n.fname, n.fnamelen, mref );
           status = this->err;
         }

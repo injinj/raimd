@@ -107,13 +107,14 @@ enum {
 };
 
 struct TibMsgWriter {
-  uint8_t * buf;    /* output buffer */
-  size_t    off,    /* index to end of data (+9 for hdr) */
-            buflen; /* max length of a buf */
-  int       err;
+  MDMsgMem & mem;
+  uint8_t  * buf;    /* output buffer */
+  size_t     off,    /* index to end of data (+9 for hdr) */
+             buflen; /* max length of a buf */
+  int        err;
 
-  TibMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 0 ),
-                                          buflen( len ), err( 0 ) {}
+  TibMsgWriter( MDMsgMem &m,  void *bb,  size_t len )
+    : mem( m ), buf( (uint8_t *) bb ), off( 0 ), buflen( len ), err( 0 ) {}
   TibMsgWriter & error( int status ) {
     if ( this->err == 0 )
       this->err = status;
@@ -127,9 +128,12 @@ struct TibMsgWriter {
                              MDReference &mref ) noexcept;
   TibMsgWriter & append_ref( const char *fname,  size_t fname_len,
                              MDReference &mref,  MDReference &href ) noexcept;
-  bool has_space( size_t len ) const {
-    return this->off + 9 + len <= this->buflen;
+  bool has_space( size_t len ) {
+    bool b = ( this->off + 9 + len <= this->buflen );
+    if ( ! b ) b = this->resize( len );
+    return b;
   }
+  bool resize( size_t len ) noexcept;
   size_t update_hdr( void ) {
     this->buf[ 0 ] = 0xce;
     this->buf[ 1 ] = 0x13;

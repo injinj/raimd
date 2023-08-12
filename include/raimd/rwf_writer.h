@@ -722,7 +722,7 @@ struct RwfFieldListWriter : public RwfMsgWriterBase {
        Ts... args ) {
     return (writer.*cb)( *this, args... );
   }
-  int convert_msg( MDMsg &msg ) noexcept;
+  int convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept;
 };
 
 enum RwfFieldSetKind {

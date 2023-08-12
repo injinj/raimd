@@ -263,18 +263,20 @@ struct SubData : public SubKey {
   uint16_t rec_type,
            flist;
   uint32_t seqno;
+  MDFormClass * form;
 
   void * operator new( size_t, void *ptr ) { return ptr; }
-  SubData( const char *s,  size_t len,  uint16_t t,  uint16_t f,  uint32_t n )
-    : SubKey( s, len ), rec_type( t ), flist( f ), seqno( n ) {}
+  SubData( const char *s,  size_t len,  uint16_t t,  uint16_t f,
+           MDFormClass *fm,  uint32_t n )
+    : SubKey( s, len ), rec_type( t ), flist( f ), seqno( n ), form( fm ) {}
 
   static SubData * make( const char *subj,  size_t len,  uint16_t rec_type,
-                         uint16_t flist,  uint32_t seqno ) {
+                         uint16_t flist,  MDFormClass *form,  uint32_t seqno ) {
     void * m = ::malloc( sizeof( SubData ) + len + 1 );
     char * p = &((char *) m)[ sizeof( SubData ) ];
     ::memcpy( p, subj, len );
     p[ len ] = '\0';
-    return new ( m ) SubData( p, len, rec_type, flist, seqno );
+    return new ( m ) SubData( p, len, rec_type, flist, form, seqno );
   }
 };
 
@@ -291,14 +293,31 @@ get_arg( int argc, char *argv[], int b, const char *f,
 }
 
 template<class Writer>
-void append_hdr( Writer &w,  bool is_initial,  uint16_t rec_type,
-                 uint16_t seqno,  uint16_t status )
+void append_hdr( Writer &w,  MDFormClass *form,  uint16_t msg_type,
+                 uint16_t rec_type,  uint16_t seqno,  uint16_t status,
+                 const char *subj,  size_t sublen )
 {
-  uint16_t t = ( is_initial ? 8 : 1 );
-  w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , t )
-   .append_uint( SASS_REC_TYPE  , SASS_REC_TYPE_LEN  , rec_type )
-   .append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
-   .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, status );
+  if ( msg_type != INITIAL_TYPE || form == NULL ) {
+    w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , msg_type );
+    if ( rec_type != 0 )
+      w.append_uint( SASS_REC_TYPE, SASS_REC_TYPE_LEN  , rec_type );
+    w.append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
+     .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, status );
+  }
+  else {
+    const MDFormEntry * e = form->entries;
+    MDLookup by;
+    if ( form->get( by.nm( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN ) ) == &e[ 0 ] )
+      w.append_uint( by.fname, by.fname_len, msg_type );
+    if ( form->get( by.nm( SASS_REC_TYPE, SASS_REC_TYPE_LEN ) ) == &e[ 1 ] )
+      w.append_uint( by.fname, by.fname_len, rec_type );
+    if ( form->get( by.nm( SASS_SEQ_NO, SASS_SEQ_NO_LEN ) ) == &e[ 2 ] )
+      w.append_uint( by.fname, by.fname_len, seqno );
+    if ( form->get( by.nm( SASS_REC_STATUS, SASS_REC_STATUS_LEN ) ) == &e[ 3 ] )
+      w.append_uint( by.fname, by.fname_len, status );
+    if ( form->get( by.nm( SASS_SYMBOL, SASS_SYMBOL_LEN ) ) == &e[ 4 ] )
+      w.append_string( by.fname, by.fname_len, subj, sublen );
+  }
 }
 
 int
@@ -518,7 +537,7 @@ main( int argc, char **argv )
       size_t buf_sz = msg_sz * 2;
       void * buf    = mem.make( buf_sz );
       if ( m->get_type_id() == TIBMSG_TYPE_ID ) {
-        TibMsgWriter w( buf, buf_sz );
+        TibMsgWriter w( mem, buf, buf_sz );
         status = filter<TibMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
         m = NULL;
         if ( status == 0 && fldcnt > 0 ) {
@@ -527,7 +546,7 @@ main( int argc, char **argv )
         }
       }
       else if ( m->get_type_id() == RVMSG_TYPE_ID ) {
-        RvMsgWriter w( buf, buf_sz );
+        RvMsgWriter w( mem, buf, buf_sz );
         status = filter<RvMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
         m = NULL;
         if ( status == 0 && fldcnt > 0 ) {
@@ -536,7 +555,7 @@ main( int argc, char **argv )
         }
       }
       else if ( m->get_type_id() == TIB_SASS_TYPE_ID ) {
-        TibSassMsgWriter w( cfile_dict, buf, buf_sz );
+        TibSassMsgWriter w( mem, cfile_dict, buf, buf_sz );
         status = filter<TibSassMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
         m = NULL;
         if ( status == 0 && fldcnt > 0 ) {
@@ -550,26 +569,30 @@ main( int argc, char **argv )
       }
     }
     if ( cvt_type_id != 0 && m != NULL ) {
-      size_t   buf_sz     = msg_sz * 16;
-      void   * buf        = mem.make( buf_sz );
+      MDFormClass * form  = NULL;
+      size_t   buf_sz     = msg_sz;
+      void   * buf_ptr    = mem.make( buf_sz );
       uint16_t flist      = 0,
+               msg_type   = UPDATE_TYPE,
                rec_type   = 0;
       uint32_t seqno      = 0;
-      bool     is_initial = false;
 
       switch ( m->get_type_id() ) {
         case MARKETFEED_TYPE_ID: {
           MktfdMsg & mf = *(MktfdMsg *) m;
-          is_initial = ( mf.func == 340 );
+          msg_type = mf_func_to_sass_msg_type( mf.func );
           flist = mf.flist;
+          seqno = mf.rtl;
           break;
         }
         case RWF_MSG_TYPE_ID: {
           RwfMsg & rwf = *(RwfMsg *) m;
-          is_initial = ( rwf.msg.msg_class == REFRESH_MSG_CLASS );
+          msg_type = rwf_to_sass_msg_type( rwf );
           RwfMsg * fl = rwf.get_container_msg();
           if ( fl != NULL )
             flist = fl->fields.flist;
+          if ( rwf.msg.test( X_HAS_SEQ_NUM ) )
+            seqno = rwf.msg.seq_num;
           break;
         }
         case RWF_FIELD_LIST_TYPE_ID: {
@@ -577,8 +600,14 @@ main( int argc, char **argv )
           flist = rwf.fields.flist;
           break;
         }
-        default:
+        default: {
+          MDFieldReader rd( *m );
+          if ( rd.find( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN ) )
+            rd.get_uint( msg_type );
+          if ( rd.find( SASS_SEQ_NO, SASS_SEQ_NO_LEN ) )
+            rd.get_uint( seqno );
           break;
+        }
       }
       status = -1;
       if ( cvt_type_id == TIBMSG_TYPE_ID || cvt_type_id == TIB_SASS_TYPE_ID ) {
@@ -588,17 +617,21 @@ main( int argc, char **argv )
             MDLookup fc( by.fname, by.fname_len );
             if ( cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE ) {
               rec_type = fc.fid;
-
+              if ( fc.map_num != 0 )
+                form = cfile_dict->get_form_class( fc );
+              else
+                form = NULL;
               SubKey k( subj, slen );
               SubData * data;
               size_t pos;
               if ( (data = sub_ht.find( k, pos )) == NULL ) {
                 sub_ht.insert( pos, SubData::make( subj, slen, rec_type, flist,
-                                                   ++seqno ) );
+                                                   form, ++seqno ) );
               }
               else {
                 data->rec_type = rec_type;
                 data->flist    = flist;
+                data->form     = form;
                 seqno          = ++data->seqno;
               }
             }
@@ -610,6 +643,7 @@ main( int argc, char **argv )
           if ( data != NULL ) {
             rec_type = data->rec_type;
             flist    = data->flist;
+            form     = data->form;
             seqno    = ++data->seqno;
           }
         }
@@ -620,17 +654,18 @@ main( int argc, char **argv )
         size_t pos;
         if ( (data = sub_ht.find( k, pos )) == NULL ) {
           sub_ht.insert( pos, SubData::make( subj, slen, rec_type, flist,
-                                             ++seqno ) );
+                                             form, ++seqno ) );
         }
         else {
           rec_type = data->rec_type;
           flist    = data->flist;
+          form     = data->form;
           seqno    = ++data->seqno;
         }
       }
       switch ( cvt_type_id ) {
         case JSON_TYPE_ID: {
-          JsonMsgWriter w( buf, buf_sz );
+          JsonMsgWriter w( mem, buf_ptr, buf_sz );
           if ( (status = w.convert_msg( *m )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
@@ -642,8 +677,9 @@ main( int argc, char **argv )
           break;
         }
         case RVMSG_TYPE_ID: {
-          RvMsgWriter w( buf, buf_sz );
-          append_hdr<RvMsgWriter>( w, is_initial, rec_type, seqno, 0 );
+          RvMsgWriter w( mem, buf_ptr, buf_sz );
+          append_hdr<RvMsgWriter>( w, form, msg_type, rec_type, seqno, 0,
+                                   subj, slen );
           if ( (status = w.convert_msg( *m, true )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
@@ -652,12 +688,12 @@ main( int argc, char **argv )
           break;
         }
         case RWF_MSG_TYPE_ID: {
-          RwfMsgClass msg_class = ( is_initial ? REFRESH_MSG_CLASS :
-                                                 UPDATE_MSG_CLASS );
+          RwfMsgClass msg_class = ( msg_type == INITIAL_TYPE ?
+                                    REFRESH_MSG_CLASS : UPDATE_MSG_CLASS );
           uint32_t stream_id = MDDict::dict_hash( subj, slen );
-          RwfMsgWriter w( mem, rdm_dict, buf, buf_sz,
+          RwfMsgWriter w( mem, rdm_dict, buf_ptr, buf_sz,
                           msg_class, MARKET_PRICE_DOMAIN, stream_id );
-          if ( is_initial )
+          if ( msg_class == REFRESH_MSG_CLASS )
             w.set( X_CLEAR_CACHE, X_REFRESH_COMPLETE );
           w.add_seq_num( seqno )
            .add_msg_key()
@@ -669,7 +705,7 @@ main( int argc, char **argv )
             fl.add_flist( flist );
           status = w.err;
           if ( status == 0 )
-            status = fl.convert_msg( *m );
+            status = fl.convert_msg( *m, true );
           if ( status == 0 )
             w.end_msg();
           if ( (status = w.err) == 0 ) {
@@ -680,10 +716,10 @@ main( int argc, char **argv )
           break;
         }
         case RWF_FIELD_LIST_TYPE_ID: {
-          RwfFieldListWriter w( mem, rdm_dict, buf, buf_sz );
+          RwfFieldListWriter w( mem, rdm_dict, buf_ptr, buf_sz );
           if ( flist != 0 )
             w.add_flist( flist );
-          if ( (status = w.convert_msg( *m )) == 0 ) {
+          if ( (status = w.convert_msg( *m, false )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
             m = RwfMsg::unpack_field_list( msg, 0, msg_sz, 0, rdm_dict, mem );
@@ -691,8 +727,9 @@ main( int argc, char **argv )
           break;
         }
         case TIBMSG_TYPE_ID: {
-          TibMsgWriter w( buf, buf_sz );
-          append_hdr<TibMsgWriter>( w, is_initial, rec_type, seqno, 0 );
+          TibMsgWriter w( mem, buf_ptr, buf_sz );
+          append_hdr<TibMsgWriter>( w, form, msg_type, rec_type, seqno, 0,
+                                    subj, slen );
           if ( (status = w.convert_msg( *m, true )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
@@ -701,12 +738,27 @@ main( int argc, char **argv )
           break;
         }
         case TIB_SASS_TYPE_ID: {
-          TibSassMsgWriter w( cfile_dict, buf, buf_sz );
-          append_hdr<TibSassMsgWriter>( w, is_initial, rec_type, seqno, 0 );
-          if ( (status = w.convert_msg( *m, true )) == 0 ) {
-            msg    = w.buf;
-            msg_sz = w.update_hdr();
-            m = TibSassMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+          if ( form != NULL ) {
+            TibSassMsgWriter w( mem, *form, buf_ptr, buf_sz );
+            append_hdr<TibSassMsgWriter>( w, form, msg_type, rec_type,
+                                          seqno, 0, subj, slen );
+            if ( msg_type == INITIAL_TYPE )
+              w.append_form_record();
+            if ( (status = w.convert_msg( *m, true )) == 0 ) {
+              msg    = w.buf;
+              msg_sz = w.update_hdr();
+              m = TibSassMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+            }
+          }
+          else {
+            TibSassMsgWriter w( mem, cfile_dict, buf_ptr, buf_sz );
+            append_hdr<TibSassMsgWriter>( w, form, msg_type, rec_type,
+                                          seqno, 0, subj, slen );
+            if ( (status = w.convert_msg( *m, true )) == 0 ) {
+              msg    = w.buf;
+              msg_sz = w.update_hdr();
+              m = TibSassMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+            }
           }
           break;
         }

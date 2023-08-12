@@ -8,6 +8,22 @@ namespace md {
 
 static const uint32_t MARKETFEED_TYPE_ID = 0x8ab3f4ae;
 
+enum MktfdFunc { /* func kinds */
+  Cmd_2            = 2,
+  BcastMsg_4       = 4,
+  Drop_308         = 308,
+  Close_312        = 312,
+  Upd_316          = 316,
+  Correct_317      = 317,
+  Verify_318       = 318,
+  Rec_340          = 340,
+  Snap_342         = 342,
+  AggregateUpd_350 = 350,
+  Status_407       = 407
+};
+
+uint16_t mf_func_to_sass_msg_type( uint16_t func ) noexcept;
+
 struct MktfdMsg : public MDMsg {
   size_t          data_start,
                   data_end;

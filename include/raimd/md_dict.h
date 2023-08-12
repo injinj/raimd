@@ -2,6 +2,7 @@
 #define __rai_raimd__md_dict_h__
 
 #include <raimd/md_types.h>
+#include <raimd/md_hash_tab.h>
 
 namespace rai {
 namespace md {
@@ -66,11 +67,15 @@ struct MDLookup {
                rwflen,
                mflen,
                enumlen;
-  uint16_t     enummap;
+  uint16_t     map_num;
 
+  MDLookup() {}
   MDLookup( MDFid f ) : fid( f ) {}
   MDLookup( const char *fn,  size_t fn_len )
     : fname( fn ), fname_len( fn_len ) {}
+  MDLookup &id( MDFid f ) { this->fid = f; return *this; }
+  MDLookup &nm( const char *fn,  size_t fn_len ) {
+    this->fname = fn; this->fname_len = fn_len; return *this; }
   void mf_type( uint8_t &mf_type,  uint32_t &mf_len,
                 uint32_t &enum_len ) noexcept;
   void rwf_type( uint8_t &rwf_type,  uint32_t &rwf_len ) noexcept;
@@ -113,7 +118,7 @@ struct MDTypeHashBits {
                rwflen  : 8,  /* type encode length */
                mflen   : 8,  /* digit length, string len */
                enumlen : 5,  /* string length of enum */
-               enummap : 12, /* which enum table */
+               map_num : 12, /* which enum table */
                flags   : 6,  /* type mapping quirks */
                ftype   : 5;  /* md type */
     } b;
@@ -127,12 +132,49 @@ inline void md_dict_hash_decompose( uint64_t v,  MDLookup &by ) {
   by.rwflen  = x.b.rwflen;
   by.mflen   = x.b.mflen;
   by.enumlen = x.b.enumlen;
-  by.enummap = x.b.enummap;
+  by.map_num = x.b.map_num;
   by.flags   = x.b.flags;
   by.ftype   = (MDType) x.b.ftype;
 }
 
 struct MDEnumMap;
+struct MDFormMap;
+struct MDDict;
+
+struct MDFormKey {
+  MDFid fid;
+  static size_t hash( MDFid fid ) noexcept;
+  size_t hash( void ) const { return hash( this->fid ); }
+  bool equals( const MDFormKey &k ) const { return this->fid == k.fid; }
+  MDFormKey( MDFid f ) : fid( f ) {}
+};
+struct MDFormEntry {
+  uint16_t fid,
+           foffset;
+};
+struct MDFormClass : public MDFormKey {
+  MDDict      & dict;
+  MDFormMap   & map;
+  MDFormEntry * entries;
+  uint16_t    * ht;
+  uint32_t      nentries,
+                htsize,
+                form_size;
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
+  MDFormClass( MDFid fid, MDDict &d,  MDFormMap &m,  MDFormEntry *e,
+               uint16_t *h,  uint32_t n,  uint32_t hsz )
+    : MDFormKey( fid ), dict( d ), map( m ), entries( e ), ht( h ),
+      nentries( n ), htsize( hsz ), form_size( 0 ) {}
+  static MDFormClass *make_form_class( MDDict &d,  MDFid fid,
+                                       MDFormMap &map ) noexcept;
+  const MDFormEntry *lookup( MDLookup &by ) const;
+  const MDFormEntry *get( MDLookup &by ) const;
+  const MDFormEntry *get_entry( MDFid fid ) const;
+};
+
+typedef struct MDHashTabT<MDFormKey, MDFormClass> MDFormClassHT;
+
 struct MDDict {
   /*
    * [ type table (uint32 elem) ]  = offset 0 (sizeof(MDDict))
@@ -141,26 +183,29 @@ struct MDDict {
    * [ fname ht (tab bits ht) ]    = offset ht_off (+fnamesz ht_off - fname_off)
    * [ enum off (uint32_t off) ]   = offset map_off (+fid_bits * ht_size)
    */
-  MDDict * next; /* list of multiple dictionaries (usually just 2, cfile&RDM )*/
-  char     dict_type[ 8 ]; /* cfile or RDM(app_a) */
-  MDFid    min_fid,     /* minumum fid indexed */
-           max_fid;     /* maximum fid indexed, inclusive */
-  uint32_t tab_off,     /* offset of bit array table */
-           tab_size,    /* size in bytes of bit array table */
-           ht_off,      /* offset of fname hash */
-           ht_size,     /* size in fids of ht */
-           entry_count, /* number of fids in the table */
-           fname_off,   /* offset of fname start */
-           map_off,     /* offset of enum map index */
-           map_count,   /* count of enum maps */
-           tag_off,     /* offset of tags */
-           dict_size;   /* sizeof this + tables */
-  uint8_t  type_shft,   /* how many bits used for the type */
-           fname_shft,  /* how many bits used for fname offset */
-           fname_algn,  /* what byte alignment used for fname */
-           tab_bits,    /* = type_shft + fname_shft - fname_algn*/
-           fid_bits,    /* number of bits needed for a fid - min_fid + 1 */
-           pad[ 3 ];    /* tag strings */
+  MDDict      * next;        /* list of multiple dictionaries)*/
+  MDFormClassHT form_class_ht; /* form classes, created on demand */
+  char          dict_type[ 8 ]; /* cfile or RDM(app_a) */
+  MDFid         min_fid,     /* minumum fid indexed */
+                max_fid;     /* maximum fid indexed, inclusive */
+  uint32_t      tab_off,     /* offset of bit array table */
+                tab_size,    /* size in bytes of bit array table */
+                ht_off,      /* offset of fname hash */
+                ht_size,     /* size in fids of ht */
+                entry_count, /* number of fids in the table */
+                fname_off,   /* offset of fname start */
+                map_off,     /* offset of enum map index */
+                map_count,   /* count of enum maps */
+                form_off,    /* offset of form map index */
+                form_count,  /* count of forms */
+                tag_off,     /* offset of tags */
+                dict_size;   /* sizeof this + tables */
+  uint8_t       type_shft,   /* how many bits used for the type */
+                fname_shft,  /* how many bits used for fname offset */
+                fname_algn,  /* what byte alignment used for fname */
+                tab_bits,    /* = type_shft + fname_shft - fname_algn*/
+                fid_bits,    /* number of bits needed for a fid - min_fid + 1 */
+                pad[ 3 ];    /* tag strings */
 
   /* used by get() below */
   static uint32_t dict_hash( const char *key,  size_t len ) noexcept;
@@ -259,6 +304,9 @@ struct MDDict {
   bool get_enum_map_val( uint32_t map_num,  const char *disp,  size_t disp_len,  
                          uint16_t &val ) noexcept;
   MDEnumMap *get_enum_map( uint32_t map_num ) noexcept;
+  MDFormClass *get_form_class( MDFid fid ) noexcept;
+  MDFormClass *get_form_class( MDLookup &by ) noexcept;
+  MDFormMap *get_form_map( uint32_t map_num ) noexcept;
   bool first_tag( const char *&tag,  size_t &tag_sz ) noexcept;
   bool next_tag( const char *&tag,  size_t &tag_sz ) noexcept;
   bool find_tag( const char *name,  const char *&val, size_t &val_sz ) noexcept;
@@ -273,6 +321,7 @@ enum MDDictDebugFlags {
  * building the index */
 struct MDDictIdx;
 struct MDDictEntry;
+struct MDFormBuild;
 
 struct MDDictAdd {
   MDFid         fid;      /* fid -> fname map */
@@ -320,8 +369,10 @@ struct MDDictBuild {
   MDDictIdx *get_dict_idx( void ) noexcept;
   int add_entry( MDDictAdd &a ) noexcept;
   int add_enum_map( MDEnumAdd &a ) noexcept;
+  int add_form_build( MDFormBuild &fb ) noexcept;
   int update_entry_enum( MDFid fid,  uint32_t map_num,
                          uint16_t enum_len ) noexcept;
+  int update_entry_form( MDFid fid,  uint32_t map_num ) noexcept;
   void add_tag( const char *tag,  uint32_t tag_sz ) noexcept;
   void add_tag( const char *name,  uint32_t name_sz,
                 const char *val,  uint32_t val_sz ) noexcept;
@@ -453,12 +504,11 @@ inline uint64_t md_dict_hash_compose( MDDictEntry &entry ) {
   x.b.rwflen  = entry.rwf_len;
   x.b.mflen   = entry.mf_len;
   x.b.enumlen = entry.enum_len;
-  x.b.enummap = entry.map_num;
+  x.b.map_num = entry.map_num;
   x.b.flags   = entry.fld_flags;
   x.b.ftype   = (uint32_t) entry.ftype;
   return x.val;
 }
-
 
 struct MDFilename {
   MDFilename * next;
@@ -468,6 +518,11 @@ struct MDFilename {
   MDFilename() : next( 0 ), id( 0 ) {}
 };
 
+static inline size_t
+md_align( size_t sz,  size_t val ) {
+  return ( val + sz - 1 ) & ~( sz - 1 );
+}
+
 struct MDEnumMap {
   uint32_t map_num,   /* map type number */
            value_cnt; /* count of values, n -> max_value+1 */
@@ -475,10 +530,10 @@ struct MDEnumMap {
            max_len;   /* size of the enum value, same for each entry */
 
   static size_t map_sz( size_t value_cnt,  size_t max_value,  size_t max_len ) {
-    size_t sz = ( max_len * value_cnt + 3U ) & ~3U;
+    size_t sz = md_align( 4, max_len * value_cnt );
     if ( value_cnt == max_value + 1 )
       return sz;
-    return sz + sizeof( uint16_t ) * ( ( value_cnt + 1U ) & ~1U );
+    return sz + sizeof( uint16_t ) * md_align( 2, value_cnt );
   }
   size_t map_sz( void ) const {
     return map_sz( this->value_cnt, this->max_value, this->max_len );
@@ -490,7 +545,7 @@ struct MDEnumMap {
   }
   uint8_t *map( void ) {
     uint32_t off = ( ( this->value_cnt == (uint32_t) this->max_value + 1 ) ?
-                     0 : ( ( this->value_cnt + 1U ) & ~1U ) );
+                     0 : md_align( 2, this->value_cnt ) );
     uint16_t * value_cp = (uint16_t *) (void *) &this[ 1 ];
     return (uint8_t *) (void *) &value_cp[ off ];
   }
@@ -512,6 +567,32 @@ struct MDPendingEnum {
   MDPendingEnum() : next( 0 ) {}
 };
 
+struct MDFormMap {
+  uint32_t map_num,   /* map type number */
+           code_size;
+
+  static size_t map_sz( size_t code_size ) {
+    return sizeof( uint16_t ) * md_align( 2, code_size );
+  }
+  size_t map_sz( void ) const {
+    return map_sz( this->code_size );
+  }
+  uint16_t *code( void ) {
+    uint16_t * code_cp = (uint16_t *) (void *) &this[ 1 ];
+    return code_cp;
+  }
+  uint32_t fid_count( void ) noexcept;
+  uint32_t get_fids( uint16_t *fids ) noexcept;
+  bool     fid_is_member( uint16_t fid ) noexcept;
+};
+
+struct MDFormList {
+  MDFormList * next;
+  MDFormMap    map;
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  MDFormList() : next( 0 ) {}
+};
+
 struct MDTag {
   MDTag  * next;
   uint32_t len;
@@ -527,13 +608,16 @@ struct MDDictIdx {
   MDQueue< MDPendingEnum > pending_enum_q;  /* list of enums not yet mapped */
   MDQueue< MDFilename >    file_q;  /* list of all dict files */
   MDQueue< MDTag >         tag_q;
+  MDQueue< MDFormList >    form_q;
 
   MDTypeHash * type_hash; /* hash of all fid types */
   MDFid        min_fid,   /* minimum fid seen, updated as fields are processed*/
                max_fid;   /* maximum fid seen */
   size_t       entry_count, /* cnt of field names, fids may map to same name */
                map_cnt,   /* count of enum maps */
-               map_size;  /* size of all enum maps */
+               map_size,  /* size of all enum maps */
+               form_cnt,  /* count of all forms */
+               form_size; /* size of all forms */
 
   MDDictEntry ** fid_index; /* index by fids */
   size_t         fid_index_size;
@@ -544,7 +628,8 @@ struct MDDictIdx {
   void operator delete( void *ptr ) { ::free( ptr ); }
 
   MDDictIdx() : type_hash( 0 ), min_fid( 0 ), max_fid( 0 ),
-                entry_count( 0 ), map_cnt( 0 ), map_size( 0 ), fid_index( 0 ),
+                entry_count( 0 ), map_cnt( 0 ), map_size( 0 ),
+                form_cnt( 0 ), form_size( 0 ), fid_index( 0 ),
                 fid_index_size( 0 ), fname_index( 0 ), fname_index_size( 0 ) {}
   ~MDDictIdx() noexcept;
   uint32_t file_lineno( const char *filename,  uint32_t lineno ) noexcept;
@@ -620,6 +705,24 @@ struct DictParser {
   int consume_string_tok( void ) noexcept;
   static bool find_file( const char *path,  const char *filename,
                          size_t file_sz,  char *path_found ) noexcept;
+};
+
+struct MDFormBuild {
+  uint16_t fids[ 4 * 1024 ],
+           code[ 4 * 1024 ];
+  uint32_t nfids,
+           code_size,
+           map_num;
+
+  MDFormBuild() : nfids( 0 ), code_size( 0 ), map_num( 0 ) {}
+
+  bool add( uint16_t fid ) {
+    if ( this->nfids == sizeof( this->fids ) / sizeof( this->fids[ 0 ] ) )
+      return false;
+    this->fids[ this->nfids++ ] = fid;
+    return true;
+  }
+  bool compress( void ) noexcept;
 };
 
 }

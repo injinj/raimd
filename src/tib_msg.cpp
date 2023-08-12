@@ -424,6 +424,29 @@ TibMsg::set_decimal( MDDecimal &dec,  double val,  uint8_t tib_hint ) noexcept
   return false;
 }
 
+bool
+TibMsgWriter::resize( size_t len ) noexcept
+{
+  static const size_t max_size = 0x3fffffff; /* 1 << 30 - 1 == 1073741823 */
+  if ( this->err != 0 )
+    return false;
+  size_t old_len = this->buflen,
+         new_len = this->buflen + ( len - this->off ) + 9;
+  if ( new_len > max_size )
+    return false;
+  if ( new_len < old_len * 2 )
+    new_len = old_len * 2;
+  else
+    new_len += 1024;
+  if ( new_len > max_size )
+    new_len = max_size;
+  uint8_t * new_buf = this->buf;
+  this->mem.extend( old_len, new_len, &new_buf );
+  this->buf    = new_buf;
+  this->buflen = new_len;
+  return this->off + 9 + len <= this->buflen;
+}
+
 TibMsgWriter &
 TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
                           MDReference &mref ) noexcept
@@ -468,11 +491,12 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
        ( fsize == 0 || mref.fptr[ fsize - 1 ] != '\0' ) )
     fsize++;
 
-  uint8_t * ptr = &this->buf[ this->off + 9 ];
-  size_t    len = 1 + fname_len + 1 + ( fsize <= 0xffU ? 1 : 4 ) + fsize;
+  size_t len = 1 + fname_len + 1 + ( fsize <= 0xffU ? 1 : 4 ) + fsize;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off + 9 ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
@@ -531,7 +555,8 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
     /* need hint data */
     if ( ! this->has_space( 2 ) )
       return this->error( Err::NO_SPACE );
-    ptr = &ptr[ mref.fsize ];
+
+    ptr = &this->buf[ this->off + 9 + mref.fsize ];
     ptr[ 0 ] = MD_UINT;
     ptr[ 1 ] = (uint8_t) mref.fentrysz;
     this->off += 2;
@@ -539,7 +564,8 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
   else if ( mref.ftype == MD_ENUM ) {
     if ( ! this->has_space( 4 ) )
       return this->error( Err::NO_SPACE );
-    ptr = &ptr[ mref.fsize ];
+
+    ptr = &this->buf[ this->off + 9 + mref.fsize ];
     ptr[ 0 ] = MD_UINT;
     ptr[ 1 ] = 2;
     ptr[ 2 ] = (uint8_t) ( TIB_HINT_MF_ENUM >> 8 );
@@ -549,7 +575,8 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
   else if ( href.ftype != MD_NODATA ) {
     if ( ! this->has_space( href.fsize + 2 ) )
       return this->error( Err::NO_SPACE );
-    ptr = &ptr[ mref.fsize ];
+
+    ptr = &this->buf[ this->off + 9 + mref.fsize ];
     ptr[ 0 ] = href.ftype;
     ptr[ 1 ] = (uint8_t) href.fsize;
     ::memcpy( &ptr[ 2 ], href.fptr, href.fsize );
@@ -562,13 +589,14 @@ TibMsgWriter &
 TibMsgWriter::append_decimal( const char *fname,  size_t fname_len,
                               MDDecimal &dec ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off + 9 ];
-  size_t    len = 1 + fname_len + 1 + 1 + 8 + 3;
-  double    val;
-  int       status;
+  size_t len = 1 + fname_len + 1 + 1 + 8 + 3;
+  double val;
+  int    status;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off + 9 ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
   if ( (status = dec.get_real( val )) != 0 )
@@ -624,13 +652,14 @@ TibMsgWriter &
 TibMsgWriter::append_time( const char *fname,  size_t fname_len,
                            MDTime &time ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off + 9 ];
-  char      sbuf[ 32 ];
-  size_t    n   = time.get_string( sbuf, sizeof( sbuf ) );
-  size_t    len = 1 + fname_len + 1 + 1 + n + 1 + 4;
+  char   sbuf[ 32 ];
+  size_t n   = time.get_string( sbuf, sizeof( sbuf ) );
+  size_t len = 1 + fname_len + 1 + 1 + n + 1 + 4;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off + 9 ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
 
@@ -659,13 +688,14 @@ TibMsgWriter &
 TibMsgWriter::append_date( const char *fname,  size_t fname_len,
                            MDDate &date ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off + 9 ];
-  char      sbuf[ 32 ];
-  size_t    n   = date.get_string( sbuf, sizeof( sbuf ) );
-  size_t    len = 1 + fname_len + 1 + 1 + n + 1 + 4;
+  char   sbuf[ 32 ];
+  size_t n   = date.get_string( sbuf, sizeof( sbuf ) );
+  size_t len = 1 + fname_len + 1 + 1 + n + 1 + 4;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off + 9 ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
 
@@ -691,11 +721,12 @@ TibMsgWriter &
 TibMsgWriter::append_enum( const char *fname,  size_t fname_len,
                            MDEnum &enu ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off + 9 ];
-  size_t    len = 1 + fname_len + 1 + 1 + enu.disp_len + 1 + 4;
+  size_t len = 1 + fname_len + 1 + 1 + enu.disp_len + 1 + 4;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off + 9 ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
 
@@ -722,8 +753,10 @@ TibMsgWriter &
 TibMsgWriter::append_iter( MDFieldIter *iter ) noexcept
 {
   size_t len = iter->field_end - iter->field_start;
+
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
   uint8_t * ptr = &this->buf[ this->off + 9 ];
   ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
   this->off += len;

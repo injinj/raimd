@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <raimd/mf_msg.h>
 #include <raimd/md_dict.h>
+#include <raimd/sass.h>
 
 using namespace rai;
 using namespace md;
@@ -74,6 +75,25 @@ MktfdMsg::is_marketfeed( void *bb,  size_t off,  size_t end,
     }
   }
   return false;
+}
+
+uint16_t
+rai::md::mf_func_to_sass_msg_type( uint16_t func ) noexcept
+{
+  switch ( func ) {
+    case Cmd_2:
+    case BcastMsg_4:       return UPDATE_PASS_THRU_TYPE;
+    case Drop_308:         return DROP_TYPE;
+    case Close_312:        return CLOSING_TYPE;
+    case Upd_316:          return UPDATE_TYPE;
+    case Correct_317:      return CORRECT_TYPE;
+    case Verify_318:       return VERIFY_TYPE;
+    case Rec_340:          return INITIAL_TYPE;
+    case Snap_342:         return SNAPSHOT_TYPE;
+    case AggregateUpd_350: return UPDATE_TYPE;
+    default:
+    case Status_407:       return TRANSIENT_TYPE;
+  }
 }
 
 static inline bool
@@ -187,20 +207,21 @@ MktfdMsg::parse_header( void ) noexcept
   c = scan_sep( buf, i );
   this->riclen = i - this->riclen;
 
-  if ( c == RS_ && ( this->func == 340 || this->func == 342 ||
-                    this->func == 318 ) ) {
+  if ( c == RS_ && ( this->func == Rec_340 ||
+                     this->func == Snap_342 ||
+                     this->func == Verify_318 ) ) {
     /* if func == 318, this is 3 = full verify, 4 = partial verify */
     scan_int( buf, i, this->rstatus );      /* RS:1e rstatus */
     c = scan_sep( buf, i );
   }
   /* initial(340)/snap(342)/verify(318) have flist */
-  if ( c == US_ && ( this->func == 340 || this->func == 342 ||
-                     this->func == 318 ) ) {
+  if ( c == US_ && ( this->func == Rec_340 || this->func == Snap_342 ||
+                     this->func == Verify_318 ) ) {
     scan_int( buf, i, this->flist );        /* US:1f flist */
     c = scan_sep( buf, i );                 /* can be US:1f delta-rtl */
   }                                        /* when aggregate update (350) */
   /* aggregate_update(350) */
-  if ( c == US_ && this->func == 350 ) {
+  if ( c == US_ && this->func == AggregateUpd_350 ) {
     int32_t delta_rtl;
     scan_int( buf, i, delta_rtl );          /* US:1f delta-rtl */
     c = scan_sep( buf, i );

@@ -12,6 +12,10 @@ struct MDHashTabT {
 
   MDHashTabT( size_t ini_sz = 4 )
       : tab( 0 ), tab_mask( 0 ), elem_count( 0 ) {
+    if ( ini_sz > 0 )
+      this->init( ini_sz );
+  }
+  void init( size_t ini_sz ) {
     this->tab = (Value **) ::malloc( sizeof( Value * ) * ini_sz );
     ::memset( this->tab, 0, sizeof( Value * ) * ini_sz );
     this->tab_mask = ini_sz - 1;

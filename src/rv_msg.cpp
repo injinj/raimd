@@ -464,17 +464,57 @@ RvFieldIter::unpack( void ) noexcept
   return 0;
 }
 
+bool
+RvMsgWriter::resize( size_t len ) noexcept
+{
+  static const size_t max_size = 0x3fffffff; /* 1 << 30 - 1 == 1073741823 */
+  if ( this->err != 0 )
+    return false;
+  RvMsgWriter *p = this;
+  for ( ; p->parent != NULL; p = p->parent )
+    ;
+  if ( len > max_size )
+    return false;
+  size_t old_len = p->buflen,
+         new_len = old_len + ( len - this->off );
+  if ( new_len > max_size )
+    return false;
+  if ( new_len < old_len * 2 )
+    new_len = old_len * 2;
+  else
+    new_len += 1024;
+  if ( new_len > max_size )
+    new_len = max_size;
+  uint8_t * old_buf = p->buf,
+          * new_buf = old_buf;
+  this->mem.extend( old_len, new_len, &new_buf );
+  uint8_t * end = &new_buf[ new_len ];
+
+  p->buf    = new_buf;
+  p->buflen = new_len;
+
+  for ( RvMsgWriter *c = this; c != p; c = c->parent ) {
+    if ( c->buf >= old_buf && c->buf < &old_buf[ old_len ] ) {
+      size_t off = c->buf - old_buf;
+      c->buf = &new_buf[ off ];
+      c->buflen = end - c->buf;
+    }
+  }
+  return this->off + len <= this->buflen;
+}
+
 RvMsgWriter &
 RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
                          RvMsgWriter &submsg ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off ];
-  size_t    len = 1 + fname_len + 1,
-            szbytes = 5 + 4;
+  size_t len = 1 + fname_len + 1,
+         szbytes = 5 + 4;
 
   len += szbytes;
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
@@ -488,6 +528,7 @@ RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
   submsg.off    = 8;
   submsg.buflen = this->buflen - this->off;
   submsg.err    = 0;
+  submsg.parent = this;
   return submsg;
 }
 
@@ -495,7 +536,6 @@ RvMsgWriter &
 RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
                              const char *subj,  size_t subj_len ) noexcept
 {
-  uint8_t    * ptr = &this->buf[ this->off ];
   size_t       len = 1 + fname_len + 1,
                szbytes = 3,
                fsize = 3;
@@ -519,8 +559,11 @@ RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
   if ( segs > 255 )
     return this->error( Err::BAD_FIELD_BOUNDS );
   len += szbytes + fsize;
+
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+  uint8_t * ptr = &this->buf[ this->off ];
+
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
@@ -660,8 +703,7 @@ RvMsgWriter &
 RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
                          MDReference &mref ) noexcept
 {
-  uint8_t * ptr   = &this->buf[ this->off ];
-  size_t    fsize = mref.fsize;
+  size_t fsize = mref.fsize;
 
   if ( mref.ftype == MD_STRING &&
        ( fsize == 0 || mref.fptr[ fsize - 1 ] != '\0' ) )
@@ -673,6 +715,8 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
   len += szbytes;
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
@@ -733,14 +777,15 @@ RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
                                   char **ar,  size_t array_size,
                                   size_t fsize ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off ];
-  size_t    len = 1 + fname_len + 1 + fsize,
-            szbytes = rv_size_bytes( fsize + 4 );
+  size_t len = 1 + fname_len + 1 + fsize,
+         szbytes = rv_size_bytes( fsize + 4 );
 
   fsize += 4; /* array size */
   len   += 4 + szbytes;
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
   ptr[ 0 ] = (uint8_t) fname_len;
@@ -766,13 +811,14 @@ RvMsgWriter &
 RvMsgWriter::append_decimal( const char *fname,  size_t fname_len,
                              MDDecimal &dec ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off ];
-  size_t    len = 1 + fname_len + 1 + 1 + 8;
-  double    val;
-  int       status;
+  size_t len = 1 + fname_len + 1 + 1 + 8;
+  double val;
+  int    status;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
   if ( (status = dec.get_real( val )) != 0 )
@@ -799,13 +845,14 @@ RvMsgWriter &
 RvMsgWriter::append_time( const char *fname,  size_t fname_len,
                           MDTime &time ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off ];
-  char      sbuf[ 32 ];
-  size_t    n   = time.get_string( sbuf, sizeof( sbuf ) );
-  size_t    len = 1 + fname_len + 1 + 1 + n + 1;
+  char   sbuf[ 32 ];
+  size_t n   = time.get_string( sbuf, sizeof( sbuf ) );
+  size_t len = 1 + fname_len + 1 + 1 + n + 1;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
 
@@ -824,13 +871,14 @@ RvMsgWriter &
 RvMsgWriter::append_date( const char *fname,  size_t fname_len,
                           MDDate &date ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off ];
-  char      sbuf[ 32 ];
-  size_t    n   = date.get_string( sbuf, sizeof( sbuf ) );
-  size_t    len = 1 + fname_len + 1 + 1 + n + 1;
+  char   sbuf[ 32 ];
+  size_t n   = date.get_string( sbuf, sizeof( sbuf ) );
+  size_t len = 1 + fname_len + 1 + 1 + n + 1;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
 
@@ -849,11 +897,12 @@ RvMsgWriter &
 RvMsgWriter::append_enum( const char *fname,  size_t fname_len,
                           MDEnum &enu ) noexcept
 {
-  uint8_t * ptr = &this->buf[ this->off ];
-  size_t    len = 1 + fname_len + 1 + 1 + enu.disp_len + 1;
+  size_t len = 1 + fname_len + 1 + 1 + enu.disp_len + 1;
 
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ this->off ];
   if ( fname_len > 0xff )
     return this->error( Err::BAD_NAME );
 
@@ -927,7 +976,7 @@ RvMsgWriter::convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept
             status = this->err;
             break;
           case MD_MESSAGE: {
-            RvMsgWriter submsg( NULL, 0 );
+            RvMsgWriter submsg( this->mem, NULL, 0 );
             MDMsg * jmsg2 = NULL;
             this->append_msg( name.fname, name.fnamelen, submsg );
             status = this->err;
@@ -1066,8 +1115,10 @@ RvMsgWriter &
 RvMsgWriter::append_iter( MDFieldIter *iter ) noexcept
 {
   size_t len = iter->field_end - iter->field_start;
+
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
+
   uint8_t * ptr = &this->buf[ this->off ];
   ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
   this->off += len;

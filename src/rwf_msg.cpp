@@ -3,6 +3,7 @@
 #include <raimd/rwf_msg.h>
 #include <raimd/md_dict.h>
 #include <raimd/app_a.h>
+#include <raimd/sass.h>
 
 using namespace rai;
 using namespace md;
@@ -159,6 +160,26 @@ rai::md::rwf_type_size_to_md_type( uint8_t type,  MDType &ftype,  uint32_t &fsiz
       return rwf_primitive_to_md_type( type, ftype );
   }
   return false;
+}
+
+uint16_t
+rai::md::rwf_to_sass_msg_type( RwfMsg &rwf ) noexcept
+{
+  if ( rwf.msg.msg_class == REFRESH_MSG_CLASS ) {
+    return INITIAL_TYPE;
+  }
+  if ( rwf.msg.msg_class == UPDATE_MSG_CLASS ) {
+    switch ( rwf.msg.update_type ) {
+      default:                   return UPDATE_TYPE;  break;
+      case UPD_TYPE_CLOSING_RUN: return CLOSING_TYPE; break;
+      case UPD_TYPE_CORRECTION:  return CORRECT_TYPE; break;
+      case UPD_TYPE_VERIFY:      return VERIFY_TYPE;  break;
+    }
+  }
+  else if ( rwf.msg.msg_class == STATUS_MSG_CLASS ) {
+    return TRANSIENT_TYPE;
+  }
+  return UPDATE_TYPE;
 }
 
 uint32_t

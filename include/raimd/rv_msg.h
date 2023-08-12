@@ -128,16 +128,21 @@ append_rv_field_hdr( uint8_t *buf,  const char *fname,  size_t fname_len,
 }
 
 struct RvMsgWriter {
-  uint8_t * buf;
-  size_t    off,
-            buflen;
-  int       err;
+  MDMsgMem    & mem;
+  uint8_t     * buf;
+  size_t        off,
+                buflen;
+  int           err;
+  RvMsgWriter * parent;
 
-  RvMsgWriter( void *bb,  size_t len ) : buf( (uint8_t *) bb ), off( 8 ),
-                                         buflen( len ), err( 0 ) {}
+  RvMsgWriter( MDMsgMem &m,  void *bb,  size_t len ) : mem( m ),
+               buf( (uint8_t *) bb ), off( 8 ), buflen( len ), err( 0 ),
+               parent( 0 ) {}
   RvMsgWriter & error( int status ) {
     if ( this->err == 0 )
       this->err = status;
+    if ( this->parent != NULL )
+      this->parent->error( status );
     return *this;
   }
   void reset( void ) {
@@ -150,10 +155,12 @@ struct RvMsgWriter {
   }
   RvMsgWriter & append_ref( const char *fname,  size_t fname_len,
                             MDReference &mref ) noexcept;
-  bool has_space( size_t len ) const {
-    return this->off + len <= this->buflen;
+  bool has_space( size_t len ) {
+    bool b = ( this->off + len <= this->buflen );
+    if ( ! b ) b = this->resize( len );
+    return b;
   }
-
+  bool resize( size_t len ) noexcept;
   size_t update_hdr( void ) {
     this->buf[ 0 ] = ( this->off >> 24 ) & 0xffU;
     this->buf[ 1 ] = ( this->off >> 16 ) & 0xffU;
