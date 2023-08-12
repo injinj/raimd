@@ -50,7 +50,8 @@ rai::md::sass_rec_status_string( unsigned short rec_status, char *buf ) noexcept
 const char rai::md::SASS_MSG_TYPE[]   = "MSG_TYPE",
            rai::md::SASS_REC_TYPE[]   = "REC_TYPE",
            rai::md::SASS_SEQ_NO[]     = "SEQ_NO",
-           rai::md::SASS_REC_STATUS[] = "REC_STATUS";
+           rai::md::SASS_REC_STATUS[] = "REC_STATUS",
+           rai::md::SASS_SYMBOL[]     = "SYMBOL";
 
 const char * MDMsg::get_proto_string( void ) noexcept
 { return "NO PROTOCOL"; }
@@ -1192,11 +1193,20 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
       if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
         const char * extra = NULL;
         char tmp_buf[ 32 ];
-        if ( fname_buf[ 0 ] >= 'M' && fname_buf[ 1 ] >= 'E' && fname_buf[ 2 ] >= 'C' &&
-             fname_buf[ 3 ] == '_' ) {
+        if ( fname_buf[ 0 ] >= 'M' && fname_buf[ 1 ] >= 'E' &&
+             fname_buf[ 2 ] >= 'C' && fname_buf[ 3 ] == '_' ) {
           if ( MDDict::dict_equals( fname_buf, fname_len, SASS_MSG_TYPE,
                                     SASS_MSG_TYPE_LEN ) )
             extra = sass_msg_type_string( get_int<int16_t>( mref ), tmp_buf );
+          else if ( MDDict::dict_equals( fname_buf, fname_len, SASS_REC_TYPE,
+                                         SASS_REC_TYPE_LEN ) ) {
+            MDLookup by( get_int<uint16_t>( mref ) );
+            if ( this->iter_msg.dict != NULL &&
+                 this->iter_msg.dict->lookup( by ) ) {
+              if ( by.ftype == MD_MESSAGE )
+                extra = by.fname;
+            }
+          }
           else if ( MDDict::dict_equals( fname_buf, fname_len, SASS_REC_STATUS,
                                          SASS_REC_STATUS_LEN ) )
             extra = sass_rec_status_string( get_int<int16_t>( mref ), tmp_buf );

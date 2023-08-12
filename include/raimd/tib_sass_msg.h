@@ -113,16 +113,24 @@ enum {
   TSS_HINT_MF_ENUM         = 261   /* marketfeed enum */
 };
 
+struct MDFormClass;
+struct MDFormEntry;
+struct MDLookup;
+
 struct TibSassMsgWriter {
-  MDDict  * dict;
-  uint8_t * buf;
-  size_t    off,
-            buflen;
-  int       err,
-            unk_fid;
+  MDMsgMem    & mem;
+  MDDict      * dict;
+  MDFormClass * form;
+  uint8_t     * buf;
+  size_t        off,
+                buflen;
+  int           err,
+                unk_fid;
+  bool          use_form;
 
-  TibSassMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept;
-
+  TibSassMsgWriter( MDMsgMem &m,  MDDict *d,  void *bb,  size_t len ) noexcept;
+  TibSassMsgWriter( MDMsgMem &m,  MDFormClass &f,  void *bb,
+                    size_t len ) noexcept;
   TibSassMsgWriter & error( int status ) {
     if ( this->err == 0 )
       this->err = status;
@@ -133,23 +141,32 @@ struct TibSassMsgWriter {
     return *this;
   }
   void reset( void ) {
-    this->off     = 0;
-    this->err     = 0;
-    this->unk_fid = 0;
+    this->off      = 0;
+    this->err      = 0;
+    this->unk_fid  = 0;
+    this->use_form = false;
   }
+  TibSassMsgWriter & append_form_record( void ) noexcept;
+
+  bool lookup( MDLookup &by,  const MDFormEntry *&entry ) noexcept;
+  bool get( MDLookup &by,  const MDFormEntry *&entry ) noexcept;
   TibSassMsgWriter & append_ref( MDFid fid,  MDReference &mref ) noexcept;
-  TibSassMsgWriter & append_ref( const char *fname,  size_t fname_len,
+/*  TibSassMsgWriter & append_ref( const char *fname,  size_t fname_len,
                                  MDReference &mref,  MDReference & ) {
     return this->append_ref( fname, fname_len, mref );
-  }
+  }*/
   TibSassMsgWriter & append_ref( const char *fname,  size_t fname_len,
                                  MDReference &mref ) noexcept;
   TibSassMsgWriter & append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
-                                 uint8_t flags,  MDReference &mref ) noexcept;
+                                 uint8_t flags,  MDReference &mref,
+                                 const MDFormEntry *entry ) noexcept;
 
-  bool has_space( size_t len ) const {
-    return this->off + 8 + len <= this->buflen;
+  bool has_space( size_t len ) {
+    bool b = ( this->off + 8 + len <= this->buflen );
+    if ( ! b ) b = this->resize( len );
+    return b;
   }
+  bool resize( size_t len ) noexcept;
   size_t update_hdr( void ) {
     this->buf[ 0 ] = 0x11;
     this->buf[ 1 ] = 0x11;
@@ -230,13 +247,13 @@ struct TibSassMsgWriter {
   }
 
   TibSassMsgWriter & append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
-                                     MDDecimal &dec ) noexcept;
+                           MDDecimal &dec, const MDFormEntry *entry ) noexcept;
   TibSassMsgWriter & append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
-                                  MDTime &time ) noexcept;
+                           MDTime &time,  const MDFormEntry *entry ) noexcept;
   TibSassMsgWriter & append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
-                                  MDDate &date ) noexcept;
+                           MDDate &date,  const MDFormEntry *entry ) noexcept;
   TibSassMsgWriter & append_enum( MDFid fid,  MDType ftype,  uint32_t fsize,
-                                  MDEnum &enu ) noexcept;
+                           MDEnum &enu,  const MDFormEntry *entry ) noexcept;
 
   TibSassMsgWriter & append_decimal( MDFid fid,  MDDecimal &dec ) noexcept;
   TibSassMsgWriter & append_time( MDFid,  MDTime &time ) noexcept;

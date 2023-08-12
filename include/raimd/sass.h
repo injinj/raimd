@@ -122,19 +122,42 @@ extern const char * sass_rec_status_string( unsigned short rec_status,
 extern const char   SASS_MSG_TYPE[],
                     SASS_REC_TYPE[],
                     SASS_SEQ_NO[],
-                    SASS_REC_STATUS[];
+                    SASS_REC_STATUS[],
+                    SASS_SYMBOL[];
 static const size_t SASS_MSG_TYPE_LEN   = sizeof( "MSG_TYPE" ),
                     SASS_REC_TYPE_LEN   = sizeof( "REC_TYPE" ),
                     SASS_SEQ_NO_LEN     = sizeof( "SEQ_NO" ),
-                    SASS_REC_STATUS_LEN = sizeof( "REC_STATUS" );
+                    SASS_REC_STATUS_LEN = sizeof( "REC_STATUS" ),
+                    SASS_SYMBOL_LEN     = sizeof( "SYMBOL" );
+static inline uint32_t w4c( char a, char b, char c, char d ) {
+  return ( (uint32_t) (uint8_t) d << 24 ) |
+         ( (uint32_t) (uint8_t) c << 16 ) |
+         ( (uint32_t) (uint8_t) b <<  8 ) |
+         ( (uint32_t) (uint8_t) a       );
+}
 static inline bool is_sass_hdr( const MDName &n ) {
-  if ( n.fnamelen >= SASS_SEQ_NO_LEN - 1 ) {
-    if ( n.fname[ 3 ] == '_' &&
-         ( n.fname[ 0 ] == 'R' || n.fname[ 0 ] == 'M' || n.fname[ 0 ] == 'S' ) ) {
-      return ( n.equals( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN ) ||
-               n.equals( SASS_REC_TYPE, SASS_REC_TYPE_LEN ) ||
-               n.equals( SASS_SEQ_NO, SASS_SEQ_NO_LEN ) ||
-               n.equals( SASS_REC_STATUS, SASS_REC_STATUS_LEN ) );
+  #define B( c ) ( 1U << ( c - 'M' ) )
+  static const uint32_t mask = B( 'M' ) | B( 'R' ) | B( 'S' );
+  if ( n.fnamelen >= SASS_SEQ_NO_LEN - 1 &&
+       ( B( n.fname[ 0 ] ) & mask ) != 0 ) {
+  #undef B
+    static const uint32_t MSG_TYPE   = 0x545f4753U, /*w4c( 'S', 'G', '_', 'T' ),*/
+                          REC_TYPE   = 0x545f4345U, /*w4c( 'E', 'C', '_', 'T' ),*/
+                          SEQ_NO     = 0x4e5f5145U, /*w4c( 'E', 'Q', '_', 'N' ),*/
+                          REC_STATUS = 0x535f4345U, /*w4c( 'E', 'C', '_', 'S' ),*/
+                          SYMBOL     = 0x4f424d59U; /*w4c( 'Y', 'M', 'B', 'O' );*/
+    uint32_t x = w4c( n.fname[ 1 ], n.fname[ 2 ], n.fname[ 3 ], n.fname[ 4 ] );
+    if ( x >= SEQ_NO && x <= MSG_TYPE ) {
+      if ( x == MSG_TYPE )
+        return n.equals( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN );
+      if ( x == REC_TYPE )
+        return n.equals( SASS_REC_TYPE, SASS_REC_TYPE_LEN );
+      if ( x == SEQ_NO )
+        return n.equals( SASS_SEQ_NO, SASS_SEQ_NO_LEN );
+      if ( x == REC_STATUS )
+        return n.equals( SASS_REC_STATUS, SASS_REC_STATUS_LEN );
+      if ( x == SYMBOL )
+        return n.equals( SASS_SYMBOL, SASS_SYMBOL_LEN );
     }
   }
   return false;

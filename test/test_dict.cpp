@@ -152,11 +152,12 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict ) noexcept
   printf( "build size %" PRIu64 "\n", dict_build.idx->total_size() );
   printf( "fname %u\n", dict->ht_off - dict->fname_off );
   printf( "shift %u align %u\n", dict->fname_shft, dict->fname_algn );
-  printf( "entry count %" PRIu64 "\n", dict_build.idx->entry_count );
-  printf( "fid min %u max %u\n", dict_build.idx->min_fid,
-                                 dict_build.idx->max_fid );
+  printf( "entry count %u\n", dict->entry_count );
+  printf( "fid min %u max %u\n", dict->min_fid, dict->max_fid );
   printf( "type count %u/%u\n", dict_build.idx->type_hash->htcnt,
-                             dict_build.idx->type_hash->htsize() );
+                                dict_build.idx->type_hash->htsize() );
+  printf( "enum count %u\n", dict->map_count );
+  printf( "form count %u\n", dict->form_count );
   printf( "index size %u\n", dict->dict_size );
   const char * val;
   size_t val_sz;
@@ -202,6 +203,19 @@ test_lookup( MDDictBuild &dict_build,  MDDict *dict ) noexcept
           printf( "  enum[%u] = %.*s\n", val, (int) disp_len, disp );
         }*/
       }
+    }
+    else if ( fp->ftype == MD_MESSAGE && fp->map_num != 0 ) {
+      MDFormClass * fc = dict->get_form_class( fp->fid );
+      if ( fc == NULL ) {
+        printf( "no form class for \"%.*s\"\n", fp->fnamelen, fp->fname() );
+      }
+      /*else {
+        printf( "form class \"%.*s\" %u fid count %u: {\n",
+         fp->fnamelen, fp->fname(), fp->fid, fc->nentries );
+        for ( uint32_t i = 0; i < fc->nentries; i++ )
+          printf( "%u ", fc->entries[ i ].fid );
+        printf( "\n}\n" );
+      }*/
     }
   }
   fidcnt = 0;
@@ -649,11 +663,11 @@ gen_sass_entry( MDFid new_fid,  const MDDictEntry &mentry,  SassCounts &cnt,
 static void
 gen_enum_defs( MDDict *dict ) noexcept
 {
-  for ( uint32_t mapnum = 1; mapnum < dict->map_count; mapnum++ ) {
+  for ( uint32_t map_num = 1; map_num < dict->map_count; map_num++ ) {
     bool first = true;
     for ( MDFid fid = dict->min_fid; fid <= dict->max_fid; fid++ ) {
       MDLookup by( fid );
-      if ( dict->lookup( by ) && by.enummap == mapnum ) {
+      if ( dict->lookup( by ) && by.map_num == map_num ) {
         if ( first ) {
 printf(
 "! ACRONYM    FID\n"
@@ -666,7 +680,7 @@ printf(
       }
     }
     if ( ! first ) {
-      MDEnumMap *map = dict->get_enum_map( mapnum );
+      MDEnumMap *map = dict->get_enum_map( map_num );
       if ( map != NULL ) {
         uint16_t * vidx = map->value();
         uint8_t  * vmap = map->map();

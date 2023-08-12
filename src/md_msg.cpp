@@ -408,13 +408,14 @@ Err::err( int status ) noexcept
   /* 36 */ { TOO_BIG,               "Json too large for parser", mod },
   /* 37 */ { INVALID_TOKEN,         "Invalid token", mod },
   /* 38 */ { NO_ENUM,               "No enum", mod },
-  /* 39 */ { NO_PARTIAL,            "No partial", mod },
-  /* 40 */ { FILE_NOT_FOUND,        "File not found", mod },
-  /* 41 */ { DICT_PARSE_ERROR,      "Dictionary parse error", mod },
-  /* 42 */ { ALLOC_FAIL,            "Allocation failed", mod },
-  /* 43 */ { BAD_SUBJECT,           "Bad subject", mod },
-  /* 44 */ { BAD_FORMAT,            "Bad msg structure", mod },
-  /* 45 */ { 45,                    "Unk", mod }
+  /* 39 */ { NO_FORM,               "No form", mod },
+  /* 40 */ { NO_PARTIAL,            "No partial", mod },
+  /* 41 */ { FILE_NOT_FOUND,        "File not found", mod },
+  /* 42 */ { DICT_PARSE_ERROR,      "Dictionary parse error", mod },
+  /* 43 */ { ALLOC_FAIL,            "Allocation failed", mod },
+  /* 44 */ { BAD_SUBJECT,           "Bad subject", mod },
+  /* 45 */ { BAD_FORMAT,            "Bad msg structure", mod },
+  /* 46 */ { 46,                    "Unk", mod }
   };
   static const uint32_t num = sizeof( err ) / sizeof( err[ 0 ] ) - 1;
 

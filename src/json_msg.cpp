@@ -345,6 +345,45 @@ JsonFieldIter::next( void ) noexcept
   return 0;
 }
 
+bool
+JsonMsgWriter::resize( size_t len ) noexcept
+{
+  static const size_t max_size = 0x3fffffff; /* 1 << 30 - 1 == 1073741823 */
+  if ( this->err != 0 )
+    return false;
+  JsonMsgWriter *p = this;
+  for ( ; p->parent != NULL; p = p->parent )
+    ;
+  if ( len > max_size )
+    return false;
+  size_t old_len = p->buflen,
+         new_len = old_len + ( len - this->off );
+  if ( new_len > max_size )
+    return false;
+  if ( new_len < old_len * 2 )
+    new_len = old_len * 2;
+  else
+    new_len += 1024;
+  if ( new_len > max_size )
+    new_len = max_size;
+  uint8_t * old_buf = p->buf,
+          * new_buf = old_buf;
+  this->mem.extend( old_len, new_len, &new_buf );
+  uint8_t * end = &new_buf[ new_len ];
+
+  p->buf    = new_buf;
+  p->buflen = new_len;
+
+  for ( JsonMsgWriter *c = this; c != p; c = c->parent ) {
+    if ( c->buf >= old_buf && c->buf < &old_buf[ old_len ] ) {
+      size_t off = c->buf - old_buf;
+      c->buf = &new_buf[ off ];
+      c->buflen = end - c->buf;
+    }
+  }
+  return this->off + len <= this->buflen;
+}
+
 int
 JsonMsgWriter::append_field_name( const char *fname, size_t fname_len ) noexcept
 {
@@ -388,18 +427,18 @@ JsonMsgWriter::append_ref( MDReference &mref ) noexcept
     case MD_STRING:
     case MD_OPAQUE:
     case MD_PARTIAL: {
-      ptr = (char *) &this->buf[ this->off ];
       if ( ! this->has_space( MDMsg::get_escaped_string_len( mref, "\"" )+1 ) )
         return this->error( Err::NO_SPACE );
+      ptr = (char *) &this->buf[ this->off ];
       this->off += MDMsg::get_escaped_string_output( mref, "\"", ptr );
       break;
     }
     case MD_INT: {
       int64_t ival = get_int<uint64_t>( mref );
       size_t  len  = int_digs( ival );
-      ptr = (char *) &this->buf[ this->off ];
       if ( ! this->has_space( len ) )
         return this->error( Err::NO_SPACE );
+      ptr = (char *) &this->buf[ this->off ];
       this->off += int_str( ival, ptr, len );
       break;
     }
@@ -430,9 +469,9 @@ JsonMsgWriter::append_ref( MDReference &mref ) noexcept
     case MD_UINT: {
       uint64_t ival = get_uint<uint64_t>( mref );
       size_t   len  = uint_digs( ival );
-      ptr = (char *) &this->buf[ this->off ];
       if ( ! this->has_space( len ) )
         return this->error( Err::NO_SPACE );
+      ptr = (char *) &this->buf[ this->off ];
       this->off += uint_str( ival, ptr, len );
       break;
     }
@@ -519,6 +558,7 @@ JsonMsgWriter::append_msg( const char *fname,  size_t fname_len,
   submsg.buflen = this->buflen - this->off;
   submsg.flags  = 0;
   submsg.err    = 0;
+  submsg.parent = this;
   return submsg;
 }
 
@@ -536,7 +576,7 @@ JsonMsgWriter::convert_msg( MDMsg &msg ) noexcept
       if ( name.fnamelen > 0 ) {
         switch ( mref.ftype ) {
           case MD_MESSAGE: {
-            JsonMsgWriter submsg( NULL, 0 );
+            JsonMsgWriter submsg( this->mem, NULL, 0 );
             MDMsg * msg2 = NULL;
             this->append_msg( name.fname, name.fnamelen, submsg );
             status = this->err;

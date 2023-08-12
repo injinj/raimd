@@ -178,20 +178,20 @@ RwfSeriesWriter::encode_enum_dictionary( uint32_t start_mapnum,
     }
     el.end_summary();
   }
-  uint32_t mapnum = start_mapnum;
-  for ( ; mapnum < d.map_count; mapnum++ ) {
+  uint32_t map_num = start_mapnum;
+  for ( ; map_num < d.map_count; map_num++ ) {
     int16_t  fids[ MAX_FIDS ];
     uint32_t fid_cnt = 0;
     for ( MDFid fid = d.min_fid; fid <= d.max_fid; fid++ ) {
       MDLookup by( fid );
 
-      if ( d.lookup( by ) && by.enummap == mapnum && fid_cnt < MAX_FIDS )
+      if ( d.lookup( by ) && by.map_num == map_num && fid_cnt < MAX_FIDS )
         fids[ fid_cnt++ ] = fid;
     }
     if ( fid_cnt == 0 )
       continue;
 
-    MDEnumMap * map = d.get_enum_map( mapnum );
+    MDEnumMap * map = d.get_enum_map( map_num );
     uint16_t    values[ MAX_VALUES ];
     uint16_t  * val      = map->value();
     uint8_t   * disp     = map->map();
@@ -219,7 +219,7 @@ RwfSeriesWriter::encode_enum_dictionary( uint32_t start_mapnum,
     if ( this->off >= buflen )
       break;
   }
-  end_mapnum = mapnum + 1;
+  end_mapnum = map_num + 1;
   return *this;
 }
 

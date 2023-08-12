@@ -355,9 +355,10 @@ TibSassFieldIter::unpack( void ) noexcept
   return 0;
 }
 
-TibSassMsgWriter::TibSassMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept
-    : dict( d ), buf( (uint8_t *) bb ), off( 0 ), buflen( len ), err( 0 ),
-      unk_fid( 0 )
+TibSassMsgWriter::TibSassMsgWriter( MDMsgMem &m,  MDDict *d,  void *bb,
+                                    size_t len ) noexcept
+    : mem( m ), dict( d ), form( NULL ), buf( (uint8_t *) bb ), off( 0 ),
+      buflen( len ), err( 0 ), unk_fid( 0 ), use_form( false )
 {
   for ( ; d != NULL; d = d->next ) {
     if ( d->dict_type[ 0 ] == 'c' ) { /* look for cfile type */
@@ -367,33 +368,130 @@ TibSassMsgWriter::TibSassMsgWriter( MDDict *d,  void *bb,  size_t len ) noexcept
   }
 }
 
+TibSassMsgWriter::TibSassMsgWriter( MDMsgMem &m,  MDFormClass &f,  void *bb,
+                                    size_t len ) noexcept
+    : mem( m ), dict( &f.dict ), form( &f ), buf( (uint8_t *) bb ), off( 0 ),
+      buflen( len ), err( 0 ), unk_fid( 0 ), use_form( false )
+{
+}
+
+bool
+TibSassMsgWriter::resize( size_t len ) noexcept
+{
+  static const size_t max_size = 0x3fffffff; /* 1 << 30 - 1 == 1073741823 */
+  if ( this->err != 0 )
+    return false;
+  size_t old_len = this->buflen,
+         new_len = this->buflen + ( len - this->off ) + 8;
+  if ( new_len > max_size )
+    return false;
+  if ( new_len < old_len * 2 )
+    new_len = old_len * 2;
+  else
+    new_len += 1024;
+  if ( new_len > max_size )
+    new_len = max_size;
+  uint8_t * new_buf = this->buf;
+  this->mem.extend( old_len, new_len, &new_buf );
+  this->buf    = new_buf;
+  this->buflen = new_len;
+  return this->off + 8 + len <= this->buflen;
+}
+
+TibSassMsgWriter &
+TibSassMsgWriter::append_form_record( void ) noexcept
+{
+  if ( this->form == NULL )
+    return this->error( Err::NO_FORM );
+  if ( this->off < this->form->form_size &&
+       ! this->has_space( this->form->form_size - this->off ) )
+    return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = &this->buf[ 8 ];
+  for ( uint32_t i = 0; i < this->form->nentries; i++ ) {
+    MDFormEntry & entry = this->form->entries[ i ];
+    if ( entry.foffset >= this->off ) {
+      if ( entry.foffset > this->off ) {
+        ::memset( &ptr[ this->off ], 0, entry.foffset - this->off );
+        this->off = entry.foffset;
+      }
+      uint16_t fid = entry.fid;
+      fid |= ( (uint16_t) (MD_FIXED | MD_PRIMITIVE) << 14 );
+      ptr[ entry.foffset ]     = (uint8_t) ( ( fid >> 8 ) & 0xffU );
+      ptr[ entry.foffset + 1 ] = (uint8_t) ( fid & 0xffU );
+      this->off = entry.foffset + 2;
+    }
+  }
+  if ( this->form->form_size > this->off ) {
+    ::memset( &ptr[ this->off ], 0, this->form->form_size - this->off );
+    this->off = this->form->form_size;
+  }
+  this->use_form = true;
+  return *this;
+}
+
+bool
+TibSassMsgWriter::lookup( MDLookup &by,  const MDFormEntry *&entry ) noexcept
+{
+  if ( this->form != NULL ) {
+    if ( (entry = this->form->lookup( by )) == NULL )
+      return false;
+  }
+  else {
+    entry = NULL;
+    if ( ! this->dict->lookup( by ) )
+      return false;
+  }
+  return true;
+}
+
 TibSassMsgWriter &
 TibSassMsgWriter::append_ref( MDFid fid,  MDReference &mref ) noexcept
 {
+  const MDFormEntry * entry;
   MDLookup by( fid );
 
-  if ( ! this->dict->lookup( by ) )
+  if ( ! this->lookup( by, entry ) )
     return this->unknown_fid();
-  return this->append_ref( fid, by.ftype, by.fsize, by.flags, mref );
+  return this->append_ref( fid, by.ftype, by.fsize, by.flags, mref,
+                           entry );
+}
+
+bool
+TibSassMsgWriter::get( MDLookup &by,  const MDFormEntry *&entry ) noexcept
+{
+  if ( this->form != NULL ) {
+    if ( (entry = this->form->get( by )) == NULL )
+      return false;
+  }
+  else {
+    entry = NULL;
+    if ( ! this->dict->get( by ) )
+      return false;
+  }
+  return true;
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_ref( const char *fname,  size_t fname_len,
                               MDReference &mref ) noexcept
 {
+  const MDFormEntry * entry;
   MDLookup by( fname, fname_len );
 
-  if ( ! this->dict->get( by ) )
+  if ( ! this->get( by, entry ) )
     return this->unknown_fid();
-  return this->append_ref( by.fid, by.ftype, by.fsize, by.flags, mref );
+  return this->append_ref( by.fid, by.ftype, by.fsize, by.flags, mref,
+                           entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
-                              uint8_t flags,  MDReference &mref ) noexcept
+                              uint8_t flags,  MDReference &mref,
+                              const MDFormEntry *entry ) noexcept
 {
   char      str_buf[ 64 ];
-  uint8_t * ptr  = &this->buf[ this->off + 8 ],
+  uint8_t * ptr,
           * fptr = mref.fptr;
   size_t    slen,
             zpad = 0,
@@ -403,9 +501,14 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
   int       status;
 
   len = tib_sass_pack_size( fsize );
-  if ( ftype != MD_PARTIAL ) {
-    if ( ! this->has_space( len ) )
-      return this->error( Err::NO_SPACE );
+  if ( entry != NULL && this->use_form )
+    ptr = &this->buf[ entry->foffset + 8 ];
+  else {
+    if ( ftype != MD_PARTIAL ) {
+      if ( ! this->has_space( len ) )
+        return this->error( Err::NO_SPACE );
+    }
+    ptr = &this->buf[ this->off + 8 ];
   }
   switch ( ftype ) {
     case MD_DECIMAL: {
@@ -413,7 +516,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       status = dec.get_decimal( mref );
       if ( status != 0 )
         return this->error( status );
-      return this->append_decimal( fid, ftype, fsize, dec );
+      return this->append_decimal( fid, ftype, fsize, dec, entry );
     }
     case MD_TIME:
       if ( mref.ftype != MD_STRING ) {
@@ -421,7 +524,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
         status = time.get_time( mref );
         if ( status != 0 )
           return this->error( status );
-        return this->append_time( fid, ftype, fsize, time );
+        return this->append_time( fid, ftype, fsize, time, entry );
       }
       break;
     case MD_DATE: {
@@ -430,7 +533,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
         status = date.get_date( mref );
         if ( status != 0 )
           return this->error( status );
-        return this->append_date( fid, ftype, fsize, date );
+        return this->append_date( fid, ftype, fsize, date, entry );
       }
       break;
     }
@@ -558,6 +661,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       len = tib_sass_variable_pack_size( fsize, fsize + zpad );
     if ( ! this->has_space( len ) )
       return this->error( Err::NO_SPACE );
+    ptr = &this->buf[ this->off + 8 ];
     fid |= ( (uint16_t) flags << 14 ); /* FIXED = 2, PRIMITIVE = 1 */
     ptr[ 0 ] = (uint8_t) ( ( fid >> 8 ) & 0xffU );
     ptr[ 1 ] = (uint8_t) ( fid & 0xffU );
@@ -627,7 +731,8 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
-                                  MDDecimal &dec ) noexcept
+                                  MDDecimal &dec,
+                                  const MDFormEntry *entry ) noexcept
 {
   MDReference mref;
   double      fval;
@@ -640,18 +745,23 @@ TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
     mref.ftype    = MD_STRING;
     mref.fendian  = MD_BIG;
     mref.fentrysz = 0;
-    return this->append_ref( fid, ftype, fsize, MD_FIXED, mref );
+    return this->append_ref( fid, ftype, fsize, MD_FIXED, mref, entry );
   }
   if ( dec.get_real( fval ) == 0 ) {
     if ( ftype == MD_DECIMAL ) {
-      uint8_t * ptr  = &this->buf[ this->off + 8 ],
+      uint8_t * ptr,
               * fptr,
                 h; /* translate md hint into tib hint */
       size_t    n    = ( fsize > 8 ? 8 : 4 ),
                 len  = tib_sass_pack_size( fsize );
-      if ( ! this->has_space( len ) )
-        return this->error( Err::NO_SPACE );
 
+      if ( entry != NULL && this->use_form )
+        ptr = &this->buf[ entry->foffset + 8 ];
+      else {
+        if ( ! this->has_space( len ) )
+          return this->error( Err::NO_SPACE );
+        ptr = &this->buf[ this->off + 8 ];
+      }
       switch ( dec.hint ) {
         default:
           if ( dec.hint == MD_DEC_INTEGER ) {
@@ -715,14 +825,14 @@ TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
     mref.ftype    = MD_REAL;
     mref.fendian  = md_endian;
     mref.fentrysz = 0;
-    return this->append_ref( fid, ftype, fsize, MD_FIXED, mref );
+    return this->append_ref( fid, ftype, fsize, MD_FIXED, mref, entry );
   }
   return this->error( Err::BAD_CVT_NUMBER );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
-                               MDTime &time ) noexcept
+                               MDTime &time, const MDFormEntry *entry ) noexcept
 {
   char        sbuf[ 32 ];
   MDReference mref;
@@ -744,12 +854,12 @@ TibSassMsgWriter::append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
   mref.ftype    = MD_STRING;
   mref.fendian  = MD_BIG;
   mref.fentrysz = 0;
-  return this->append_ref( fid, ftype, fsize, MD_FIXED, mref );
+  return this->append_ref( fid, ftype, fsize, MD_FIXED, mref, entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
-                               MDDate &date ) noexcept
+                               MDDate &date, const MDFormEntry *entry ) noexcept
 {
   char        sbuf[ 32 ];
   MDReference mref;
@@ -759,12 +869,12 @@ TibSassMsgWriter::append_date( MDFid fid,  MDType ftype,  uint32_t fsize,
   mref.ftype    = MD_STRING;
   mref.fendian  = MD_BIG;
   mref.fentrysz = 0;
-  return this->append_ref( fid, ftype, fsize, MD_FIXED, mref );
+  return this->append_ref( fid, ftype, fsize, MD_FIXED, mref, entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_enum( MDFid fid,  MDType ftype,  uint32_t fsize,
-                               MDEnum &enu ) noexcept
+                               MDEnum &enu,  const MDFormEntry *entry ) noexcept
 {
   MDReference mref;
   if ( ftype == MD_STRING ) {
@@ -779,81 +889,88 @@ TibSassMsgWriter::append_enum( MDFid fid,  MDType ftype,  uint32_t fsize,
   }
   mref.fendian  = MD_BIG;
   mref.fentrysz = 0;
-  return this->append_ref( fid, ftype, fsize, MD_FIXED, mref );
+  return this->append_ref( fid, ftype, fsize, MD_FIXED, mref, entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_decimal( MDFid fid,  MDDecimal &dec ) noexcept
 {
+  const MDFormEntry * entry;
   MDLookup by( fid );
 
-  if ( ! this->dict->lookup( by ) )
+  if ( ! this->lookup( by, entry ) )
     return this->unknown_fid();
-  return this->append_decimal( fid, by.ftype, by.fsize, dec );
+  return this->append_decimal( fid, by.ftype, by.fsize, dec, entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_time( MDFid fid,  MDTime &time ) noexcept
 {
+  const MDFormEntry * entry;
   MDLookup by( fid );
 
-  if ( ! this->dict->lookup( by ) )
+  if ( ! this->lookup( by, entry ) )
     return this->unknown_fid();
-  return this->append_time( fid, by.ftype, by.fsize, time );
+  return this->append_time( fid, by.ftype, by.fsize, time, entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_date( MDFid fid,  MDDate &date ) noexcept
 {
+  const MDFormEntry * entry;
   MDLookup by( fid );
 
-  if ( ! this->dict->lookup( by ) )
+  if ( ! this->lookup( by, entry ) )
     return this->unknown_fid();
-  return this->append_date( fid, by.ftype, by.fsize, date );
+  return this->append_date( fid, by.ftype, by.fsize, date, entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_decimal( const char *fname,  size_t fname_len,
                                   MDDecimal &dec ) noexcept
 {
+  const MDFormEntry * entry;
   MDLookup by( fname, fname_len );
 
-  if ( ! this->dict->get( by ) )
+  if ( ! this->get( by, entry ) )
     return this->unknown_fid();
-  return this->append_decimal( by.fid, by.ftype, by.fsize, dec );
+  return this->append_decimal( by.fid, by.ftype, by.fsize, dec, entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_time( const char *fname,  size_t fname_len,
                                MDTime &time ) noexcept
 {
+  const MDFormEntry * entry;
   MDLookup by( fname, fname_len );
 
-  if ( ! this->dict->get( by ) )
+  if ( ! this->get( by, entry ) )
     return this->unknown_fid();
-  return this->append_time( by.fid, by.ftype, by.fsize, time );
+  return this->append_time( by.fid, by.ftype, by.fsize, time, entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_date( const char *fname,  size_t fname_len,
                                MDDate &date ) noexcept
 {
+  const MDFormEntry * entry;
   MDLookup by( fname, fname_len );
 
-  if ( ! this->dict->get( by ) )
+  if ( ! this->get( by, entry ) )
     return this->unknown_fid();
-  return this->append_date( by.fid, by.ftype, by.fsize, date );
+  return this->append_date( by.fid, by.ftype, by.fsize, date, entry );
 }
 
 TibSassMsgWriter &
 TibSassMsgWriter::append_enum( const char *fname,  size_t fname_len,
                                MDEnum &enu ) noexcept
 {
+  const MDFormEntry * entry;
   MDLookup by( fname, fname_len );
 
-  if ( ! this->dict->get( by ) )
+  if ( ! this->get( by, entry ) )
     return this->unknown_fid();
-  return this->append_enum( by.fid, by.ftype, by.fsize, enu );
+  return this->append_enum( by.fid, by.ftype, by.fsize, enu, entry );
 }
 
 TibSassMsgWriter &
@@ -862,8 +979,9 @@ TibSassMsgWriter::append_iter( MDFieldIter *iter ) noexcept
   size_t len = iter->field_end - iter->field_start;
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
-  uint8_t * ptr = &this->buf[ this->off + 8 ];
-  ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
+  uint8_t * ptr  = &this->buf[ this->off + 8 ],
+          * iptr = &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ];
+  ::memcpy( ptr, iptr, len );
   this->off += len;
   return *this;
 }
@@ -877,7 +995,7 @@ TibSassMsgWriter::convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept
     if ( (status = iter->first()) == 0 ) {
       do {
         MDName      n;
-        MDReference mref, href;
+        MDReference mref/*, href*/;
         MDEnum      enu;
         if ( (status = iter->get_name( n )) == 0 &&
              (status = iter->get_reference( mref )) == 0 ) {
@@ -891,8 +1009,8 @@ TibSassMsgWriter::convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept
                                  get_uint<uint16_t>( mref ) );
           }
           else {
-            iter->get_hint_reference( href );
-            this->append_ref( n.fname, n.fnamelen, mref, href );
+            /*iter->get_hint_reference( href );*/
+            this->append_ref( n.fname, n.fnamelen, mref/*, href*/ );
           }
           status = this->err;
         }

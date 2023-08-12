@@ -32,6 +32,12 @@ MDDict::dict_equals( const char *fname,  size_t len,
   return len == len2 && ::memcmp( fname, fname2, len ) == 0;
 }
 
+size_t
+MDFormKey::hash( MDFid fid ) noexcept
+{
+  return hash_u32( fid );
+}
+
 uint32_t
 MDDictIdx::file_lineno( const char *filename,  uint32_t lineno ) noexcept
 {
@@ -205,6 +211,31 @@ MDDictBuild::add_enum_map( MDEnumAdd &a ) noexcept
   return 0;
 }
 
+int
+MDDictBuild::add_form_build( MDFormBuild &fb ) noexcept
+{
+  MDFormList * fmap;
+  size_t       map_sz = MDFormMap::map_sz( fb.code_size ),
+               sz     = sizeof( MDFormList ) + map_sz;
+  uint16_t   * code_cp;
+
+  MDDictIdx * dict = this->get_dict_idx();
+  if ( dict == NULL )
+    return Err::ALLOC_FAIL;
+  fmap = dict->alloc<MDFormList>( sz );
+  if ( dict->form_cnt == 0 ) /* leave map 0 empty */
+    dict->form_cnt = 1;
+  fb.map_num          = dict->form_cnt++;
+  fmap->map.map_num   = fb.map_num;
+  fmap->map.code_size = fb.code_size;
+  code_cp             = fmap->map.code();
+  ::memcpy( code_cp, fb.code, fb.code_size * sizeof( fb.code[ 0 ] ) );
+  dict->form_q.push_tl( fmap );
+  dict->form_size += sizeof( MDFormMap ) + map_sz;
+
+  return 0;
+}
+
 MDDictEntry *
 MDDictIdx::get_fid_entry( MDFid fid ) noexcept
 {
@@ -313,6 +344,21 @@ MDDictBuild::update_entry_enum( MDFid fid,  uint32_t map_num,
     if ( enum_len != 0 )
       entry->enum_len = enum_len;
   }
+  return 0;
+}
+
+int
+MDDictBuild::update_entry_form( MDFid fid,  uint32_t map_num ) noexcept
+{
+  MDDictIdx   * dict = this->get_dict_idx();
+  MDDictEntry * entry;
+  if ( dict == NULL )
+    return Err::ALLOC_FAIL;
+  if ( (entry = dict->get_fid_entry( fid )) == NULL )
+    return Err::NO_FORM;
+  if ( entry->ftype != MD_MESSAGE )
+    return Err::NO_FORM;
+  entry->map_num = map_num;
   return 0;
 }
 
@@ -545,6 +591,7 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
           tabsz,
           typetabsz,
           map_off,
+          form_off,
           tag_off = 0,
           ntags   = 0,
           tagsz   = 1;
@@ -571,6 +618,9 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
   map_off   = sz;      /* enum map offset */
   sz       += dict_idx->map_cnt * sizeof( uint32_t ) +
               dict_idx->map_size; /* enum map size */
+  form_off  = sz;      /* enum map offset */
+  sz       += dict_idx->form_cnt * sizeof( uint32_t ) +
+              dict_idx->form_size; /* enum map size */
   if ( ntags > 0 ) {
     tag_off = sz;
     sz     += tagsz;
@@ -602,16 +652,20 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
   dict->ht_size     = (uint32_t) httabsz;
   dict->map_off     = (uint32_t) map_off;
   dict->map_count   = (uint32_t) dict_idx->map_cnt;
+  dict->form_off    = (uint32_t) form_off;
+  dict->form_count  = (uint32_t) dict_idx->form_cnt;
   dict->fid_bits    = (uint8_t) fidbits;
   dict->tag_off     = (uint32_t) tag_off;
   dict->dict_size   = (uint32_t) sz; /* write( fd, dict, sz ) does save/replicate dict */
 
   uint64_t * typetab   = (uint64_t *) &((uint8_t *) ptr)[ sizeof( dict[ 0 ] ) ];
-  uint32_t * maptab    = (uint32_t *) &((uint8_t *) ptr)[ map_off ];
+  uint32_t * maptab    = (uint32_t *) &((uint8_t *) ptr)[ map_off ],
+           * formtab   = (uint32_t *) &((uint8_t *) ptr)[ form_off ];
   uint8_t  * tab       = (uint8_t *) &typetab[ dict_idx->type_hash->htsize() ],
            * fntab     = &tab[ tabsz ],
            * httab     = &fntab[ fnamesz ],
-           * mapdata   = (uint8_t *) (void *) &maptab[ dict_idx->map_cnt ];
+           * mapdata   = (uint8_t *) (void *) &maptab[ dict_idx->map_cnt ],
+           * formdata  = (uint8_t *) (void *) &formtab[ dict_idx->form_cnt ];
   uint32_t   fname_off    = 0,
              fn_algn_mask = ( 1U << fn_algn ) - 1,
              fid_mask     = ( 1U << fidbits ) - 1,
@@ -682,6 +736,13 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
     ::memcpy( mapdata, &ep->map, mapsz );
     mapdata = &mapdata[ mapsz ];
   }
+  for ( MDFormList *fp = dict_idx->form_q.hd; fp != NULL; fp = fp->next ) {
+    formtab[ fp->map.map_num ] = /* formtab[ formtab[ j ] ] */
+      (uint32_t) ( (uint32_t *) formdata - formtab );
+    size_t mapsz = fp->map.map_sz() + sizeof( MDFormMap );
+    ::memcpy( formdata, &fp->map, mapsz );
+    formdata = &formdata[ mapsz ];
+  }
   if ( ntags > 0 ) {
     uint8_t * p = &((uint8_t *) ptr)[ tag_off ];
     for ( t = dict_idx->tag_q.hd; t != NULL; t = t->next ) {
@@ -708,7 +769,7 @@ MDDict::get_enum_text( MDFid fid,  uint16_t val,  const char *&disp,
     return false;
   if ( by.ftype != MD_ENUM )
     return false;
-  return this->get_enum_map_text( by.enummap, val, disp, disp_len );
+  return this->get_enum_map_text( by.map_num, val, disp, disp_len );
 }
 
 bool
@@ -766,7 +827,7 @@ MDDict::get_enum_val( MDFid fid,  const char *disp,  size_t disp_len,
     return false;
   if ( by.ftype != MD_ENUM )
     return false;
-  return this->get_enum_map_val( by.enummap, disp, disp_len, val );
+  return this->get_enum_map_val( by.map_num, disp, disp_len, val );
 }
 
 bool
@@ -810,6 +871,65 @@ MDDict::get_enum_map( uint32_t map_num ) noexcept
   if ( maptab[ map_num ] == 0 )
     return NULL;
   return (MDEnumMap *) (void *) &maptab[ maptab[ map_num ] ];
+}
+
+MDFormClass *
+MDDict::get_form_class( MDFid fid ) noexcept
+{
+  MDFormKey     k( fid );
+  size_t        pos;
+  MDFormClass * fc;
+
+  if ( this->form_class_ht.tab == NULL )
+    this->form_class_ht.init( 16 );
+  fc = this->form_class_ht.find( k, pos );
+  if ( fc != NULL )
+    return fc;
+  MDLookup by( fid );
+  if ( ! this->lookup( by ) )
+    return NULL;
+  if ( by.ftype != MD_MESSAGE || by.map_num == 0 )
+    return NULL;
+  MDFormMap *map = this->get_form_map( by.map_num );
+  if ( map == NULL )
+    return NULL;
+  fc = MDFormClass::make_form_class( *this, fid, *map );
+  this->form_class_ht.insert( pos, fc );
+  return fc;
+}
+
+MDFormClass *
+MDDict::get_form_class( MDLookup &by ) noexcept
+{
+  MDFormKey     k( by.fid );
+  size_t        pos;
+  MDFormClass * fc;
+
+  if ( this->form_class_ht.tab == NULL )
+    this->form_class_ht.init( 16 );
+  fc = this->form_class_ht.find( k, pos );
+  if ( fc != NULL )
+    return fc;
+  if ( by.ftype != MD_MESSAGE || by.map_num == 0 )
+    return NULL;
+  MDFormMap *map = this->get_form_map( by.map_num );
+  if ( map == NULL )
+    return NULL;
+  fc = MDFormClass::make_form_class( *this, by.fid, *map );
+  this->form_class_ht.insert( pos, fc );
+  return fc;
+}
+
+MDFormMap *
+MDDict::get_form_map( uint32_t map_num ) noexcept
+{
+  if ( map_num >= this->form_count )
+    return NULL;
+  uint32_t * maptab = (uint32_t *) (void *)
+                      &((uint8_t *) (void *) this)[ this->form_off ];
+  if ( maptab[ map_num ] == 0 )
+    return NULL;
+  return (MDFormMap *) (void *) &maptab[ maptab[ map_num ] ];
 }
 
 bool

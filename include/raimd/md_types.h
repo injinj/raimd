@@ -449,12 +449,13 @@ namespace Err {
     TOO_BIG               = 36, /* Json too large for parser */
     INVALID_TOKEN         = 37, /* Invalid token */
     NO_ENUM               = 38, /* No enum */
-    NO_PARTIAL            = 39, /* No partial */
-    FILE_NOT_FOUND        = 40, /* File not found */
-    DICT_PARSE_ERROR      = 41, /* Dictionary parse error */
-    ALLOC_FAIL            = 42, /* Allocation failed */
-    BAD_SUBJECT           = 43, /* Bad subject */
-    BAD_FORMAT            = 44  /* Bad msg structure */
+    NO_FORM               = 39, /* No enum */
+    NO_PARTIAL            = 40, /* No partial */
+    FILE_NOT_FOUND        = 41, /* File not found */
+    DICT_PARSE_ERROR      = 42, /* Dictionary parse error */
+    ALLOC_FAIL            = 43, /* Allocation failed */
+    BAD_SUBJECT           = 44, /* Bad subject */
+    BAD_FORMAT            = 45  /* Bad msg structure */
   };
   MDError err( int status ) noexcept;
 }

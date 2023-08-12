@@ -391,12 +391,39 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
                                 p->ident_lineno ); */
           /*printf( "(%s:%u) %s { class-id %u, size %u, type %u }\n",
                   p->fname, p->ident_lineno,
-                  p->ident, p->class_id, p->data_size, p->data_type );
-          if ( p->fld_hd != NULL ) {
-            for ( CFRecField *f = p->fld_hd; f != NULL; f = f->next )
-              printf( "%s/%s ", f->fname, f->classname );
-            printf( "\n" );
-          }*/
+                  p->ident, p->class_id, p->data_size, p->data_type );*/
+          if ( p->fld.hd != NULL ) {
+            MDFormBuild form_build;
+            for ( CFRecField *f = p->fld.hd; f != NULL; f = f->next ) {
+              /*printf( "%s/%s ", f->fname, f->classname );*/
+              size_t len = ::strlen( f->classname ) + 1;
+              uint32_t h = MDDict::dict_hash( f->classname, len );
+              MDDictEntry *entry =
+                dict_build.idx->get_fname_entry( f->classname, len, h );
+              if ( entry == NULL ) {
+                fprintf( stderr, "form %s, field %s undefined at \"%s\" line %u\n",
+                         p->ident, f->classname, p->fname, p->lineno );
+              }
+              else {
+                if ( ! form_build.add( entry->fid ) ) {
+                  fprintf( stderr, "form %s, field %s too many fids \"%s\" line %u\n",
+                           p->ident, f->classname, p->fname, p->lineno );
+                  form_build.nfids = 0;
+                  break;
+                }
+              }
+            }
+            if ( form_build.nfids > 0 ) {
+              if ( ! form_build.compress() ) {
+                fprintf( stderr, "form %s, too many fids \"%s\" line %u\n",
+                         p->ident, p->fname, p->lineno );
+              }
+              else {
+                dict_build.add_form_build( form_build );
+                dict_build.update_entry_form( p->class_id, form_build.map_num );
+              }
+            }
+          }
           p->clear_ident();
         }
         else if ( p->cf_includes )
@@ -513,6 +540,226 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
     }
   }
   return ret;
+}
+
+bool
+MDFormBuild::compress( void ) noexcept
+{
+  size_t i = 0, j, k, n, rng, x, start, end, bit;
+  uint16_t bits[ 4 * 1024 ];
+
+  ::memset( bits, 0, sizeof( bits ) );
+  n = 0;
+  x = 1;
+  for (;;) {
+    for ( j = i + 1; ; j++ ) {
+      if ( j == this->nfids )
+        break;
+      if ( this->fids[ j ] <= this->fids[ j-1 ] )
+        break;
+      if ( this->fids[ j ] >= this->fids[ j-1 ] + 48 )
+        break;
+    }
+    if ( x + 2 > sizeof( this->code ) / sizeof( this->code[ 0 ] ) )
+      return false;
+    this->code[ x++ ] = this->fids[ i ];
+    this->code[ x++ ] = this->fids[ j - 1 ];
+    if ( i + 2 < j ) {
+      start = this->fids[ i ] + 1;
+      end   = this->fids[ j - 1 ];
+      rng   = end - start;
+
+      for ( k = i + 1; k < j - 1; k++ ) {
+        bit = this->fids[ k ] - start;
+        bits[ ( n + bit ) / 16 ] |= 1 << ( ( n + bit ) % 16 );
+      }
+    }
+    else {
+      rng = 0;
+      this->code[ x-1 ] |= 0x8000;
+    }
+    n += rng;
+    i = j;
+    if ( i == this->nfids )
+      break;
+  }
+  n += ( 16 - ( n % 16 ) );
+  n /= 16;
+  if ( x + n > sizeof( this->code ) / sizeof( this->code[ 0 ] ) )
+    return false;
+  ::memcpy( &this->code[ x ], bits, sizeof( bits[ 0 ] ) * n );
+  this->code[ 0 ] = x;
+  x += n;
+  this->code_size = x;
+  return true;
+}
+
+uint32_t
+MDFormMap::fid_count( void ) noexcept
+{
+  uint16_t * code = this->code();
+  size_t bit = 0, cnt = code[ 0 ], x = 0;
+  for ( size_t i = 1; i < cnt; i += 2 ) {
+    uint16_t start   = code[ i ],
+             no_bits = code[ i+1 ] & 0x8000,
+             end     = code[ i+1 ] & 0x7fff;
+    x++;
+    if ( no_bits ) {
+      if ( end != start )
+        x++;
+    }
+    else {
+      uint16_t rng = end - (start+1);
+      for ( uint16_t i = 0; i < rng; bit++, i++ ) {
+        if ( ( code[ cnt + (bit/16) ] & ( 1 << (bit%16) ) ) != 0 )
+          x++;
+      }
+      x++;
+    }
+  }
+  return x;
+}
+
+uint32_t
+MDFormMap::get_fids( uint16_t *fids ) noexcept
+{
+  uint16_t * code = this->code();
+  size_t bit = 0, cnt = code[ 0 ], x = 0;
+  for ( size_t i = 1; i < cnt; i += 2 ) {
+    uint16_t start   = code[ i ],
+             no_bits = code[ i+1 ] & 0x8000,
+             end     = code[ i+1 ] & 0x7fff;
+    fids[ x++ ] = start;
+    if ( no_bits ) {
+      if ( end != start )
+        fids[ x++ ] = end;
+    }
+    else {
+      uint16_t rng = end - (start+1);
+      for ( uint16_t i = 0; i < rng; bit++, i++ ) {
+        if ( ( code[ cnt + (bit/16) ] & ( 1 << (bit%16) ) ) != 0 )
+          fids[ x++ ] = start+1+i;
+      }
+      fids[ x++ ] = end;
+    }
+  }
+  return x;
+}
+
+bool
+MDFormMap::fid_is_member( uint16_t fid ) noexcept
+{
+  uint16_t * code = this->code();
+  size_t bit = 0, cnt = code[ 0 ];
+  for ( size_t i = 1; i < cnt; i += 2 ) {
+    uint16_t start   = code[ i ],
+             no_bits = code[ i+1 ] & 0x8000,
+             end     = code[ i+1 ] & 0x7fff;
+    if ( fid <= end && fid >= start ) {
+      if ( fid == end || fid == start )
+        return true;
+      if ( no_bits )
+        return false;
+      bit += fid - (start+1);
+      if ( ( code[ cnt + (bit/16) ] & ( 1 << (bit%16) ) ) != 0 )
+        return true;
+      return false;
+    }
+    else if ( ! no_bits ) {
+      bit += end - (start+1);
+    }
+  }
+  return false;
+}
+
+static inline uint32_t mkhtmask( uint32_t n ) {
+  for ( uint32_t x = n - 1; ( ( n + 1 ) & n ) != 0; x >>= 1 )
+    n |= x;
+  return n;
+}
+
+MDFormClass *
+MDFormClass::make_form_class( MDDict &d,  MDFid fid,  MDFormMap &map ) noexcept
+{
+  uint32_t count   = map.fid_count(),
+           htmask  = mkhtmask( count + count / 4 );
+  size_t       sz  = sizeof( MDFormClass ) + count * sizeof( MDFormEntry ) +
+                     (htmask+1) * sizeof( uint16_t );
+  void        * m  = ::malloc( sz );
+  MDFormEntry * e  = (MDFormEntry *) (void *) &((MDFormClass *) m)[ 1 ];
+  uint16_t    * ht = (uint16_t *) (void *) &e[ count ];
+  MDFormClass * fc = new ( m ) MDFormClass( fid, d, map, e, ht, count, htmask+1 );
+
+  map.get_fids( ht );
+  size_t off = 0;
+  uint32_t i;
+  for ( i = 0; i < count; i++ ) {
+    e[ i ].fid     = ht[ i ];
+    e[ i ].foffset = off;
+
+    MDLookup by( e[ i ].fid );
+    bool b = ( d.lookup( by ) && by.flags == ( MD_PRIMITIVE | MD_FIXED ) );
+    if ( b ) {
+      size_t fsz = by.fsize;
+
+      if ( by.ftype != MD_PARTIAL )
+        fsz = tib_sass_pack_size( fsz );
+      else
+        fsz = tib_sass_partial_pack_size( fsz );
+      off += fsz;
+      if ( off > 0xffff ) {
+        fprintf( stderr, "formclass %u too large\n", fid );
+        b = false;
+      }
+    }
+    else {
+      fprintf( stderr, "formclass %u missing fid %u\n", fid, e[ i ].fid );
+    }
+    if ( ! b ) {
+      delete fc;
+      return NULL;
+    }
+  }
+  fc->form_size = off;
+  ::memset( ht, 0, (htmask+1) * sizeof( uint16_t ) );
+  for ( i = 0; i < count; i++ ) {
+    size_t pos = MDFormKey::hash( e[ i ].fid ) & htmask;
+    while ( ht[ pos ] != 0 )
+      pos = ( pos + 1 ) & htmask;
+    ht[ pos ] = i + 1;
+  }
+  return fc;
+}
+
+const MDFormEntry *
+MDFormClass::lookup( MDLookup &by ) const
+{
+  if ( ! this->dict.lookup( by ) )
+    return NULL;
+  return this->get_entry( by.fid );
+}
+
+const MDFormEntry *
+MDFormClass::get( MDLookup &by ) const
+{
+  if ( ! this->dict.get( by ) )
+    return NULL;
+  return this->get_entry( by.fid );
+}
+
+const MDFormEntry *
+MDFormClass::get_entry( MDFid fid ) const
+{
+  size_t htmask = this->htsize - 1,
+         pos    = MDFormKey::hash( fid ) & htmask;
+
+  while ( this->ht[ pos ] != 0 ) {
+    uint16_t i = this->ht[ pos ] - 1;
+    if ( (MDFid) this->entries[ i ].fid == fid )
+      return &this->entries[ i ];
+    pos = ( pos + 1 ) & htmask;
+  }
+  return NULL;
 }
 
 int

@@ -77,26 +77,35 @@ struct JsonMsgWriter {
   enum {
     FIRST_FIELD = 1
   };
-  uint8_t * buf;
-  size_t    off,
-            buflen;
-  int       flags,
-            err;
+  MDMsgMem      & mem;
+  uint8_t       * buf;
+  size_t          off,
+                  buflen;
+  int             flags,
+                  err;
+  JsonMsgWriter * parent;
 
-  JsonMsgWriter( void *bb,  size_t len )
-    : buf( (uint8_t *) bb ), off( 0 ), buflen( len ), flags( 0 ), err( 0 ) {}
+  JsonMsgWriter( MDMsgMem &m,  void *bb,  size_t len )
+    : mem( m ), buf( (uint8_t *) bb ), off( 0 ), buflen( len ), flags( 0 ),
+      err( 0 ), parent( 0 ) {}
   JsonMsgWriter & error( int status ) {
     if ( this->err == 0 )
       this->err = status;
+    if ( this->parent != NULL )
+      this->parent->error( status );
     return *this;
   }
   void reset( void ) {
     this->off = 0;
     this->err = 0;
   }
-  bool has_space( size_t len ) const {
-    return this->off + len <= this->buflen;
+  bool has_space( size_t len ) {
+    bool b = ( this->off + len <= this->buflen );
+    if ( ! b ) b = this->resize( len );
+    return b;
   }
+  bool resize( size_t len ) noexcept;
+
   int append_field_name( const char *fname,  size_t fname_len ) noexcept;
 
   JsonMsgWriter & append_field( const char *fname,  size_t fname_len,

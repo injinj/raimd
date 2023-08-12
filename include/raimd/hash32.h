@@ -43,6 +43,12 @@ hash32( const void *p,  size_t sz,  uint32_t seed )
 #undef u64
 }
 
+static inline uint32_t
+hash_u32( uint32_t i )
+{
+  return _mm_crc32_u32( 0, i );
+}
+
 }
 }
 #endif
