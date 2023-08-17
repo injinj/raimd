@@ -207,6 +207,18 @@ struct RvMsgWriter {
     return this->append_type( fname, fname_len, rval, MD_REAL );
   }
   template< class T >
+  RvMsgWriter & append_int( const char *fname,  T ival ) {
+    return this->append_type( fname, ::strlen( fname ) + 1, ival, MD_INT );
+  }
+  template< class T >
+  RvMsgWriter & append_uint( const char *fname,  T uval ) {
+    return this->append_type( fname, ::strlen( fname ) + 1, uval, MD_UINT );
+  }
+  template< class T >
+  RvMsgWriter & append_real( const char *fname,  T rval ) {
+    return this->append_type( fname, ::strlen( fname ) + 1, rval, MD_REAL );
+  }
+  template< class T >
   RvMsgWriter & append_ipdata( const char *fname,  size_t fname_len,  T val ) {
     MDReference mref;
     mref.fptr    = (uint8_t *) (void *) &val;

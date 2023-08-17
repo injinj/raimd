@@ -534,10 +534,10 @@ main( int argc, char **argv )
       continue;
     }
     if ( rm.fld_cnt != 0 || kp.fld_cnt != 0 ) {
-      size_t buf_sz = msg_sz * 2;
-      void * buf    = mem.make( buf_sz );
+      size_t buf_sz  = msg_sz * 2;
+      void * buf_ptr = mem.make( buf_sz );
       if ( m->get_type_id() == TIBMSG_TYPE_ID ) {
-        TibMsgWriter w( mem, buf, buf_sz );
+        TibMsgWriter w( mem, buf_ptr, buf_sz );
         status = filter<TibMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
         m = NULL;
         if ( status == 0 && fldcnt > 0 ) {
@@ -546,7 +546,7 @@ main( int argc, char **argv )
         }
       }
       else if ( m->get_type_id() == RVMSG_TYPE_ID ) {
-        RvMsgWriter w( mem, buf, buf_sz );
+        RvMsgWriter w( mem, buf_ptr, buf_sz );
         status = filter<RvMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
         m = NULL;
         if ( status == 0 && fldcnt > 0 ) {
@@ -555,7 +555,7 @@ main( int argc, char **argv )
         }
       }
       else if ( m->get_type_id() == TIB_SASS_TYPE_ID ) {
-        TibSassMsgWriter w( mem, cfile_dict, buf, buf_sz );
+        TibSassMsgWriter w( mem, cfile_dict, buf_ptr, buf_sz );
         status = filter<TibSassMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
         m = NULL;
         if ( status == 0 && fldcnt > 0 ) {
