@@ -148,7 +148,6 @@ test_variable( void )
   MDDictBuild dict_build;
   MDDict * str_dict = NULL;
   MDMsgMem mem;
-  char buf[ 1024 ];
 
   CFile::parse_string( dict_build, str, ::strlen( str ) );
   dict_build.index_dict( "cfile", str_dict );
@@ -161,7 +160,7 @@ test_variable( void )
   static char session_data[] = "sam.abcdefgh";
   static char digest_data[]  = "0123456789abcdef";
 
-  TibSassMsgWriter w( mem, str_dict, buf, sizeof( buf ) );
+  TibSassMsgWriter w( mem, str_dict, mem.make( 128 ), 128 );
 
   w.append_string( session, sizeof( session ), session_data,
                    ::strlen( session_data ) );
@@ -199,13 +198,12 @@ main( int argc, char **argv )
   MDMsgMem mem;
   MDDict * dict;
   MDMsg  * m;
-  char buf[ 64 ];
   size_t sz;
 
   dict = load_dict_files( ::getenv( "cfile_path" ) );
   /*md_init_auto_unpack();*/
 
-  TibMsgWriter tibmsg( mem, buf, sizeof( buf ) );
+  TibMsgWriter tibmsg( mem, mem.make( 128 ), 128 );
   sz = test_write<TibMsgWriter>( tibmsg );
   printf( "TibMsg test:\n" );
   mout.print_hex( tibmsg.buf, sz );
@@ -241,7 +239,7 @@ main( int argc, char **argv )
 #endif
   mem.reuse();
 
-  RvMsgWriter rvmsg( mem, buf, sizeof( buf ) );
+  RvMsgWriter rvmsg( mem, mem.make( 128 ), 128 );
   sz = test_write<RvMsgWriter>( rvmsg );
   printf( "RvMsg test:\n" );
   mout.print_hex( rvmsg.buf, sz );
@@ -252,7 +250,7 @@ main( int argc, char **argv )
     m->print( &mout );
   mem.reuse();
 
-  RvMsgWriter rvmsg2( mem, buf, sizeof( buf ) );
+  RvMsgWriter rvmsg2( mem, mem.make( 128 ), 128 );
   RvMsgWriter submsg( mem, NULL, 0 );
   rvmsg2.append_string( "mtype", 6, "D", 2 );
   rvmsg2.append_subject( "sub", 4, "TEST.REC.XYZ.NaE" );
@@ -276,7 +274,7 @@ main( int argc, char **argv )
   mem.reuse();
 
   if ( dict != NULL ) {
-    TibSassMsgWriter tibsassmsg( mem, dict, buf, sizeof( buf ) );
+    TibSassMsgWriter tibsassmsg( mem, dict, mem.make( 128 ), 128 );
     sz = test_write<TibSassMsgWriter>( tibsassmsg );
     printf( "TibSassMsg test:\n" );
     mout.print_hex( tibsassmsg.buf, sz );
@@ -287,7 +285,7 @@ main( int argc, char **argv )
       m->print( &mout );
     mem.reuse();
 
-    RwfFieldListWriter rwfmsg( mem, dict, buf, sizeof( buf ) );
+    RwfFieldListWriter rwfmsg( mem, dict, mem.make( 128 ), 128 );
     sz = test_write<RwfFieldListWriter>( rwfmsg );
     printf( "RwfMsg test:\n" );
     mout.print_hex( rwfmsg.buf, sz );

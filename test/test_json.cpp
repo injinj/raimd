@@ -124,8 +124,7 @@ main( int argc, char **argv )
     if ( n == 0 ) {
       printf( "printing:\n" ); ctx.msg->print( &jout );
 
-      char buf[ sizeof( minput ) * 8 ];
-      RvMsgWriter rvmsg( jmem, buf, sizeof( buf ) );
+      RvMsgWriter rvmsg( jmem, jmem.make( 128 ), 128 );
       n = rvmsg.convert_msg( *ctx.msg, false );
       if ( n == 0 ) {
         printf( "converting to rv:\n" );

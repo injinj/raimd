@@ -112,8 +112,16 @@ struct MDIterMap {
   void uint( const char *fn,  void *fp,  size_t sz ) {
     this->elem( fn, fp, sz, MD_UINT );
   }
+  template <class I>
+  void uint( const char *fn,  I &ival ) {
+    this->elem( fn, &ival, sizeof( I ), MD_UINT );
+  }
   void sint( const char *fn,  void *fp,  size_t sz ) {
     this->elem( fn, fp, sz, MD_INT );
+  }
+  template <class I>
+  void sint( const char *fn,  I &ival ) {
+    this->elem( fn, &ival, sizeof( I ), MD_INT );
   }
   void array( const char *fn,  void *fp,  uint32_t *elcnt,
               size_t arsz,  size_t elsz,  MDType eltp ) {
