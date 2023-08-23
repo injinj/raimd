@@ -476,7 +476,7 @@ RvMsgWriter::resize( size_t len ) noexcept
   if ( len > max_size )
     return false;
   size_t old_len = p->buflen,
-         new_len = old_len + ( len - this->off );
+         new_len = old_len + ( this->buflen + len - this->off );
   if ( new_len > max_size )
     return false;
   if ( new_len < old_len * 2 )
@@ -503,26 +503,53 @@ RvMsgWriter::resize( size_t len ) noexcept
   return this->off + len <= this->buflen;
 }
 
+namespace {
+struct FnameWriter {
+  const char * fname;
+  size_t       fname_len,
+               zpad; /* if fname is not null terminated, zpad = 1 */
+
+  FnameWriter( const char *fn,  size_t fn_len )
+      : fname( fn ), fname_len( fn_len ), zpad( 0 ) {
+    if ( fn_len > 0 && fn[ fn_len - 1 ] != '\0' )
+      this->zpad = 1;
+  }
+  size_t copy( uint8_t *buf,  size_t off ) const {
+    buf[ off++ ] = (uint8_t) ( this->fname_len + this->zpad );
+    if ( this->fname_len > 0 ) {
+      ::memcpy( &buf[ off ], this->fname, this->fname_len );
+      off += this->fname_len;
+      if ( this->zpad )
+        buf[ off++ ] = '\0';
+    }
+    return off;
+  }
+  size_t len( void ) const {
+    return 1 + this->fname_len + this->zpad;
+  }
+  bool too_big( void ) const {
+    return this->len() > 256;
+  }
+};
+}
+
 RvMsgWriter &
 RvMsgWriter::append_msg( const char *fname,  size_t fname_len,
                          RvMsgWriter &submsg ) noexcept
 {
-  size_t len = 1 + fname_len + 1,
-         szbytes = 5 + 4;
+  FnameWriter fwr( fname, fname_len );
+  size_t      len     = fwr.len() + 1,
+              szbytes = 5 + 4;
 
   len += szbytes;
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
 
-  uint8_t * ptr = &this->buf[ this->off ];
-  if ( fname_len > 0xff )
-    return this->error( Err::BAD_NAME );
-  ptr[ 0 ] = (uint8_t) fname_len;
-  ::memcpy( &ptr[ 1 ], fname, fname_len );
-  ptr = &ptr[ fname_len + 1 ];
-  ptr[ 0 ] = RV_RVMSG;
-  ptr[ 1 ] = RV_LONG_SIZE;
-  this->off += fname_len + 1 + 2;
+  this->off = fwr.copy( this->buf, this->off );
+  this->buf[ this->off++ ] = RV_RVMSG;
+  this->buf[ this->off++ ] = RV_LONG_SIZE;
 
   submsg.buf    = &this->buf[ this->off ];
   submsg.off    = 8;
@@ -536,7 +563,8 @@ RvMsgWriter &
 RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
                              const char *subj,  size_t subj_len ) noexcept
 {
-  size_t       len = 1 + fname_len + 1,
+  FnameWriter  fwr( fname, fname_len );
+  size_t       len = fwr.len() + 1,
                szbytes = 3,
                fsize = 3;
   const char * s,
@@ -560,15 +588,14 @@ RvMsgWriter::append_subject( const char *fname,  size_t fname_len,
     return this->error( Err::BAD_FIELD_BOUNDS );
   len += szbytes + fsize;
 
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
-  uint8_t * ptr = &this->buf[ this->off ];
 
-  if ( fname_len > 0xff )
-    return this->error( Err::BAD_NAME );
-  ptr[ 0 ] = (uint8_t) fname_len;
-  ::memcpy( &ptr[ 1 ], fname, fname_len );
-  ptr = &ptr[ fname_len + 1 ];
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
+
   ptr[ 0 ] = RV_SUBJECT;
   ptr[ 1 ] = RV_SHORT_SIZE;
   ptr[ 2 ] = ( ( fsize + 2 ) >> 8 ) & 0xffU;
@@ -709,19 +736,18 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
        ( fsize == 0 || mref.fptr[ fsize - 1 ] != '\0' ) )
     fsize++;
 
-  size_t    len     = 1 + fname_len + 1 + fsize,
-            szbytes = rv_size_bytes( fsize );
+  FnameWriter fwr( fname, fname_len );
+  size_t      len     = fwr.len() + 1 + fsize,
+              szbytes = rv_size_bytes( fsize );
 
   len += szbytes;
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
 
-  uint8_t * ptr = &this->buf[ this->off ];
-  if ( fname_len > 0xff )
-    return this->error( Err::BAD_NAME );
-  ptr[ 0 ] = (uint8_t) fname_len;
-  ::memcpy( &ptr[ 1 ], fname, fname_len );
-  ptr = &ptr[ fname_len + 1 ];
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
 
   switch ( mref.ftype ) {
     default:
@@ -777,20 +803,20 @@ RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
                                   char **ar,  size_t array_size,
                                   size_t fsize ) noexcept
 {
-  size_t len = 1 + fname_len + 1 + fsize,
-         szbytes = rv_size_bytes( fsize + 4 );
+  FnameWriter fwr( fname, fname_len );
+  size_t      len = fwr.len() + 1 + fsize,
+              szbytes = rv_size_bytes( fsize + 4 );
 
   fsize += 4; /* array size */
   len   += 4 + szbytes;
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
 
-  uint8_t * ptr = &this->buf[ this->off ];
-  if ( fname_len > 0xff )
-    return this->error( Err::BAD_NAME );
-  ptr[ 0 ] = (uint8_t) fname_len;
-  ::memcpy( &ptr[ 1 ], fname, fname_len );
-  ptr = &ptr[ fname_len + 1 ];
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
+
   ptr[ 0 ] = RV_ARRAY_STR;
   ptr += 1 + pack_rv_size( &ptr[ 1 ], fsize, szbytes );
 
@@ -798,6 +824,7 @@ RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
   tmp = get_u32<MD_BIG>( &tmp );
   ::memcpy( ptr, &tmp, 4 );
   ptr = &ptr[ 4 ];
+
   for ( uint32_t i = 0; i < array_size; i++ ) {
     size_t slen = ::strlen( ar[ i ] ) + 1;
     ::memcpy( ptr, ar[ i ], slen );
@@ -811,21 +838,21 @@ RvMsgWriter &
 RvMsgWriter::append_decimal( const char *fname,  size_t fname_len,
                              MDDecimal &dec ) noexcept
 {
-  size_t len = 1 + fname_len + 1 + 1 + 8;
-  double val;
-  int    status;
+  FnameWriter fwr( fname, fname_len );
+  size_t      len = fwr.len() + 1 + 1 + 8;
+  double      val;
+  int         status;
 
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
-
-  uint8_t * ptr = &this->buf[ this->off ];
-  if ( fname_len > 0xff )
-    return this->error( Err::BAD_NAME );
   if ( (status = dec.get_real( val )) != 0 )
     return this->error( status );
-  ptr[ 0 ] = (uint8_t) fname_len;
-  ::memcpy( &ptr[ 1 ], fname, fname_len );
-  ptr = &ptr[ fname_len + 1 ];
+
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
+
   ptr[ 0 ] = (uint8_t) RV_REAL;
   ptr[ 1 ] = (uint8_t) 8;
   ptr = &ptr[ 2 ];
@@ -845,20 +872,19 @@ RvMsgWriter &
 RvMsgWriter::append_time( const char *fname,  size_t fname_len,
                           MDTime &time ) noexcept
 {
-  char   sbuf[ 32 ];
-  size_t n   = time.get_string( sbuf, sizeof( sbuf ) );
-  size_t len = 1 + fname_len + 1 + 1 + n + 1;
+  FnameWriter fwr( fname, fname_len );
+  char        sbuf[ 32 ];
+  size_t      n   = time.get_string( sbuf, sizeof( sbuf ) );
+  size_t      len = fwr.len() + 1 + 1 + n + 1;
 
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
 
-  uint8_t * ptr = &this->buf[ this->off ];
-  if ( fname_len > 0xff )
-    return this->error( Err::BAD_NAME );
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
 
-  ptr[ 0 ] = (uint8_t) fname_len;
-  ::memcpy( &ptr[ 1 ], fname, fname_len );
-  ptr = &ptr[ fname_len + 1 ];
   ptr[ 0 ] = (uint8_t) RV_STRING;
   ptr[ 1 ] = (uint8_t) ( n + 1 );
   ptr = &ptr[ 2 ];
@@ -871,20 +897,19 @@ RvMsgWriter &
 RvMsgWriter::append_date( const char *fname,  size_t fname_len,
                           MDDate &date ) noexcept
 {
-  char   sbuf[ 32 ];
-  size_t n   = date.get_string( sbuf, sizeof( sbuf ) );
-  size_t len = 1 + fname_len + 1 + 1 + n + 1;
+  FnameWriter fwr( fname, fname_len );
+  char        sbuf[ 32 ];
+  size_t      n   = date.get_string( sbuf, sizeof( sbuf ) );
+  size_t      len = fwr.len() + 1 + 1 + n + 1;
 
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
 
-  uint8_t * ptr = &this->buf[ this->off ];
-  if ( fname_len > 0xff )
-    return this->error( Err::BAD_NAME );
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
 
-  ptr[ 0 ] = (uint8_t) fname_len;
-  ::memcpy( &ptr[ 1 ], fname, fname_len );
-  ptr = &ptr[ fname_len + 1 ];
   ptr[ 0 ] = (uint8_t) RV_STRING;
   ptr[ 1 ] = (uint8_t) ( n + 1 );
   ptr = &ptr[ 2 ];
@@ -897,18 +922,17 @@ RvMsgWriter &
 RvMsgWriter::append_enum( const char *fname,  size_t fname_len,
                           MDEnum &enu ) noexcept
 {
-  size_t len = 1 + fname_len + 1 + 1 + enu.disp_len + 1;
+  FnameWriter fwr( fname, fname_len );
+  size_t      len = fwr.len() + 1 + 1 + enu.disp_len + 1;
 
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
 
-  uint8_t * ptr = &this->buf[ this->off ];
-  if ( fname_len > 0xff )
-    return this->error( Err::BAD_NAME );
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
 
-  ptr[ 0 ] = (uint8_t) fname_len;
-  ::memcpy( &ptr[ 1 ], fname, fname_len );
-  ptr = &ptr[ fname_len + 1 ];
   ptr[ 0 ] = (uint8_t) RV_STRING;
   ptr[ 1 ] = (uint8_t) ( enu.disp_len + 1 );
   ptr = &ptr[ 2 ];
@@ -923,9 +947,10 @@ RvMsgWriter::convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept
 {
   MDFieldIter *iter;
   int status;
-  if ( (status = jmsg.get_field_iter( iter )) == 0 ) {
+  if ( (status = jmsg.get_field_iter( iter )) == 0 )
     status = iter->first();
-    while ( status == 0 ) {
+  if ( status == 0 ) {
+    do {
       MDName      name;
       MDReference mref;
       MDDecimal   dec;
@@ -1103,8 +1128,7 @@ RvMsgWriter::convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept
         if ( status != 0 )
           break;
       }
-      status = iter->next();
-    }
+    } while ((status = iter->next()) == 0 );
   }
   if ( status != Err::NOT_FOUND )
     return status;

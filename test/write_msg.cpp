@@ -273,6 +273,28 @@ main( int argc, char **argv )
     m->print( &mout );
   mem.reuse();
 
+  TibMsgWriter tibmsg2( mem, mem.make( 128 ), 128 );
+  TibMsgWriter tsubmsg( mem, NULL, 0 );
+  tibmsg2.append_string( "mtype", 6, "D", 2 );
+  tibmsg2.append_string( "sub", 4, "TEST.REC.XYZ.NaE", 
+                         ::strlen( "TEST.REC.XYZ.NaE" ) + 1 );
+  tibmsg2.append_msg( "data", 5, tsubmsg );
+
+  tsubmsg.append_type( "ipaddr", 7, local_ip, MD_IPDATA );
+  tsubmsg.append_type( "ipport", 7, local_port, MD_IPDATA );
+  tsubmsg.append_int<int32_t>( "vmaj", 5, 5 );
+  tsubmsg.append_int<int32_t>( "vmin", 5, 4 );
+  tsubmsg.append_int<int32_t>( "vupd", 5, 2 );
+  sz = tibmsg2.update_hdr( tsubmsg );
+  printf( "TibMsg test2:\n" );
+  mout.print_hex( tibmsg2.buf, sz );
+  printf( "rvmsg2 sz %" PRIu64 "\n", sz );
+
+  m = MDMsg::unpack( tibmsg2.buf, 0, sz, 0, dict, mem );
+  if ( m != NULL )
+    m->print( &mout );
+  mem.reuse();
+
   if ( dict != NULL ) {
     TibSassMsgWriter tibsassmsg( mem, dict, mem.make( 128 ), 128 );
     sz = test_write<TibSassMsgWriter>( tibsassmsg );

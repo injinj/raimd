@@ -991,33 +991,32 @@ TibSassMsgWriter::convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept
 {
   MDFieldIter *iter;
   int status;
-  if ( (status = msg.get_field_iter( iter )) == 0 ) {
-    if ( (status = iter->first()) == 0 ) {
-      do {
-        MDName      n;
-        MDReference mref/*, href*/;
-        MDEnum      enu;
-        if ( (status = iter->get_name( n )) == 0 &&
-             (status = iter->get_reference( mref )) == 0 ) {
-          if ( skip_hdr && is_sass_hdr( n ) )
-            continue;
-          if ( mref.ftype == MD_ENUM ) {
-            if ( iter->get_enum( mref, enu ) == 0 )
-              this->append_enum( n.fname, n.fnamelen, enu );
-            else
-              this->append_uint( n.fname, n.fnamelen,
-                                 get_uint<uint16_t>( mref ) );
-          }
-          else {
-            /*iter->get_hint_reference( href );*/
-            this->append_ref( n.fname, n.fnamelen, mref/*, href*/ );
-          }
-          status = this->err;
+  if ( (status = msg.get_field_iter( iter )) == 0 &&
+       (status = iter->first()) == 0 ) {
+    do {
+      MDName      n;
+      MDReference mref/*, href*/;
+      MDEnum      enu;
+      if ( (status = iter->get_name( n )) == 0 &&
+           (status = iter->get_reference( mref )) == 0 ) {
+        if ( skip_hdr && is_sass_hdr( n ) )
+          continue;
+        if ( mref.ftype == MD_ENUM ) {
+          if ( iter->get_enum( mref, enu ) == 0 )
+            this->append_enum( n.fname, n.fnamelen, enu );
+          else
+            this->append_uint( n.fname, n.fnamelen,
+                               get_uint<uint16_t>( mref ) );
         }
-        if ( status != 0 )
-          break;
-      } while ( (status = iter->next()) == 0 );
-    }
+        else {
+          /*iter->get_hint_reference( href );*/
+          this->append_ref( n.fname, n.fnamelen, mref/*, href*/ );
+        }
+        status = this->err;
+      }
+      if ( status != 0 )
+        break;
+    } while ( (status = iter->next()) == 0 );
   }
   if ( status != Err::NOT_FOUND )
     return status;
