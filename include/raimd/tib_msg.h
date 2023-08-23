@@ -107,17 +107,22 @@ enum {
 };
 
 struct TibMsgWriter {
-  MDMsgMem & mem;
-  uint8_t  * buf;    /* output buffer */
-  size_t     off,    /* index to end of data (+9 for hdr) */
-             buflen; /* max length of a buf */
-  int        err;
+  MDMsgMem     & mem;
+  uint8_t      * buf;    /* output buffer */
+  size_t         off,    /* index to end of data (+9 for hdr) */
+                 buflen, /* max length of a buf */
+                 hdrlen;
+  int            err;
+  TibMsgWriter * parent;
 
   TibMsgWriter( MDMsgMem &m,  void *bb,  size_t len )
-    : mem( m ), buf( (uint8_t *) bb ), off( 0 ), buflen( len ), err( 0 ) {}
+    : mem( m ), buf( (uint8_t *) bb ), off( 0 ), buflen( len ), hdrlen( 9 ),
+      err( 0 ), parent( 0 ) {}
   TibMsgWriter & error( int status ) {
     if ( this->err == 0 )
       this->err = status;
+    if ( this->parent != NULL )
+      this->parent->error( status );
     return *this;
   }
   void reset( void ) {
@@ -129,22 +134,30 @@ struct TibMsgWriter {
   TibMsgWriter & append_ref( const char *fname,  size_t fname_len,
                              MDReference &mref,  MDReference &href ) noexcept;
   bool has_space( size_t len ) {
-    bool b = ( this->off + 9 + len <= this->buflen );
+    bool b = ( this->off + this->hdrlen + len <= this->buflen );
     if ( ! b ) b = this->resize( len );
     return b;
   }
   bool resize( size_t len ) noexcept;
   size_t update_hdr( void ) {
-    this->buf[ 0 ] = 0xce;
-    this->buf[ 1 ] = 0x13;
-    this->buf[ 2 ] = 0xaa;
-    this->buf[ 3 ] = 0x1f;
-    this->buf[ 4 ] = 1;
-    this->buf[ 5 ] = ( this->off >> 24 ) & 0xffU;
-    this->buf[ 6 ] = ( this->off >> 16 ) & 0xffU;
-    this->buf[ 7 ] = ( this->off >> 8 ) & 0xffU;
-    this->buf[ 8 ] = this->off & 0xffU;
-    return this->off + 9; /* returns length of data in buffer */
+    size_t i = 0;
+    if ( this->hdrlen == 9 ) {
+      this->buf[ 0 ] = 0xce;
+      this->buf[ 1 ] = 0x13;
+      this->buf[ 2 ] = 0xaa;
+      this->buf[ 3 ] = 0x1f;
+      this->buf[ 4 ] = 1;
+      i = 5;
+    }
+    this->buf[ i++ ] = ( this->off >> 24 ) & 0xffU;
+    this->buf[ i++ ] = ( this->off >> 16 ) & 0xffU;
+    this->buf[ i++ ] = ( this->off >> 8 ) & 0xffU;
+    this->buf[ i++ ] = this->off & 0xffU;
+    return this->off + this->hdrlen; /* returns length of data in buffer */
+  }
+  size_t update_hdr( TibMsgWriter &submsg ) {
+    this->off += submsg.update_hdr();
+    return this->update_hdr();
   }
 
   template< class T >
@@ -190,6 +203,8 @@ struct TibMsgWriter {
   TibMsgWriter & append_enum( const char *fname,  size_t fname_len,
                               MDEnum &enu ) noexcept;
   TibMsgWriter & append_iter( MDFieldIter *iter ) noexcept;
+  TibMsgWriter & append_msg( const char *fname,  size_t fname_len,
+                             TibMsgWriter &submsg ) noexcept;
   int convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept;
 };
 
