@@ -25,26 +25,62 @@ short_string( unsigned short x,  char *buf ) noexcept
   *buf = '\0';
 }
 
+static const char *msg_type_string[] = { SASS_DEF_MSG_TYPE( SASS_DEF_ENUM_STRING ) };
 const char *
 rai::md::sass_msg_type_string( unsigned short msg_type,  char *buf ) noexcept
 {
   if ( msg_type < MAX_MSG_TYPE ) {
-    static const char *msg_type_string[] = { SASS_DEF_MSG_TYPE( SASS_DEF_ENUM_STRING ) };
     return msg_type_string[ msg_type ];
   }
   short_string( msg_type, buf );
   return buf;
 }
 
+static const struct {
+  uint16_t status,
+           char2;
+  const char * str;
+} rec_status_string[] = {
+  SASS_DEF_REC_STATUS( SASS_DEF_ENUM_STRING_2 )
+};
+static const size_t rec_status_string_count = sizeof( rec_status_string ) /
+                                              sizeof( rec_status_string[ 0 ] );
 const char *
 rai::md::sass_rec_status_string( unsigned short rec_status, char *buf ) noexcept
 {
-  if ( rec_status < MAX_REC_STATUS ) {
-    static const char *rec_status_string[] = { SASS_DEF_REC_STATUS( SASS_DEF_ENUM_STRING ) };
-    return rec_status_string[ rec_status ];
-  }
+  for ( size_t i = 0; i < rec_status_string_count; i++ )
+    if ( rec_status == rec_status_string[ i ].status )
+      return rec_status_string[ i ].str;
   short_string( rec_status, buf );
   return buf;
+}
+uint16_t
+rai::md::sass_rec_status_val( const char *str,  size_t len ) noexcept
+{
+  uint16_t i;
+  if ( len > 0 && str[ len - 1 ] == '\0' )
+    len--;
+  if ( len == 0 )
+    return 0;
+  if ( str[ 0 ] >= '0' && str[ 0 ] <= '9' ) {
+    i = (uint16_t) ( str[ 0 ] - '0' );
+    while ( len > 1 && str[ 1 ] >= '0' && str[ 1 ] <= '9' ) {
+      i = i * 10 + (uint16_t) ( str[ 1 ] - '0' );
+      len--;
+      str++;
+    }
+    return i;
+  }
+  if ( len >= 2 ) {
+    uint16_t char2 = SASS_STR_CHAR2( str[ 0 ], str[ 1 ] );
+    for ( i = 0; i < rec_status_string_count; i++ ) {
+      if ( rec_status_string[ i ].char2 == char2 &&
+           ::strncasecmp( rec_status_string[ i ].str, str, len ) == 0 &&
+           rec_status_string[ i ].str[ len ] == '\0' )
+        return rec_status_string[ i ].status;
+    }
+  }
+  return 0;
 }
 
 const char rai::md::SASS_MSG_TYPE[]   = "MSG_TYPE",

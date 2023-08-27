@@ -35,59 +35,56 @@ namespace md {
   DEF( FINISH_AGGREGATE )
 
 #define SASS_DEF_REC_STATUS( DEF ) \
-  DEF( OK ) \
-  DEF( BAD_NAME ) \
-  DEF( BAD_LINE ) \
-  DEF( CACHE_FULL ) \
-  DEF( PERMISSION_DENIED ) \
-  DEF( PREEMPTED ) \
-  DEF( BAD_ACCESS ) \
-  DEF( TEMP_UNAVAIL ) \
-  DEF( REASSIGN ) \
-  DEF( NOSUBSCRIBERS ) \
-  DEF( EXPIRED ) \
-  DEF( TIC_DOWN ) \
-  DEF( FEED_DOWN ) \
-  DEF( NOT_USED_13 ) \
-  DEF( GSM_DOWN ) \
-  DEF( SUBSC_DENIED ) \
-  DEF( SUBSC_TEMP_DENIED ) \
-  DEF( NOT_FOUND ) \
-  DEF( STALE_VALUE ) \
-  DEF( RELOCATE ) \
-  DEF( ENTITLEMENT_DENIED ) \
-  DEF( REC_OVERFLOW ) \
-  DEF( TIC_TUPLE_FAIL ) \
-  DEF( ENTITLEMENT_MIGRATED ) \
-  DEF( CI_DISCONNECTED ) \
-  DEF( CI_DIAG_START ) \
-  DEF( NO_CACHED_DATA ) \
-  DEF( NO_REPLY ) \
-  DEF( TMF_DOWN ) \
-  DEF( TPT_DISCONNECTED ) \
-  DEF( TIMEOUT )
-
-#if 0
-  DEF( PERIODIC_SNAPSHOT ) \
-  DEF( FEED_UP ) \
-  DEF( HL_ROUTER_DOWN ) \
-  DEF( DQA_SUSPECT ) \
-  DEF( DQA_ACTIVE ) \
-  DEF( GSM_UP ) \
-  DEF( HL_ROUTER_UP ) \
-  DEF( TIC_UP ) \
-  DEF( FEED_SWITCHOVER ) \
-  DEF( DATA_SUSPECT ) \
-  DEF( RECAP ) \
-  DEF( CI_RECONNECTED ) \
-  DEF( CI_DIAG_END ) \
-  DEF( RECOVER_SUBSC_DENIED ) \
-  DEF( CONTRIB_ACK ) \
-  DEF( CONTRIB_NACK ) \
-  DEF( TMF_UP ) \
-  DEF( TPT_CONNECTED ) \
-  DEF( FEED_NOT_ACCEPTING )
-#endif
+  DEF( 0, OK ) \
+  DEF( 1, BAD_NAME ) \
+  DEF( 2, BAD_LINE ) \
+  DEF( 3, CACHE_FULL ) \
+  DEF( 4, PERMISSION_DENIED ) \
+  DEF( 5, PREEMPTED ) \
+  DEF( 6, BAD_ACCESS ) \
+  DEF( 7, TEMP_UNAVAIL ) \
+  DEF( 8, REASSIGN ) \
+  DEF( 9, NOSUBSCRIBERS ) \
+  DEF( 10, EXPIRED ) \
+  DEF( 11, TIC_DOWN ) \
+  DEF( 12, FEED_DOWN ) \
+  DEF( 13, NOT_USED_13 ) \
+  DEF( 14, GSM_DOWN ) \
+  DEF( 15, SUBSC_DENIED ) \
+  DEF( 16, SUBSC_TEMP_DENIED ) \
+  DEF( 17, NOT_FOUND ) \
+  DEF( 18, STALE_VALUE ) \
+  DEF( 19, RELOCATE ) \
+  DEF( 20, ENTITLEMENT_DENIED ) \
+  DEF( 21, REC_OVERFLOW ) \
+  DEF( 22, TIC_TUPLE_FAIL ) \
+  DEF( 23, ENTITLEMENT_MIGRATED ) \
+  DEF( 24, CI_DISCONNECTED ) \
+  DEF( 25, CI_DIAG_START ) \
+  DEF( 26, NO_CACHED_DATA ) \
+  DEF( 27, NO_REPLY ) \
+  DEF( 28, TMF_DOWN ) \
+  DEF( 29, TPT_DISCONNECTED ) \
+  DEF( 30, TIMEOUT ) \
+  DEF( 64, PERIODIC_SNAPSHOT ) \
+  DEF( 65, FEED_UP ) \
+  DEF( 66, HL_ROUTER_DOWN ) \
+  DEF( 67, DQA_SUSPECT ) \
+  DEF( 68, DQA_ACTIVE ) \
+  DEF( 69, GSM_UP ) \
+  DEF( 71, HL_ROUTER_UP ) \
+  DEF( 72, TIC_UP ) \
+  DEF( 73, FEED_SWITCHOVER ) \
+  DEF( 74, DATA_SUSPECT ) \
+  DEF( 75, RECAP ) \
+  DEF( 76, CI_RECONNECTED ) \
+  DEF( 77, CI_DIAG_END ) \
+  DEF( 80, RECOVER_SUBSC_DENIED ) \
+  DEF( 81, CONTRIB_ACK ) \
+  DEF( 82, CONTRIB_NACK ) \
+  DEF( 83, TMF_UP ) \
+  DEF( 84, TPT_CONNECTED ) \
+  DEF( 85, FEED_NOT_ACCEPTING )
 
 #define SASS_DEF_STRING( ENUM ) \
   static const char ENUM ## _STRING[] = #ENUM ;
@@ -106,10 +103,16 @@ enum SassMsgType {
 extern const char * sass_msg_type_string( unsigned short msg_type,
                                           char *buf ) noexcept;
 
-#define SASS_DEF_ENUM_STATUS( ENUM ) \
-  ENUM ## _STATUS ,
-
-SASS_DEF_REC_STATUS( SASS_DEF_STRING )
+#define SASS_DEF_ENUM_STATUS( N, ENUM ) \
+  ENUM ## _STATUS = N,
+#define SASS_DEF_STRING_2( N, ENUM ) \
+  static const char ENUM ## _STRING[] = #ENUM ;
+#define SASS_STR_CHAR2( c, d ) (uint16_t) \
+                                 ( ( (uint16_t) (uint8_t) c ) | \
+                                 ( ( (uint16_t) (uint8_t) d ) << 8 ) )
+#define SASS_DEF_ENUM_STRING_2( N, ENUM ) \
+  { N, SASS_STR_CHAR2( ( ENUM ## _STRING )[ 0 ], ( ENUM ## _STRING )[ 1 ] ), ENUM ## _STRING },
+SASS_DEF_REC_STATUS( SASS_DEF_STRING_2 )
 
 enum SassRecStatus {
   SASS_DEF_REC_STATUS( SASS_DEF_ENUM_STATUS )
@@ -118,6 +121,8 @@ enum SassRecStatus {
 
 extern const char * sass_rec_status_string( unsigned short rec_status,
                                             char *buf ) noexcept;
+extern uint16_t sass_rec_status_val( const char *str,
+                                     size_t str_len ) noexcept;
 
 extern const char   SASS_MSG_TYPE[],
                     SASS_REC_TYPE[],
