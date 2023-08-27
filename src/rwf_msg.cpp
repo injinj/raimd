@@ -182,6 +182,44 @@ rai::md::rwf_to_sass_msg_type( RwfMsg &rwf ) noexcept
   return UPDATE_TYPE;
 }
 
+uint16_t
+rai::md::rwf_code_to_sass_rec_status( RwfMsg &rwf ) noexcept
+{
+  switch ( rwf.msg.state.code ) {
+    default:                                       return OK_STATUS;
+    case STATUS_CODE_NOT_FOUND:                    return NOT_FOUND_STATUS;
+    case STATUS_CODE_TIMEOUT:                      return TEMP_UNAVAIL_STATUS;
+    case STATUS_CODE_NOT_ENTITLED:                 return PERMISSION_DENIED_STATUS;
+    case STATUS_CODE_INVALID_ARGUMENT:             return BAD_NAME_STATUS;
+    case STATUS_CODE_USAGE_ERROR:                  return BAD_NAME_STATUS;
+    case STATUS_CODE_PREEMPTED:                    return PREEMPTED_STATUS;
+    case STATUS_CODE_JIT_CONFLATION_STARTED:       return OK_STATUS;
+    case STATUS_CODE_REALTIME_RESUMED:             return OK_STATUS;
+    case STATUS_CODE_FAILOVER_STARTED:             return REASSIGN_STATUS;
+    case STATUS_CODE_FAILOVER_COMPLETED:           return OK_STATUS;
+    case STATUS_CODE_GAP_DETECTED:                 return STALE_VALUE_STATUS;
+    case STATUS_CODE_NO_RESOURCES:                 return BAD_LINE_STATUS;
+    case STATUS_CODE_TOO_MANY_ITEMS:               return CACHE_FULL_STATUS;
+    case STATUS_CODE_ALREADY_OPEN:                 return OK_STATUS;
+    case STATUS_CODE_SOURCE_UNKNOWN:               return TEMP_UNAVAIL_STATUS;
+    case STATUS_CODE_NOT_OPEN:                     return BAD_LINE_STATUS;
+    case STATUS_CODE_NON_UPDATING_ITEM:            return OK_STATUS;
+    case STATUS_CODE_UNSUPPORTED_VIEW_TYPE:        return BAD_LINE_STATUS;
+    case STATUS_CODE_INVALID_VIEW:                 return BAD_LINE_STATUS;
+    case STATUS_CODE_FULL_VIEW_PROVIDED:           return OK_STATUS;
+    case STATUS_CODE_UNABLE_TO_REQUEST_AS_BATCH:   return BAD_LINE_STATUS;
+    case STATUS_CODE_NO_BATCH_VIEW_SUPPORT_IN_REQ: return BAD_LINE_STATUS;
+    case STATUS_CODE_EXCEEDED_MAX_MOUNTS_PER_USER: return CACHE_FULL_STATUS;
+    case STATUS_CODE_ERROR:                        return BAD_LINE_STATUS;
+    case STATUS_CODE_DACS_DOWN:                    return TEMP_UNAVAIL_STATUS;
+    case STATUS_CODE_USER_UNKNOWN_TO_PERM_SYS:     return PERMISSION_DENIED_STATUS;
+    case STATUS_CODE_DACS_MAX_LOGINS_REACHED:      return TEMP_UNAVAIL_STATUS;
+    case STATUS_CODE_DACS_USER_ACCESS_DENIED:      return PERMISSION_DENIED_STATUS;
+    case STATUS_CODE_GAP_FILL:                     return OK_STATUS;
+    case STATUS_CODE_APP_AUTHORIZATION_FAILED:     return PERMISSION_DENIED_STATUS;
+  }
+}
+
 uint32_t
 RwfBase::parse_type( RwfDecoder &dec ) noexcept
 {
