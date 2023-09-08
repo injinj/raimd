@@ -33,7 +33,8 @@ static AppAKeyword
   series_tok       = { S( "series"       ),  ATK_SERIES },
   element_list_tok = { S( "element_list" ),  ATK_ELEMENT_LIST },
   vector_tok       = { S( "vector"       ),  ATK_VECTOR },
-  map_tok          = { S( "map"          ),  ATK_MAP };
+  map_tok          = { S( "map"          ),  ATK_MAP },
+  field_list_tok   = { S( "field_list"   ),  ATK_FIELD_LIST };
 #undef S
 
 const char *
@@ -147,6 +148,7 @@ tok_to_rwf_type( AppATok t ) noexcept
     case ATK_ELEMENT_LIST: return RWF_ELEMENT_LIST;
     case ATK_VECTOR:       return RWF_VECTOR;
     case ATK_MAP:          return RWF_MAP;
+    case ATK_FIELD_LIST:   return RWF_FIELD_LIST;
   }
 }
 
@@ -237,6 +239,10 @@ AppA::get_token( MDDictBuild &dict_build ) noexcept
         case 'd': case 'D':
           if ( this->match( date_tok ) )
             return this->consume( date_tok );
+          break;
+        case 'f': case 'F':
+          if ( this->match( field_list_tok ) )
+            return this->consume( field_list_tok );
           break;
         case 'e': case 'E':
           if ( this->match( enumerated_tok ) )
@@ -460,6 +466,7 @@ rwf_type_size( MDType &type,  uint32_t &size,  const char *,
         case RWF_VECTOR:
         case RWF_SERIES:
         case RWF_ELEMENT_LIST:
+        case RWF_FIELD_LIST:
           type = MD_MESSAGE;
           size = length;
           break;
@@ -802,6 +809,7 @@ AppA::parse_path( MDDictBuild &dict_build,  const char *path,
       case ATK_ELEMENT_LIST:
       case ATK_VECTOR:
       case ATK_MAP:
+      case ATK_FIELD_LIST:
         switch ( p->col ) {
           case 1: case 2: case 4:
             goto set_ident;
