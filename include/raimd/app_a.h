@@ -188,7 +188,8 @@ enum AppATok {
   ATK_SERIES       = 25,
   ATK_ELEMENT_LIST = 26,
   ATK_VECTOR       = 27,
-  ATK_MAP          = 28
+  ATK_MAP          = 28,
+  ATK_FIELD_LIST   = 29
 };
 
 struct AppAKeyword {

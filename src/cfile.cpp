@@ -355,6 +355,8 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
           p->stmt = CFT_FIELDS;
         else if ( p->stmt == CFT_FIELDS )
           p->stmt = CFT_IDENT;
+        else if ( p->cf_includes )
+          p->cf_includes = false;
         else if ( p->stmt != CFT_ERROR ) {
           uint8_t flags = ( ( p->is_fixed < 2 ? MD_FIXED : 0 ) |
                             ( p->is_primitive < 2 ? MD_PRIMITIVE : 0 ) );
@@ -426,8 +428,6 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
           }
           p->clear_ident();
         }
-        else if ( p->cf_includes )
-          p->cf_includes = false;
         p->br_level--;
         break;
 
@@ -493,6 +493,7 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
               ret = Err::FILE_NOT_FOUND;
             goto is_error;
           }
+          p2->stmt = p->stmt;
           p = p2;
         }
         else if ( p->stmt == CFT_FIELD_CLASS_NAME )
@@ -533,6 +534,11 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
                    p->fname );
         }
         p2 = (CFile *) p->next;
+        if ( p->stmt == CFT_IDENT && ! p->fld.is_empty() ) {
+          p2->fld.push_tl( p->fld.hd );
+          p2->fld.tl = p->fld.tl;
+          p->fld.init();
+        }
         delete p;
         p = p2;
         break;
