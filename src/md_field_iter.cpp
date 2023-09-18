@@ -310,10 +310,29 @@ MDFieldIter::get_enum( MDReference &,  MDEnum &enu ) noexcept
 }
 
 int
-MDMsg::msg_to_string( MDReference &,  char *&,  size_t & ) noexcept
+MDMsg::msg_to_string( MDReference &mref,  char *&str,  size_t &len ) noexcept
 {
-  /* TODO */
-  return Err::INVALID_MSG;
+  MDMsg * msg = NULL;
+  int status = this->get_sub_msg( mref, msg, NULL );
+  if ( status != 0 )
+    return status;
+  MDOutput bout;
+  bout.filep = tmpfile();
+  status = Err::INVALID_MSG;
+  if ( bout.filep != NULL ) {
+    bout.puts( "{" );
+    msg->print( &bout, 0, NULL, NULL );
+    bout.puts( "}" );
+    bout.flush();
+    len = ::ftell( (FILE *) bout.filep );
+    ::rewind( (FILE *) bout.filep );
+    str = this->mem->str_make( len + 1 );
+    if ( ::fread( str, 1, len, (FILE *) bout.filep ) == len ) {
+      str[ len ] = '\0';
+      status = 0;
+    }
+  }
+  return status;
 }
 
 int
