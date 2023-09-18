@@ -55,34 +55,65 @@ MDIterMap::copy_string( size_t i,  MDReference &mref ) noexcept
 }
 
 static inline bool get_uint_size( void *ptr,  size_t sz,  MDReference &mref ) {
+  if ( mref.ftype == MD_UINT || mref.ftype == MD_INT ) {
+    switch ( sz ) {
+      case 1: ((uint8_t *)  ptr)[ 0 ] = get_uint<uint8_t>( mref );  break;
+      case 2: ((uint16_t *) ptr)[ 0 ] = get_uint<uint16_t>( mref ); break;
+      case 4: ((uint32_t *) ptr)[ 0 ] = get_uint<uint32_t>( mref ); break;
+      case 8: ((uint64_t *) ptr)[ 0 ] = get_uint<uint64_t>( mref ); break;
+      default: return false;
+    }
+    return true;
+  }
+  int x = 0;
   switch ( sz ) {
-    case 1: ((uint8_t *)  ptr)[ 0 ] = get_uint<uint8_t>( mref );  break;
-    case 2: ((uint16_t *) ptr)[ 0 ] = get_uint<uint16_t>( mref ); break;
-    case 4: ((uint32_t *) ptr)[ 0 ] = get_uint<uint32_t>( mref ); break;
-    case 8: ((uint64_t *) ptr)[ 0 ] = get_uint<uint64_t>( mref ); break;
+    case 1: x = cvt_number<uint8_t> ( mref , ((uint8_t *)  ptr)[ 0 ] ); break;
+    case 2: x = cvt_number<uint16_t>( mref , ((uint16_t *) ptr)[ 0 ] ); break;
+    case 4: x = cvt_number<uint32_t>( mref , ((uint32_t *) ptr)[ 0 ] ); break;
+    case 8: x = cvt_number<uint64_t>( mref , ((uint64_t *) ptr)[ 0 ] ); break;
     default: return false;
   }
-  return true;
+  return x == 0;
 }
 
 static inline bool get_sint_size( void *ptr,  size_t sz,  MDReference &mref ) {
+  if ( mref.ftype == MD_UINT || mref.ftype == MD_INT ) {
+    switch ( sz ) {
+      case 1: ((int8_t *)  ptr)[ 0 ] = get_int<int8_t>( mref );  break;
+      case 2: ((int16_t *) ptr)[ 0 ] = get_int<int16_t>( mref ); break;
+      case 4: ((int32_t *) ptr)[ 0 ] = get_int<int32_t>( mref ); break;
+      case 8: ((int64_t *) ptr)[ 0 ] = get_int<int64_t>( mref ); break;
+      default: return false;
+    }
+    return true;
+  }
+  int x = 0;
   switch ( sz ) {
-    case 1: ((int8_t *)  ptr)[ 0 ] = get_int<int8_t>( mref );  break;
-    case 2: ((int16_t *) ptr)[ 0 ] = get_int<int16_t>( mref ); break;
-    case 4: ((int32_t *) ptr)[ 0 ] = get_int<int32_t>( mref ); break;
-    case 8: ((int64_t *) ptr)[ 0 ] = get_int<int64_t>( mref ); break;
+    case 1: x = cvt_number<int8_t> ( mref , ((int8_t *)  ptr)[ 0 ] ); break;
+    case 2: x = cvt_number<int16_t>( mref , ((int16_t *) ptr)[ 0 ] ); break;
+    case 4: x = cvt_number<int32_t>( mref , ((int32_t *) ptr)[ 0 ] ); break;
+    case 8: x = cvt_number<int64_t>( mref , ((int64_t *) ptr)[ 0 ] ); break;
     default: return false;
   }
-  return true;
+  return x == 0;
 }
 
 static inline bool get_real_size( void *ptr,  size_t sz,  MDReference &mref ) {
+  if ( mref.ftype == MD_REAL ) {
+    switch ( sz ) {
+      case 4: ((float *) ptr)[ 0 ]  = get_float<float>( mref );  break;
+      case 8: ((double *) ptr)[ 0 ] = get_float<double>( mref ); break;
+      default: return false;
+    }
+    return true;
+  }
+  int x = 0;
   switch ( sz ) {
-    case 4: ((float *) ptr)[ 0 ]  = get_float<float>( mref );  break;
-    case 8: ((double *) ptr)[ 0 ] = get_float<double>( mref ); break;
+    case 4: x = cvt_number<float> ( mref , ((float *) ptr)[ 0 ] ); break;
+    case 8: x = cvt_number<double>( mref , ((double *) ptr)[ 0 ] ); break;
     default: return false;
   }
-  return true;
+  return x == 0;
 }
 
 bool

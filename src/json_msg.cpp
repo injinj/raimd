@@ -1,5 +1,7 @@
+#include <stdio.h>
 #include <raimd/json_msg.h>
 #include <raimd/json.h>
+#include <raimd/md_dict.h>
 
 using namespace rai;
 using namespace md;
@@ -313,8 +315,8 @@ JsonFieldIter::find( const char *name,  size_t name_len,
   if ( name != NULL ) {
     for ( size_t i = 0; i < this->obj.length; i++ ) {
       JsonObject::Pair &pair = this->obj.val[ i ];
-      if ( pair.name.length + 1 == name_len &&
-           ::memcmp( pair.name.val, name, name_len ) == 0 ) {
+      if ( MDDict::dict_equals( name, name_len, pair.name.val,
+                                pair.name.length ) ) {
         this->field_start = i;
         this->field_end   = i + 1;
         return this->get_reference( mref );
