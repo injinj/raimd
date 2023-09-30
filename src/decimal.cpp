@@ -412,7 +412,8 @@ dec128_zero( Dec128Store *fp )
 size_t
 dec128_to_string( const Dec128Store *fp,  char *str )
 {
-  Dec128Store fp2 = *fp;
+  Dec128Store fp2;
+  ::memcpy( &fp2, fp, sizeof( fp2 ) );
   /*gcc_decimal128( &fp2 );*/
   /* this adds garbage at the end of NaN (as far as I can tell) */
   decimal128ToString( (const decimal128 *) &fp2, str );

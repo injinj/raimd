@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 typedef uint64_t Dec64Store;
-typedef struct { uint64_t n[ 2 ]; } Dec128Store;
+typedef struct { uint64_t x, y; } Dec128Store;
 
 void dec64_itod( Dec64Store *fp,  int i );
 void dec64_ftod( Dec64Store *fp,  double f );
