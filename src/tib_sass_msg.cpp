@@ -78,6 +78,17 @@ TibSassMsg::get_field_iter( MDFieldIter *&iter ) noexcept
   return 0;
 }
 
+MDFieldIter *
+TibSassFieldIter::copy( void ) noexcept
+{
+  void * ptr;
+  TibSassFieldIter *iter;
+  this->iter_msg.mem->alloc( sizeof( TibSassFieldIter ), &ptr );
+  iter = new ( ptr ) TibSassFieldIter( this->iter_msg );
+  this->dup_sass( *iter );
+  return iter;
+}
+
 int
 TibSassFieldIter::get_name( MDName &name ) noexcept
 {
@@ -287,6 +298,7 @@ TibSassFieldIter::first( void ) noexcept
   int x;
   this->field_start = this->iter_msg.msg_off + 8;
   this->field_end   = this->iter_msg.msg_end;
+  this->field_index = 0;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
   if ( (x = this->unpack()) == Err::NULL_FID ) {
@@ -302,6 +314,7 @@ TibSassFieldIter::next( void ) noexcept
   int x;
   this->field_start = this->field_end;
   this->field_end   = this->iter_msg.msg_end;
+  this->field_index++;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
   if ( (x = this->unpack()) == Err::NULL_FID ) {

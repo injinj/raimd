@@ -319,6 +319,7 @@ JsonFieldIter::find( const char *name,  size_t name_len,
                                 pair.name.length ) ) {
         this->field_start = i;
         this->field_end   = i + 1;
+        this->field_index = i;
         return this->get_reference( mref );
       }
     }
@@ -331,6 +332,7 @@ JsonFieldIter::first( void ) noexcept
 {
   this->field_start = 0;
   this->field_end   = 0;
+  this->field_index = 0;
   if ( this->obj.length == 0 )
     return Err::NOT_FOUND;
   this->field_end   = 1;
@@ -341,6 +343,7 @@ int
 JsonFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
+  this->field_index++;
   if ( this->field_start >= this->obj.length )
     return Err::NOT_FOUND;
   this->field_end = this->field_start + 1;

@@ -53,6 +53,21 @@ struct TibFieldIter : public MDFieldIter {
   TibFieldIter( TibMsg &m ) : MDFieldIter( m ), size( 0 ), hint_size( 0 ),
     name_len( 0 ), type( 0 ), hint_type( 0 ), is_submsg( m.is_submsg ) {}
 
+  void dup_tib( TibFieldIter &i ) {
+    i.size = this->size;
+    i.hint_size = this->hint_size;
+    i.data_off = this->data_off;
+    i.name_len = this->name_len;
+    i.type = this->type;
+    i.hint_type = this->hint_type;
+    i.decimal_hint = this->decimal_hint;
+    i.dec = this->dec;
+    i.date = this->date;
+    i.time = this->time;
+    i.is_submsg = this->is_submsg;
+    this->dup_iter( i );
+  }
+  virtual MDFieldIter *copy( void ) noexcept final;
   virtual int get_name( MDName &name ) noexcept final;
   virtual int get_reference( MDReference &mref ) noexcept final;
   virtual int get_hint_reference( MDReference &mref ) noexcept final;

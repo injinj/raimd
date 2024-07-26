@@ -53,6 +53,8 @@ struct MDMsgMem {
       this->release();
     this->mem_off = 0;
   }
+  void reset( MemBlock *blk,  uint32_t off ) noexcept;
+
   void *reuse_make( size_t size ) {
     size = this->align_size( size );
     if ( this->blk_ptr == &this->blk ||
@@ -105,6 +107,14 @@ struct MDMsgMem {
       s[ len ] = '\0';
     }
     return s;
+  }
+  void *memalloc( size_t len,  const void *mem ) {
+    void * m = NULL;
+    if ( len != 0 ) {
+      this->alloc( len, &m );
+      ::memcpy( m, mem, len );
+    }
+    return m;
   }
   void release( void ) noexcept; /* release alloced memory ) */
 };
@@ -237,8 +247,8 @@ struct MDMsg {
                          "%-10s %3d : " /* type fmt */);
   }
   /* Print message with printf style fmts */
-  void print( MDOutput *out,  int indent_newline,  const char *fname_fmt,
-              const char *type_fmt ) noexcept;
+  virtual void print( MDOutput *out,  int indent_newline,  const char *fname_fmt,
+                      const char *type_fmt ) noexcept;
   /* Print buffer hex values */
   static void print_hex( MDOutput *out,  const void *msgBuf,
                          size_t offset,  size_t length ) noexcept;
@@ -253,30 +263,28 @@ struct MDMsg {
   virtual int get_field_iter( MDFieldIter *&iter ) noexcept;
   virtual int get_array_ref( MDReference &mref, size_t i,
                              MDReference &aref ) noexcept;
-  int msg_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
-  int hash_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
-  int set_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
-  int zset_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
-  int geo_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
-  int hll_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
-  int stream_to_string( MDReference &mref,  char *&buf,
-                        size_t &len ) noexcept;
-  int get_quoted_string( MDReference &mref,  char *&buf,
-                         size_t &len ) noexcept;
-  static size_t get_escaped_string_len( MDReference &mref,
-                                        const char *quotes ) noexcept;
+  virtual int msg_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  virtual int hash_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  virtual int set_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  virtual int zset_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  virtual int geo_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  virtual int hll_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  virtual int stream_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  virtual int xml_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  virtual int get_subject_string( MDReference &mref,  char *&buf, size_t &len ) noexcept;
+  virtual int time_to_string( MDReference &mref,  char *&buf, size_t &len ) noexcept;
+  virtual int array_to_string( MDReference &mref,  char *&buf, size_t &len ) noexcept;
+  virtual int list_to_string( MDReference &mref,  char *&buf, size_t &len ) noexcept;
+
+  int get_quoted_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  static size_t get_escaped_string_len( MDReference &mref,  const char *quotes ) noexcept;
   static size_t get_escaped_string_output( MDReference &mref,  const char *quotes,
                                            char *str ) noexcept;
   int get_escaped_string( MDReference &mref,  const char *quotes,
-                           char *&buf,  size_t &len ) noexcept;
+                          char *&buf,  size_t &len ) noexcept;
   int get_hex_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
   int get_b64_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
   int get_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
-  int get_subject_string( MDReference &mref,  char *&buf,
-                          size_t &len ) noexcept;
-  int time_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
-  int array_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
-  int list_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
   int concat_array_to_string( char **str,  size_t *k,  size_t num_entries,
                               size_t tot_len,  char *&buf,
                               size_t &len ) noexcept;

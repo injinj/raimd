@@ -132,6 +132,7 @@ StreamFieldIter::first( void ) noexcept
 {
   this->field_start = 0;
   this->field_end   = 0;
+  this->field_index = 0;
   if ( this->strm.stream.count() + this->strm.group.count() +
        this->strm.pending.count() == 0 )
     return Err::NOT_FOUND;
@@ -143,6 +144,7 @@ int
 StreamFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
+  this->field_index++;
   if ( this->field_start >= this->strm.stream.count() +
        this->strm.group.count() + this->strm.pending.count() )
     return Err::NOT_FOUND;

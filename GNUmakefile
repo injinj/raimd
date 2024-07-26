@@ -67,6 +67,7 @@ exe       :=
 soflag    := -shared
 fpicflags := -fPIC
 endif
+dynlink_lib := -lz
 # make apple shared lib
 ifeq (Darwin,$(lsb_dist))
 dll       := dylib
@@ -158,7 +159,7 @@ $(objd)/md_msg.fpic.o : .copr/Makefile
 libraimd_files := md_msg md_field_iter md_iter_map json json_msg rv_msg tib_msg \
                   tib_sass_msg mf_msg rwf_msg rwf_writer rwf_dict md_dict cfile \
 		  app_a enum_def flistmap decimal md_list md_hash md_set md_zset \
-		  md_geo md_hll md_stream glue
+		  md_geo md_hll md_stream glue md_replay
 libraimd_cfile := $(addprefix src/, $(addsuffix .cpp, $(libraimd_files)))
 libraimd_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(libraimd_files)))
 libraimd_dbjs  := $(addprefix $(objd)/, $(addsuffix .fpic.o, $(libraimd_files)))
@@ -366,6 +367,17 @@ $(bind)/test_ht$(exe): $(test_ht_objs) $(test_ht_libs)
 all_exes += $(bind)/test_ht$(exe)
 all_depends +=  $(test_ht_deps)
 
+cache_msg_files := cache_msg
+cache_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(cache_msg_files)))
+cache_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(cache_msg_files)))
+cache_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(cache_msg_files)))
+cache_msg_libs  := $(raimd_lib)
+cache_msg_lnk   := $(lnk_lib)
+
+$(bind)/cache_msg$(exe): $(cache_msg_objs) $(cache_msg_libs) $(lnk_dep)
+all_exes += $(bind)/cache_msg$(exe)
+all_depends +=  $(cache_msg_deps)
+
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 
 all: $(all_libs) $(all_dlls) $(all_exes) cmake
@@ -419,6 +431,7 @@ CMakeLists.txt: .copr/Makefile
 	add_executable (write_msg $(write_msg_cfile))
 	add_executable (basic_msg $(basic_msg_cfile))
 	add_executable (pretty_js $(pretty_js_cfile))
+	add_executable (cache_msg $(cache_msg_cfile))
 	EOF
 
 

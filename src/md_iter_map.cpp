@@ -55,7 +55,7 @@ MDIterMap::copy_string( size_t i,  MDReference &mref ) noexcept
 }
 
 static inline bool get_uint_size( void *ptr,  size_t sz,  MDReference &mref ) {
-  if ( mref.ftype == MD_UINT || mref.ftype == MD_INT ) {
+  if ( is_integer( mref.ftype ) ) {
     switch ( sz ) {
       case 1: ((uint8_t *)  ptr)[ 0 ] = get_uint<uint8_t>( mref );  break;
       case 2: ((uint16_t *) ptr)[ 0 ] = get_uint<uint16_t>( mref ); break;
@@ -77,7 +77,7 @@ static inline bool get_uint_size( void *ptr,  size_t sz,  MDReference &mref ) {
 }
 
 static inline bool get_sint_size( void *ptr,  size_t sz,  MDReference &mref ) {
-  if ( mref.ftype == MD_UINT || mref.ftype == MD_INT ) {
+  if ( is_integer( mref.ftype ) ) {
     switch ( sz ) {
       case 1: ((int8_t *)  ptr)[ 0 ] = get_int<int8_t>( mref );  break;
       case 2: ((int16_t *) ptr)[ 0 ] = get_int<int16_t>( mref ); break;
@@ -114,6 +114,20 @@ static inline bool get_real_size( void *ptr,  size_t sz,  MDReference &mref ) {
     default: return false;
   }
   return x == 0;
+}
+
+static inline bool get_ipdata_size( void *ptr,  size_t sz,  MDReference &mref ) {
+  if ( is_integer( mref.ftype ) ) {
+    switch ( sz ) {
+      case 1: ((uint8_t *)  ptr)[ 0 ] = get_uint<uint8_t>( mref );  break;
+      case 2: ((uint16_t *) ptr)[ 0 ] = get_u16<MD_LITTLE>( mref.fptr ); break;
+      case 4: ((uint32_t *) ptr)[ 0 ] = get_u32<MD_LITTLE>( mref.fptr ); break;
+      case 8: ((uint64_t *) ptr)[ 0 ] = get_u64<MD_LITTLE>( mref.fptr ); break;
+      default: return false;
+    }
+    return true;
+  }
+  return false;
 }
 
 bool
@@ -266,6 +280,7 @@ MDFieldReader::get_value( void *val,  size_t len,  MDType t ) noexcept
   if ( this->err == 0 ) {
     switch ( t ) {
       case MD_UINT:
+      case MD_BOOLEAN:
         if ( ! get_uint_size( val, len, this->mref ) )
           this->err = Err::BAD_CVT_NUMBER;
         break;
@@ -286,6 +301,13 @@ MDFieldReader::get_value( void *val,  size_t len,  MDType t ) noexcept
       case MD_DECIMAL:
         this->err = ((MDDecimal *) val)->get_decimal( this->mref );
         break;
+      case MD_IPDATA:
+        if ( ! get_ipdata_size( val, len, this->mref ) )
+          this->err = Err::BAD_CVT_NUMBER;
+        break;
+      case MD_DATETIME:
+        this->err = ((MDStamp *) val)->get_stamp( this->mref );
+        break;
       default:
         this->err = Err::BAD_FIELD_TYPE;
         break;
@@ -294,6 +316,84 @@ MDFieldReader::get_value( void *val,  size_t len,  MDType t ) noexcept
   if ( this->err != 0 ) {
     ::memset( val, 0, len );
     return false;
+  }
+  return this->err == 0;
+}
+
+bool
+MDFieldReader::get_array_count( size_t &cnt ) noexcept
+{
+  if ( this->err == 0 ) {
+    if ( this->mref.ftype == MD_NODATA )
+      this->err = this->iter->get_reference( this->mref );
+  }
+  if ( this->err == 0 ) {
+    cnt = this->mref.fsize;
+    if ( this->mref.fentrysz != 0 )
+      cnt /= this->mref.fentrysz;
+  }
+  else {
+    cnt = 0;
+  }
+  return this->err == 0;
+}
+
+bool
+MDFieldReader::get_array_value( void *val,  size_t cnt,  size_t elsz,
+                                MDType t ) noexcept
+{
+  if ( this->err == 0 ) {
+    if ( this->mref.ftype == MD_NODATA )
+      this->err = this->iter->get_reference( this->mref );
+  }
+  if ( this->err == 0 ) {
+    size_t num = this->mref.fsize;
+    if ( this->mref.fentrysz != 0 )
+      num /= this->mref.fentrysz;
+    if ( num > cnt )
+      num = cnt;
+    for ( size_t i = 0; i < num; i++ ) {
+      MDReference aref;
+      this->err = this->iter->iter_msg.get_array_ref( this->mref, i, aref );
+      if ( this->err != 0 )
+        break;
+      switch ( t ) {
+        case MD_UINT:
+        case MD_BOOLEAN:
+          if ( ! get_uint_size( val, elsz, aref ) )
+            this->err = Err::BAD_CVT_NUMBER;
+          break;
+        case MD_INT:
+          if ( ! get_sint_size( val, elsz, aref ) )
+            this->err = Err::BAD_CVT_NUMBER;
+          break;
+        case MD_REAL:
+          if ( ! get_real_size( val, elsz, aref ) )
+            this->err = Err::BAD_CVT_NUMBER;
+          break;
+        case MD_STRING:
+        case MD_OPAQUE:
+          if ( aref.ftype == MD_STRING || aref.ftype == MD_OPAQUE ) {
+            char * ptr = NULL;
+            if ( aref.fsize > 0 ) {
+              ptr = (char *) aref.fptr;
+              if ( ptr[ aref.fsize - 1 ] != '\0' )
+                ptr = this->iter->iter_msg.mem->stralloc( aref.fsize, ptr );
+            }
+            ((char **) val)[ 0 ] = ptr;
+            break;
+          }
+          /* FALLTHRU */
+        default:
+          this->err = Err::BAD_FIELD_TYPE;
+          break;
+      }
+      if ( this->err != 0 )
+        break;
+      val = &((uint8_t *) val)[ elsz ];
+    }
+    if ( this->err != 0 )
+      return false;
   }
   return this->err == 0;
 }
@@ -315,6 +415,21 @@ MDFieldReader::get_string( char *&buf,  size_t &len ) noexcept
       this->err = this->iter->get_reference( this->mref );
     if ( this->err == 0 )
       this->err = this->iter->iter_msg.get_string( this->mref, buf, len );
+  }
+  if ( this->err != 0 )
+    len = 0;
+  return this->err == 0;
+}
+bool
+MDFieldReader::get_opaque( void *&buf,  size_t &len ) noexcept
+{
+  if ( this->err == 0 ) {
+    if ( this->mref.ftype == MD_NODATA )
+      this->err = this->iter->get_reference( this->mref );
+    if ( this->err == 0 ) {
+      buf = this->mref.fptr;
+      len = this->mref.fsize;
+    }
   }
   if ( this->err != 0 )
     len = 0;

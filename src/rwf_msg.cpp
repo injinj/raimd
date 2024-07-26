@@ -692,7 +692,7 @@ int
 RwfFieldIter::unpack_message_entry( void ) noexcept
 {
   RwfMsg & msg = (RwfMsg &) this->iter_msg;
-  if ( ! msg.msg.ref_iter( this->field_idx, *this ) )
+  if ( ! msg.msg.ref_iter( this->field_index, *this ) )
     return Err::NOT_FOUND;
   return 0;
 }
@@ -701,7 +701,7 @@ int
 RwfFieldIter::unpack_msg_key_entry( void ) noexcept
 {
   RwfMsg & msg = (RwfMsg &) this->iter_msg;
-  if ( ! msg.msg_key.ref_iter( this->field_idx, *this ) )
+  if ( ! msg.msg_key.ref_iter( this->field_index, *this ) )
     return Err::NOT_FOUND;
   return 0;
 }
@@ -787,7 +787,7 @@ RwfFieldIter::unpack_field_list_defn( void ) noexcept
   size_t    i   = this->field_start;
   uint8_t   rwf_type;
 
-  rwf_type = msg.fields.field_set->get_fid( this->field_idx, this->ftype,
+  rwf_type = msg.fields.field_set->get_fid( this->field_index, this->ftype,
                                             this->fsize, this->u.field.fid );
   this->u.field.rwf_type = rwf_type;
   if ( rwf_type == RWF_NONE )
@@ -881,7 +881,7 @@ template<class Hdr>
 static inline size_t
 unpack_summary( RwfFieldIter &iter,  Hdr &hdr )
 {
-  if ( iter.field_idx == 0 ) {
+  if ( iter.field_index == 0 ) {
     if ( hdr.summary_size != 0 ) {
       iter.field_start = hdr.summary_start;
       iter.fsize       = hdr.summary_size;
@@ -892,7 +892,7 @@ unpack_summary( RwfFieldIter &iter,  Hdr &hdr )
     }
     return hdr.data_start;
   }
-  if ( iter.field_idx == 1 ) {
+  if ( iter.field_index == 1 ) {
     if ( hdr.summary_size != 0 )
       return hdr.data_start;
   }
@@ -1059,7 +1059,7 @@ RwfFieldIter::unpack_element_list_defn( void ) noexcept
           * eob = &buf[ this->field_end ];
   size_t    i   = this->field_start;
 
-  if ( ! msg.elist.field_set->get_elem( this->field_idx, this->ftype, this->fsize,
+  if ( ! msg.elist.field_set->get_elem( this->field_index, this->ftype, this->fsize,
                                         it.name, it.namelen ) )
     return Err::BAD_FIELD_TYPE;
 
@@ -1731,7 +1731,7 @@ RwfFieldIter::get_name( MDName &name ) noexcept
     }
     case RWF_VECTOR: {
       static const char summary_str[] = "vector-summary";
-      if ( this->field_idx == 0 && msg.vector.summary_size != 0 ) {
+      if ( this->field_index == 0 && msg.vector.summary_size != 0 ) {
         name.fnamelen = sizeof( summary_str );
         name.fname    = summary_str;
       }
@@ -1762,7 +1762,7 @@ RwfFieldIter::get_name( MDName &name ) noexcept
     }
     case RWF_MAP: {
       static const char summary_str[] = "map-summary";
-      if ( this->field_idx == 0 && msg.map.summary_size != 0 ) {
+      if ( this->field_index == 0 && msg.map.summary_size != 0 ) {
         name.fnamelen = sizeof( summary_str );
         name.fname    = summary_str;
       }
@@ -1827,12 +1827,12 @@ RwfFieldIter::get_name( MDName &name ) noexcept
     }
     case RWF_SERIES: {
       static const char summary_str[] = "series-summary";
-      if ( this->field_idx == 0 && msg.series.summary_size != 0 ) {
+      if ( this->field_index == 0 && msg.series.summary_size != 0 ) {
         name.fnamelen = sizeof( summary_str );
         name.fname    = summary_str;
       }
       else {
-        size_t idx     = this->field_idx + ( msg.series.summary_size == 0 ? 1 : 0 );
+        size_t idx     = this->field_index + ( msg.series.summary_size == 0 ? 1 : 0 );
         char * tmp_buf = NULL;
         size_t digs    = uint_digs( idx );
         msg.mem->alloc( digs + 1, &tmp_buf );
@@ -2318,7 +2318,7 @@ RwfFieldIter::first( void ) noexcept
   int k;
 
   this->field_end = msg.msg_end;
-  this->field_idx = 0;
+  this->field_index = 0;
   this->msg_fptr  = NULL;
 
   switch ( msg.base.type_id ) {
@@ -2386,11 +2386,11 @@ RwfFieldIter::next( void ) noexcept
 
   this->field_start = this->field_end;
   this->field_end   = msg.msg_end;
-  this->field_idx++;
+  this->field_index++;
 
   switch ( msg.base.type_id ) {
     case RWF_FIELD_LIST:
-      k = msg.fields.next_kind( this->field_idx );
+      k = msg.fields.next_kind( this->field_index );
       if ( ( k & RWF_NORMAL_ENTRY ) != 0 ) {
         if ( k == RWF_FIRST_ENTRY )
           this->field_start = msg.fields.data_start;
@@ -2403,11 +2403,11 @@ RwfFieldIter::next( void ) noexcept
       }
       break;
     case RWF_MAP:
-      if ( ! msg.map.has_next( this->field_idx ) )
+      if ( ! msg.map.has_next( this->field_index ) )
         break;
       return this->unpack_map_entry();
     case RWF_ELEMENT_LIST:
-      k = msg.elist.next_kind( this->field_idx );
+      k = msg.elist.next_kind( this->field_index );
       if ( (k & RWF_NORMAL_ENTRY) != 0 ) {
         if ( k == RWF_FIRST_ENTRY )
           this->field_start = msg.elist.data_start;
@@ -2420,15 +2420,15 @@ RwfFieldIter::next( void ) noexcept
       }
       break;
     case RWF_FILTER_LIST:
-      if ( ! msg.flist.has_next( this->field_idx ) )
+      if ( ! msg.flist.has_next( this->field_index ) )
         break;
       return this->unpack_filter_list_entry();
     case RWF_SERIES:
-      if ( ! msg.series.has_next( this->field_idx ) )
+      if ( ! msg.series.has_next( this->field_index ) )
         break;
       return this->unpack_series_entry();
     case RWF_VECTOR:
-      if ( ! msg.vector.has_next( this->field_idx ) )
+      if ( ! msg.vector.has_next( this->field_index ) )
         break;
       return this->unpack_vector_entry();
     case RWF_MSG:

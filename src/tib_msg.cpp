@@ -91,6 +91,17 @@ TibMsg::get_field_iter( MDFieldIter *&iter ) noexcept
   return 0;
 }
 
+MDFieldIter *
+TibFieldIter::copy( void ) noexcept
+{
+  TibFieldIter *iter;
+  void * ptr;
+  this->iter_msg.mem->alloc( sizeof( TibFieldIter ), &ptr );
+  iter = new ( ptr ) TibFieldIter( (TibMsg &) this->iter_msg );
+  this->dup_tib( *iter );
+  return iter;
+}
+
 int
 TibFieldIter::get_name( MDName &name ) noexcept
 {
@@ -204,6 +215,7 @@ TibFieldIter::first( void ) noexcept
   if ( ! this->is_submsg )
     this->field_start += 9;
   this->field_end   = this->iter_msg.msg_end;
+  this->field_index = 0;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
   return this->unpack();
@@ -214,6 +226,7 @@ TibFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   this->field_end   = this->iter_msg.msg_end;
+  this->field_index++;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
   return this->unpack();

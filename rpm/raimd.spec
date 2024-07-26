@@ -13,7 +13,9 @@ BuildRequires:  gcc-c++
 BuildRequires:  chrpath
 BuildRequires:  libdecnumber
 BuildRequires:  git-core
+BuildRequires:  zlib-devel
 Requires:       libdecnumber
+Requires:       zlib
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
 

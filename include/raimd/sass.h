@@ -168,6 +168,34 @@ static inline bool is_sass_hdr( const MDName &n ) {
   return false;
 }
 
+template<class Writer>
+void append_sass_hdr( Writer &w,  MDFormClass *form,  uint16_t msg_type,
+                      uint16_t rec_type,  uint16_t seqno,  uint16_t status,
+                      const char *subj,  size_t sublen )
+{
+  if ( msg_type != INITIAL_TYPE || form == NULL ) {
+    w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , msg_type );
+    if ( rec_type != 0 )
+      w.append_uint( SASS_REC_TYPE, SASS_REC_TYPE_LEN  , rec_type );
+    w.append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
+     .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, status );
+  }
+  else {
+    const MDFormEntry * e = form->entries;
+    MDLookup by;
+    if ( form->get( by.nm( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN ) ) == &e[ 0 ] )
+      w.append_uint( by.fname, by.fname_len, msg_type );
+    if ( form->get( by.nm( SASS_REC_TYPE, SASS_REC_TYPE_LEN ) ) == &e[ 1 ] )
+      w.append_uint( by.fname, by.fname_len, rec_type );
+    if ( form->get( by.nm( SASS_SEQ_NO, SASS_SEQ_NO_LEN ) ) == &e[ 2 ] )
+      w.append_uint( by.fname, by.fname_len, seqno );
+    if ( form->get( by.nm( SASS_REC_STATUS, SASS_REC_STATUS_LEN ) ) == &e[ 3 ] )
+      w.append_uint( by.fname, by.fname_len, status );
+    if ( form->get( by.nm( SASS_SYMBOL, SASS_SYMBOL_LEN ) ) == &e[ 4 ] )
+      w.append_string( by.fname, by.fname_len, subj, sublen );
+  }
+}
+
 #if 0
 #include <stdio.h>
 int

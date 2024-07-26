@@ -127,6 +127,7 @@ GeoFieldIter::first( void ) noexcept
 {
   this->field_start = 0;
   this->field_end   = 0;
+  this->field_index = 0;
   this->keylen      = 0;
   if ( this->geo.hcount() == 0 )
     return Err::NOT_FOUND;
@@ -138,6 +139,7 @@ int
 GeoFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
+  this->field_index++;
   this->keylen      = 0;
   if ( this->field_start >= this->geo.hcount() )
     return Err::NOT_FOUND;

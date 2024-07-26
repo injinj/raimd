@@ -1,10 +1,7 @@
 #include <stdio.h>
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
-#include <raimd/md_dict.h>
-#include <raimd/cfile.h>
-#include <raimd/app_a.h>
-#include <raimd/enum_def.h>
+#include <raimd/dict_load.h>
 #include <raimd/json_msg.h>
 #include <raimd/tib_msg.h>
 #include <raimd/rv_msg.h>
@@ -77,35 +74,6 @@ test_write( Writer &writer )
   writer.append_ref( row64_1, sizeof( row64_1 ), mref );
 
   return writer.update_hdr();
-}
-
-static MDDict *
-load_dict_files( const char *path )
-{
-  MDDictBuild dict_build;
-  MDDict * dict = NULL;
-  int x, y;
-  if ( (x = CFile::parse_path( dict_build, path, "tss_fields.cf" )) == 0 ) {
-    CFile::parse_path( dict_build, path, "tss_records.cf" );
-    dict_build.index_dict( "cfile", dict ); /* dict contains index */
-  }
-  dict_build.clear_build(); /* frees temp memory used to index dict */
-  if ( (y = AppA::parse_path( dict_build, path, "RDMFieldDictionary" )) == 0){
-    EnumDef::parse_path( dict_build, path, "enumtype.def" );
-    dict_build.index_dict( "app_a", dict ); /* dict is a list */
-  }
-  dict_build.clear_build();
-  if ( dict != NULL ) { /* print which dictionaries loaded */
-    printf( "%s dict loaded (size: %u)\n", dict->dict_type,
-            dict->dict_size );
-    if ( dict->next != NULL )
-      printf( "%s dict loaded (size: %u)\n", dict->next->dict_type,
-              dict->next->dict_size );
-    return dict;
-  }
-  printf( "cfile status %d+%s, RDM status %d+%s\n",
-          x, Err::err( x )->descr, y, Err::err( y )->descr );
-  return NULL;
 }
 
 static void
