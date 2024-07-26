@@ -9,12 +9,19 @@ namespace md {
 struct MDFieldIter { /* generic field iterator */
   MDMsg & iter_msg;
   size_t  field_start,   /* marks the area of a field, if msg is byte blob */
-          field_end;
+          field_end,
+          field_index;
 
   MDFieldIter( MDMsg &m )
-    : iter_msg( m ), field_start( 0 ), field_end( 0 ) {}
+    : iter_msg( m ), field_start( 0 ), field_end( 0 ), field_index( 0 ) {}
 
   /* these fuctions implemented in subclass */
+  void dup_iter( MDFieldIter &i ) {
+    i.field_start = this->field_start;
+    i.field_end   = this->field_end;
+    i.field_index = this->field_index;
+  }
+  virtual MDFieldIter *copy( void ) noexcept;
   virtual int get_name( MDName &name ) noexcept;
   virtual int copy_name( char *name,  size_t &name_len,  MDFid &fid ) noexcept;
   virtual int get_reference( MDReference &mref ) noexcept;
@@ -27,6 +34,7 @@ struct MDFieldIter { /* generic field iterator */
   }
   virtual int first( void ) noexcept;
   virtual int next( void ) noexcept;
+  virtual int update( MDReference &mref ) noexcept;
 
   /* escaped strings is used for json escaping */
   size_t fname_string( char *fname_buf,  size_t &fname_len ) noexcept;
@@ -43,6 +51,7 @@ struct MDFieldReader { /* iterator but w bool return with err field */
   MDReference   mref;
   int           err;
 
+  void * operator new( size_t, void *ptr ) { return ptr; }
   MDFieldReader( MDMsg &m ) noexcept;
   bool find( const char *fname,  size_t fnamelen ) noexcept;
   bool find( const char *fname ) {
@@ -59,6 +68,9 @@ struct MDFieldReader { /* iterator but w bool return with err field */
   }
   MDType type( void ) noexcept;
   bool get_value( void *val,  size_t len,  MDType t ) noexcept;
+  bool get_array_count( size_t &cnt ) noexcept;
+  bool get_array_value( void *val,  size_t cnt,  size_t elsz,
+                        MDType t ) noexcept;
   template <class I>
   bool get_int( I &ival ) {
     return this->get_value( &ival, sizeof( I ), MD_INT );
@@ -71,7 +83,8 @@ struct MDFieldReader { /* iterator but w bool return with err field */
   bool get_real( F &fval ) {
     return this->get_value( &fval, sizeof( F ), MD_REAL );
   }
-  bool get_string( char *&sval,  size_t &slen ) noexcept;
+  bool get_string( char *&buf,  size_t &len ) noexcept;
+  bool get_opaque( void *&buf,  size_t &len ) noexcept;
   bool get_string( char *buf, size_t buflen, size_t &blen ) noexcept;
   bool get_time( MDTime &time ) {
     return this->get_value( &time, sizeof( MDTime ), MD_TIME );

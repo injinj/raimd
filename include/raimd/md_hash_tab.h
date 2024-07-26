@@ -4,6 +4,25 @@
 namespace rai {
 namespace md {
 
+struct MDSubjectKey {
+  const char * subj;
+  size_t       len;
+
+  size_t hash( void ) const {
+    size_t key = 5381;
+    for ( size_t i = 0; i < this->len; i++ ) {
+      size_t c = (size_t) (uint8_t) this->subj[ i ];
+      key = c ^ ( ( key << 5 ) + key );
+    }
+    return key;
+  }
+  bool equals( const MDSubjectKey &k ) const {
+    return k.len == this->len &&
+           ::memcmp( k.subj, this->subj, this->len ) == 0;
+  }
+  MDSubjectKey( const char *s,  size_t l ) : subj( s ), len( l ) {}
+};
+
 template <class Key, class Value>
 struct MDHashTabT {
   Value ** tab;

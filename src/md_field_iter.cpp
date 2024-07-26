@@ -114,6 +114,10 @@ int MDFieldIter::first( void ) noexcept
 { return Err::NOT_FOUND; }
 int MDFieldIter::next( void ) noexcept
 { return Err::NOT_FOUND; }
+int MDFieldIter::update( MDReference & ) noexcept
+{ return Err::NO_MSG_IMPL; }
+MDFieldIter *MDFieldIter::copy( void ) noexcept
+{ return NULL; }
 
 int
 MDFieldIter::copy_name( char *name_buf, size_t &name_len, MDFid &fid ) noexcept
@@ -277,6 +281,15 @@ MDStamp::get_stamp( const MDReference &mref ) noexcept
   else if ( mref.ftype == MD_STRING ) {
     if ( this->parse( (const char *) mref.fptr, mref.fsize ) == 0 )
       return 0;
+  }
+  else if ( mref.ftype == MD_DATETIME ) { /* rv datetime */
+    if ( mref.fsize == 8 ) {
+      uint64_t x = get_int<uint64_t>( mref.fptr, mref.fendian );
+      this->stamp = ( x >> 32 ) * 1000000 +
+                    ( x & 0xffffffff );
+      this->resolution = MD_RES_MICROSECS;
+      return 0;
+    }
   }
   this->zero();
   return Err::BAD_STAMP;
@@ -541,14 +554,18 @@ MDMsg::hll_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
 int
 MDMsg::stream_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
-  /* TODO */
+  return Err::INVALID_MSG;
+}
+
+int
+MDMsg::xml_to_string( MDReference &,  char *&,  size_t & ) noexcept
+{
   return Err::INVALID_MSG;
 }
 
 int
 MDMsg::time_to_string( MDReference &,  char *&,  size_t & ) noexcept
 {
-  /* TODO */
   return Err::INVALID_MSG;
 }
 
@@ -654,6 +671,7 @@ MDMsg::get_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
     case MD_GEO:         return this->geo_to_string( mref, buf, len );
     case MD_HYPERLOGLOG: return this->hll_to_string( mref, buf, len );
     case MD_STREAM:      return this->stream_to_string( mref, buf, len );
+    case MD_XML:         return this->xml_to_string( mref, buf, len );
 
     case MD_TIME: {
       MDTime time;
@@ -1081,6 +1099,7 @@ rai::md::md_type_str( MDType type,  size_t size ) noexcept
     case MD_GEO:       return "geo";
     case MD_HYPERLOGLOG: return "hyperloglog";
     case MD_STREAM:    return "stream";
+    case MD_XML:       return "xml";
   }
   return "invalid";
 }
@@ -1288,6 +1307,7 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
     case MD_GEO:
     case MD_HYPERLOGLOG:
     case MD_STREAM:
+    case MD_XML:
       if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
         out->puts( str );
       }

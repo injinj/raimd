@@ -360,8 +360,8 @@ struct RwfMsgKeyIter {
 
 struct RwfFieldIter : public MDFieldIter {
   MDType       ftype;     /* field type from dictionary */
-  uint32_t     fsize,     /* length of string, size of int */
-               field_idx; /* current field index */
+  uint32_t     fsize;     /* length of string, size of int */
+               /*field_idx; * current field index */
   uint16_t     position;  /* partial offset / escape position */
   MDValue      val;       /* union of temp values */
   MDDecimal    dec;       /* if price */
@@ -410,7 +410,7 @@ struct RwfFieldIter : public MDFieldIter {
   void * operator new( size_t, void *ptr ) { return ptr; }
 
   RwfFieldIter( MDMsg &m ) : MDFieldIter( m ),
-      ftype( MD_NODATA ), fsize( 0 ), field_idx( 0 ), position( 0 ),
+      ftype( MD_NODATA ), fsize( 0 ), /*field_idx( 0 ),*/ position( 0 ),
       data_start( 0 ), msg_fptr( 0 ) {
     ::memset( &this->u, 0, sizeof( this->u ) );
   }

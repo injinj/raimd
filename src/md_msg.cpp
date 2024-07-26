@@ -311,7 +311,7 @@ MDMsgMem::extend( size_t old_size,  size_t new_size,  void *ptr ) noexcept
   }
   void * tmp;
   this->alloc( new_size, &tmp );
-  ::memcpy( tmp, *(void **) ptr, old_size );
+  ::memcpy( tmp, *(void **) ptr, old_size < new_size ? old_size : new_size );
   *(void **) ptr = tmp;
 }
 
@@ -328,6 +328,20 @@ MDMsgMem::release( void ) noexcept
     this->blk_ptr = next;
   }
   this->mem_off = 0;
+}
+
+void
+MDMsgMem::reset( MemBlock *sav,  uint32_t off ) noexcept
+{
+  while ( this->blk_ptr != sav ) {
+    MemBlock * next = this->blk_ptr->next;
+    if ( (void *) this->blk_ptr != this->blk_ptr->mem[ this->blk_ptr->size ] )
+      this->error();
+    else
+      ::free( this->blk_ptr );
+    this->blk_ptr = next;
+  }
+  this->mem_off = off;
 }
 
 #include <stdio.h>

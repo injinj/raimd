@@ -75,8 +75,9 @@ enum MDType { /* field types */
   MD_ZSET        = 21,
   MD_GEO         = 22,
   MD_HYPERLOGLOG = 23,
-  MD_STREAM      = 24
-#define MD_TYPE_COUNT 25
+  MD_STREAM      = 24,
+  MD_XML         = 25
+#define MD_TYPE_COUNT 26
 };
 
 enum MDEndian {
@@ -190,6 +191,11 @@ struct MDDecimal { /* base 10 decimal */
   MDDecimal() {}
   MDDecimal( int64_t i,  int8_t h ) : ival( i ), hint( h ) {}
   MDDecimal( double fval ) { this->set_real( fval ); }
+  MDDecimal( const MDDecimal &d ) : ival( d.ival ), hint( d.hint ) {}
+  MDDecimal &operator=( const MDDecimal &d ) {
+    this->ival = d.ival; this->hint = d.hint;
+    return *this;
+  }
   void set( int64_t i,  int8_t h ) { this->ival = i; this->hint = h; }
   int parse( const char *s ) { return this->parse( s, ::strlen( s ) ); }
   int parse( const char *s,  const size_t fsize ) noexcept;
@@ -216,6 +222,12 @@ struct MDTime {
   MDTime( const MDTime &t )
     : hour( t.hour ), minute( t.minute ), sec( t.sec ),
       resolution( t.resolution ), fraction( t.fraction ) {}
+  MDTime &operator=( const MDTime &t ) {
+    this->hour     = t.hour;     this->minute     = t.minute;
+    this->sec      = t.sec;      this->resolution = t.resolution;
+    this->fraction = t.fraction;
+    return *this;
+  }
   int parse( const char *fptr, const size_t fsize ) noexcept;
   void zero( void ) { hour = 0; minute = 0; sec = 0; resolution = 0;
                       fraction = 0; }
@@ -283,6 +295,11 @@ struct MDDate {
            day;  /* day 1 -> 31 */
   MDDate() {}
   MDDate( uint16_t y,  uint8_t m,  uint8_t d ) : year( y ), mon( m ), day( d ) {}
+  MDDate( const MDDate &d ) : year( d.year ), mon( d.mon ), day( d.day ) {}
+  MDDate &operator=( const MDDate &d ) {
+    this->year = d.year; this->mon = d.mon; this->day = d.day;
+    return *this;
+  }
   void zero( void ) { year = 0; mon = 0; day = 0; }
   size_t get_string( char *str,  size_t len,
                      MDDateFormat fmt = MD_DATE_FMT_default ) const noexcept;
@@ -299,6 +316,11 @@ struct MDStamp {
   uint8_t  resolution; /* resolution of stamp (nsecs, usecs, msecs, secs) */
   MDStamp() {}
   MDStamp( uint64_t s,  uint8_t r ) : stamp( s ), resolution( r ) {}
+  MDStamp( const MDStamp &s ) : stamp( s.stamp ), resolution( s.resolution ) {}
+  MDStamp &operator=( const MDStamp &s ) {
+    this->stamp = s.stamp; this->resolution = s.resolution;
+    return *this;
+  }
   void zero( void ) { this->stamp = 0; this->resolution = 0; }
   size_t get_string( char *str,  size_t len ) const noexcept;
   int parse( const char *fptr,  size_t flen, bool is_gm_time = false ) noexcept;

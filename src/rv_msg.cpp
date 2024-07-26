@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <time.h>
+#include <zlib.h>
 #include <raimd/rv_msg.h>
 #include <raimd/tib_msg.h>
 #include <raimd/tib_sass_msg.h>
@@ -175,7 +177,7 @@ static const int rv_type_to_md_type[ 64 ] = {
     /*RV_BADDATA   =  0 */ 0, /* same as NODATA */
     /*RV_RVMSG     =  1 */ MD_MESSAGE,
     /*RV_SUBJECT   =  2 */ MD_SUBJECT,
-    /*RV_DATETIME  =  3 */ MD_UINT,
+    /*RV_DATETIME  =  3 */ MD_DATETIME,
                   /*  4 */ 0,
                   /*  5 */ 0,
                   /*  6 */ 0,
@@ -207,8 +209,9 @@ static const int rv_type_to_md_type[ 64 ] = {
     /*RV_ARRAY_F32 = 44 */ MD_ARRAY,
     /*RV_ARRAY_F64 = 45 */ MD_ARRAY,
                   /* 46 */ 0,
-                  /* 47 */ 0,
-    /*RV_ARRAY_STR = 48 */ MD_ARRAY
+    /*RV_XML       = 47 */ MD_XML,
+    /*RV_ARRAY_STR = 48 */ MD_ARRAY,
+    /*RV_ARRAY_MSG = 49 */ MD_ARRAY
 };
 
 
@@ -235,16 +238,116 @@ RvMsg::get_field_iter( MDFieldIter *&iter ) noexcept
   return 0;
 }
 
+
+int
+RvMsg::time_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
+{
+  if ( mref.ftype == MD_DATETIME && mref.fsize == 8 ) {
+    const char *fmt = "%Y-%m-%d %H:%M:%S";
+    uint64_t usec = get_uint<uint64_t>( mref.fptr, MD_BIG );
+    time_t   sec  = usec >> 32;
+    struct tm tm;
+    gmtime_r( &sec, &tm );
+    char * gmt;
+    this->mem->alloc( 32, &gmt );
+    strftime( gmt, 32, fmt, &tm );
+    /*154,979,000 Z*/
+    char * p = &gmt[ ::strlen( gmt ) ],
+         * e = &gmt[ 32 ];
+    uint64_t nsec = (uint64_t) ( usec & 0xffffffffU ) * 1000;
+    ::snprintf( p, e-p, "%luZ", nsec + 1000000000 );
+    *p = '.';
+    buf = gmt;
+    len = strlen( p ) + ( p - gmt );
+    return 0;
+  }
+  return this->MDMsg::time_to_string( mref, buf, len );
+}
+
+int
+RvMsg::xml_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
+{
+  if ( mref.ftype == MD_XML && mref.fsize > 0 ) {
+    uint32_t doc_size = mref.fptr[ 0 ],
+             szbytes  = 0;
+    switch ( doc_size ) {
+      case RV_LONG_SIZE:
+        if ( 1 + 4 > mref.fsize )
+          goto bad_bounds;
+        doc_size = get_u32<MD_BIG>( &mref.fptr[ 1 ] );
+        szbytes = 4;
+        break;
+      case RV_SHORT_SIZE:
+        if ( 1 + 2 > mref.fsize )
+          goto bad_bounds;
+        doc_size = get_u16<MD_BIG>( &mref.fptr[ 1 ] );
+        szbytes = 2;
+        break;
+      default:
+        break;
+    }
+    z_stream zs;
+    memset( &zs, 0, sizeof( zs ) );
+    inflateInit( &zs );
+    zs.avail_in  = mref.fsize - ( 1 + szbytes );
+    zs.next_in   = (Bytef *) &mref.fptr[ 1 + szbytes ];
+    zs.avail_out = doc_size - szbytes;
+    zs.next_out  = (Bytef *) this->mem->make( zs.avail_out + 1 );
+    len          = zs.avail_out;
+    buf          = (char *) zs.next_out;
+    int x = inflate( &zs, Z_FINISH );
+    inflateEnd( &zs );
+    buf[ len ]   = '\0';
+
+    if ( x == Z_STREAM_ERROR )
+      goto bad_bounds;
+
+#if 0
+    char tmp[ 32 ];
+    ::snprintf( tmp, sizeof( tmp ), "[XML document: %u bytes]",
+                doc_size - szbytes );
+    len = ::strlen( tmp );
+    buf = this->mem->stralloc( len, tmp );
+#endif
+    return 0;
+  }
+bad_bounds:;
+  return this->MDMsg::xml_to_string( mref, buf, len );
+}
+
+MDFieldIter *
+RvFieldIter::copy( void ) noexcept
+{
+  RvFieldIter *iter;
+  void * ptr;
+  this->iter_msg.mem->alloc( sizeof( RvFieldIter ), &ptr );
+  iter = new ( ptr ) RvFieldIter( this->iter_msg );
+  this->dup_rv( *iter );
+  return iter;
+}
+
+static inline void
+get_rv_name( char *fname,  size_t fnamelen,  MDName &name )
+{
+  name.fid      = 0;
+  name.fnamelen = fnamelen;
+  if ( name.fnamelen > 0 ) {
+    name.fname = fname;
+    if ( fnamelen >= 3 && fname[ fnamelen - 3 ] == '\0' ) {
+      name.fnamelen -= 2;
+      name.fid = get_uint<uint16_t>( &fname[ name.fnamelen ], MD_BIG );
+    }
+  }
+  else {
+    name.fname = NULL;
+  }
+}
+
 int
 RvFieldIter::get_name( MDName &name ) noexcept
 {
-  uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
-  name.fid      = 0;
-  name.fnamelen = this->name_len;
-  if ( name.fnamelen > 0 )
-    name.fname = (char *) &buf[ this->field_start + 1 ];
-  else
-    name.fname = NULL;
+  get_rv_name( &((char *) this->iter_msg.msg_buf)[ this->field_start + 1 ],
+               this->name_len, name );
   return 0;
 }
 
@@ -270,15 +373,28 @@ RvFieldIter::get_reference( MDReference &mref ) noexcept
       case RV_ARRAY_U64:
       case RV_ARRAY_F64: mref.fentrysz = 8; break;
       case RV_ARRAY_STR:
+      case RV_ARRAY_MSG:
         if ( this->size >= 4 ) {
           uint32_t count = get_uint<uint32_t>( mref.fptr, MD_BIG );
           const char * ptr = (const char *) &mref.fptr[ 4 ],
                      * end = (const char *) &mref.fptr[ this->size ];
-          for ( uint32_t i = 0; i < count; i++ ) {
-            size_t len = ::strnlen( ptr, end - ptr );
-            if ( &ptr[ len ] >= end || ptr[ len ] != '\0' )
-              return Err::BAD_FIELD_SIZE;
-            ptr = &ptr[ len + 1 ];
+          if ( this->type == RV_ARRAY_STR ) {
+            for ( uint32_t i = 0; i < count; i++ ) {
+              size_t len = ::strnlen( ptr, end - ptr );
+              if ( &ptr[ len ] >= end || ptr[ len ] != '\0' )
+                return Err::BAD_FIELD_SIZE;
+              ptr = &ptr[ len + 1 ];
+            }
+          }
+          else {
+            for ( uint32_t i = 0; i < count; i++ ) {
+              if ( &ptr[ 4 ] > end )
+                return Err::BAD_FIELD_SIZE;
+              size_t len = get_uint<uint32_t>( ptr, MD_BIG );
+              if ( &ptr[ len ] > end )
+                return Err::BAD_FIELD_SIZE;
+              ptr = &ptr[ len ];
+            }
           }
           if ( ptr != end )
             return Err::BAD_FIELD_SIZE;
@@ -304,6 +420,7 @@ RvFieldIter::get_reference( MDReference &mref ) noexcept
       case RV_ARRAY_F32: 
       case RV_ARRAY_F64: mref.fentrytp = MD_REAL; break;
       case RV_ARRAY_STR: mref.fentrytp = MD_STRING; break;
+      case RV_ARRAY_MSG: mref.fentrytp = MD_MESSAGE; break;
     }
   }
   return 0;
@@ -335,6 +452,16 @@ RvMsg::get_array_ref( MDReference &mref,  size_t i, MDReference &aref ) noexcept
     aref.set( (void *) ptr, len + 1, MD_STRING );
     return 0;
   }
+  if ( mref.fentrytp == MD_MESSAGE && i < num_entries ) {
+    const char * ptr = (const char *) mref.fptr;
+    size_t len = get_uint<uint32_t>( ptr, MD_BIG );
+    for ( ; i > 0; i-- ) {
+      ptr = &ptr[ len ];
+      len = get_uint<uint32_t>( ptr, MD_BIG );
+    }
+    aref.set( (void *) ptr, len, MD_MESSAGE);
+    return 0;
+  }
   aref.zero();
   return Err::NOT_FOUND;
 }
@@ -343,16 +470,34 @@ int
 RvFieldIter::find( const char *name,  size_t name_len,
                    MDReference &mref ) noexcept
 {
-  uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
+  MDName n, n2;
+  get_rv_name( (char *) name, name_len, n );
+
+  char * buf = (char *) this->iter_msg.msg_buf;
   int status;
   if ( (status = this->first()) == 0 ) {
     do {
-      const char *fname = (char *) &buf[ this->field_start + 1 ];
-      if ( MDDict::dict_equals( name, name_len, fname, this->name_len ) )
+      get_rv_name( &buf[ this->field_start + 1 ], this->name_len, n2 );
+      if ( ( n.fid != 0 && n2.fid != 0 && n.fid == n2.fid ) ||
+           MDDict::dict_equals( n.fname, n.fnamelen, n2.fname, n2.fnamelen ) )
         return this->get_reference( mref );
     } while ( (status = this->next()) == 0 );
   }
   return status;
+}
+
+bool
+RvFieldIter::is_named( const char *name,  size_t name_len ) noexcept
+{
+  MDName n, n2;
+  get_rv_name( (char *) name, name_len, n );
+
+  char * buf = (char *) this->iter_msg.msg_buf;
+  get_rv_name( &buf[ this->field_start + 1 ], this->name_len, n2 );
+  if ( ( n.fid != 0 && n2.fid != 0 && n.fid == n2.fid ) ||
+       MDDict::dict_equals( n.fname, n.fnamelen, n2.fname, n2.fnamelen ) )
+    return true;
+  return false;
 }
 
 int
@@ -360,6 +505,7 @@ RvFieldIter::first( void ) noexcept
 {
   this->field_start = this->iter_msg.msg_off + 8;
   this->field_end   = this->iter_msg.msg_end;
+  this->field_index = 0;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
   return this->unpack();
@@ -370,6 +516,7 @@ RvFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   this->field_end   = this->iter_msg.msg_end;
+  this->field_index++;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
   return this->unpack();
@@ -414,6 +561,8 @@ RvFieldIter::unpack( void ) noexcept
     case RV_ARRAY_F32:
     case RV_ARRAY_F64:
     case RV_ARRAY_STR:
+    case RV_ARRAY_MSG:
+    case RV_XML:
       this->size = buf[ i++ ];
       switch ( this->size ) {
         case RV_LONG_SIZE:
@@ -464,6 +613,19 @@ RvFieldIter::unpack( void ) noexcept
   return 0;
 }
 
+int
+RvFieldIter::update( MDReference &mref ) noexcept
+{
+  MDType ftype = (MDType) rv_type_to_md_type[ this->type ];
+  if ( mref.ftype == ftype && mref.fsize == this->size ) {
+    uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
+    size_t    i   = this->field_end - this->size;
+    ::memcpy( &buf[ i ], mref.fptr, mref.fsize );
+    return 0;
+  }
+  return Err::BAD_FIELD_TYPE;
+}
+
 bool
 RvMsgWriter::resize( size_t len ) noexcept
 {
@@ -511,8 +673,11 @@ struct FnameWriter {
 
   FnameWriter( const char *fn,  size_t fn_len )
       : fname( fn ), fname_len( fn_len ), zpad( 0 ) {
-    if ( fn_len > 0 && fn[ fn_len - 1 ] != '\0' )
-      this->zpad = 1;
+    if ( fn_len > 0 ) {
+      if ( fn[ fn_len - 1 ] != '\0' )
+        if ( fn_len < 3 || fn[ fn_len - 3 ] != '\0' )
+          this->zpad = 1;
+    }
   }
   size_t copy( uint8_t *buf,  size_t off ) const {
     buf[ off++ ] = (uint8_t) ( this->fname_len + this->zpad );
@@ -804,8 +969,13 @@ RvMsgWriter::append_string_array( const char *fname,  size_t fname_len,
                                   size_t fsize ) noexcept
 {
   FnameWriter fwr( fname, fname_len );
-  size_t      len = fwr.len() + 1 + fsize,
-              szbytes = rv_size_bytes( fsize + 4 );
+
+  if ( fsize == 0 ) {
+    for ( size_t i = 0; i < array_size; i++ )
+      fsize += ::strlen( ar[ i ] ) + 1;
+  }
+  size_t len = fwr.len() + 1 + fsize,
+         szbytes = rv_size_bytes( fsize + 4 );
 
   fsize += 4; /* array size */
   len   += 4 + szbytes;
@@ -919,6 +1089,99 @@ RvMsgWriter::append_date( const char *fname,  size_t fname_len,
 }
 
 RvMsgWriter &
+RvMsgWriter::append_stamp( const char *fname,  size_t fname_len,
+                           MDStamp &time ) noexcept
+{
+  FnameWriter fwr( fname, fname_len );
+  size_t      len = fwr.len() + 1 + 1 + 8;
+
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
+  if ( ! this->has_space( len ) )
+    return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
+
+  ptr[ 0 ] = (uint8_t) RV_DATETIME;
+  ptr[ 1 ] = (uint8_t) 8;
+  ptr = &ptr[ 2 ];
+
+  uint64_t tmp  = time.micros();
+  uint32_t sec  = (uint32_t) ( tmp / 1000000 );
+  uint32_t usec = (uint32_t) ( tmp % 1000000 );
+  sec = get_u32<MD_BIG>( &sec );
+  ::memcpy( ptr, &sec, 4 );
+  ptr = &ptr[ 4 ];
+  usec = get_u32<MD_BIG>( &usec );
+  ::memcpy( ptr, &usec, 4 );
+  this->off += len;
+  return *this;
+}
+
+RvMsgWriter &
+RvMsgWriter::append_xml( const char *fname,  size_t fname_len,
+                         const char *doc,  size_t doc_len ) noexcept
+{
+  char   chunk[ 1024 ],
+       * zdoc = NULL;
+  size_t zdoc_len = 0;
+
+  z_stream zs;
+  memset( &zs, 0, sizeof( zs ) );
+  deflateInit( &zs, Z_DEFAULT_COMPRESSION );
+  zs.avail_in = doc_len;
+  zs.next_in  = (Bytef *) doc;
+  for (;;) {
+    zs.avail_out = sizeof( chunk );
+    zs.next_out  = (Bytef *) chunk;
+    int x = deflate( &zs, Z_FINISH );
+    if ( x == Z_STREAM_ERROR )
+      return *this;
+    if ( zs.avail_out != 0 ) {
+      if ( zdoc_len == 0 ) {
+        zdoc     = chunk;
+        zdoc_len = sizeof( chunk ) - zs.avail_out;
+      }
+      else {
+        this->mem.extend( zdoc_len, zdoc_len + sizeof( chunk ) - zs.avail_out,
+                          &zdoc );
+        ::memcpy( &zdoc[ zdoc_len ], chunk, sizeof( chunk ) - zs.avail_out );
+        zdoc_len += sizeof( chunk ) - zs.avail_out;
+      }
+      break;
+    }
+    this->mem.extend( zdoc_len, zdoc_len + sizeof( chunk ), &zdoc );
+    ::memcpy( &zdoc[ zdoc_len ], chunk, sizeof( chunk ) );
+    zdoc_len += sizeof( chunk );
+  }
+  deflateEnd( &zs );
+
+  FnameWriter fwr( fname, fname_len );
+  size_t usz = rv_size_bytes( doc_len ),
+         zsz = rv_size_bytes( zdoc_len + usz ),
+         len = fwr.len() + 1 + zsz + usz + zdoc_len;
+
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
+  if ( ! this->has_space( len ) )
+    return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
+
+  ptr[ 0 ] = (uint8_t) RV_XML;
+  size_t i = 1;
+  i += pack_rv_size( &ptr[ i ], zdoc_len + usz, zsz );
+  i += pack_rv_size( &ptr[ i ], doc_len, usz );
+  ptr = &ptr[ i ];
+  ::memcpy( ptr, zdoc, zdoc_len );
+  this->off += len;
+
+  return *this;
+}
+
+RvMsgWriter &
 RvMsgWriter::append_enum( const char *fname,  size_t fname_len,
                           MDEnum &enu ) noexcept
 {
@@ -940,6 +1203,54 @@ RvMsgWriter::append_enum( const char *fname,  size_t fname_len,
   ptr[ enu.disp_len ] = '\0';
   this->off += len;
   return *this;
+}
+
+RvMsgWriter &
+RvMsgWriter::append_msg_array( const char *fname,  size_t fname_len,
+                               size_t &aroff ) noexcept
+{
+  FnameWriter fwr( fname, fname_len );
+  size_t      len = fwr.len() + 1 + 1 + 4 + 4;
+
+  aroff = 0;
+  if ( fwr.too_big() )
+    return this->error( Err::BAD_NAME );
+  if ( ! this->has_space( len ) )
+    return this->error( Err::NO_SPACE );
+
+  uint8_t * ptr = this->buf;
+  ptr += fwr.copy( this->buf, this->off );
+
+  ptr[ 0 ] = (uint8_t) RV_ARRAY_MSG;
+  ptr[ 1 ] = (uint8_t) RV_LONG_SIZE;
+  ptr = &ptr[ 2 ];
+  aroff = ptr - this->buf;
+  size_t i = 0;
+  ptr[ i++ ] = 0;
+  ptr[ i++ ] = 0;
+  ptr[ i++ ] = 0;
+  ptr[ i++ ] = 8;
+  ptr[ i++ ] = 0;
+  ptr[ i++ ] = 0;
+  ptr[ i++ ] = 0;
+  ptr[ i++ ] = 0;
+
+  this->off += len;
+  return *this;
+}
+
+RvMsgWriter &
+RvMsgWriter::append_msg_elem( RvMsgWriter &submsg ) noexcept
+{
+  if ( ! this->has_space( 8 ) )
+    return this->error( Err::NO_SPACE );
+
+  submsg.buf    = &this->buf[ this->off ];
+  submsg.off    = 8;
+  submsg.buflen = this->buflen - this->off;
+  submsg.err    = 0;
+  submsg.parent = this;
+  return submsg;
 }
 
 int
@@ -1146,6 +1457,34 @@ RvMsgWriter::append_iter( MDFieldIter *iter ) noexcept
   uint8_t * ptr = &this->buf[ this->off ];
   ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
   this->off += len;
+  return *this;
+}
+
+RvMsgWriter &
+RvMsgWriter::append_writer( const RvMsgWriter &wr ) noexcept
+{
+  size_t len = wr.off - 8;
+  return this->append_buffer( &wr.buf[ 8 ], len );
+}
+
+RvMsgWriter &
+RvMsgWriter::append_rvmsg( const RvMsg &msg ) noexcept
+{
+  size_t len = msg.msg_end - ( msg.msg_off + 8 );
+  return this->append_buffer( (uint8_t *) msg.msg_buf + msg.msg_off + 8, len );
+}
+
+RvMsgWriter &
+RvMsgWriter::append_buffer( const void *buffer,  size_t len ) noexcept
+{
+  if ( len > 0 ) {
+    if ( ! this->has_space( len ) )
+      return this->error( Err::NO_SPACE );
+
+    uint8_t * ptr = &this->buf[ this->off ];
+    ::memcpy( ptr, buffer, len );
+    this->off += len;
+  }
   return *this;
 }
 

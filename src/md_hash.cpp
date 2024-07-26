@@ -113,6 +113,7 @@ HashFieldIter::first( void ) noexcept
 {
   this->field_start = 0;
   this->field_end   = 0;
+  this->field_index = 0;
   this->val.keylen  = 0;
   if ( this->hash.hcount() == 0 )
     return Err::NOT_FOUND;
@@ -124,6 +125,7 @@ int
 HashFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
+  this->field_index++;
   this->val.keylen  = 0;
   if ( this->field_start >= this->hash.hcount() )
     return Err::NOT_FOUND;

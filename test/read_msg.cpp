@@ -3,11 +3,8 @@
 #include <stdint.h>
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
-#include <raimd/md_dict.h>
-#include <raimd/cfile.h>
-#include <raimd/app_a.h>
-#include <raimd/flistmap.h>
-#include <raimd/enum_def.h>
+#include <raimd/dict_load.h>
+#include <raimd/md_replay.h>
 #include <raimd/json_msg.h>
 #include <raimd/tib_msg.h>
 #include <raimd/rv_msg.h>
@@ -19,46 +16,6 @@
 
 using namespace rai;
 using namespace md;
-
-static MDDict *
-load_dict_files( const char *path ) noexcept
-{
-  MDDictBuild dict_build;
-  MDDict * dict = NULL;
-  int x, y, z;
-  dict_build.debug_flags = MD_DICT_PRINT_FILES;
-  if ( (x = CFile::parse_path( dict_build, path, "tss_fields.cf" )) == 0 ) {
-    CFile::parse_path( dict_build, path, "tss_records.cf" );
-    dict_build.index_dict( "cfile", dict ); /* dict contains index */
-  }
-  dict_build.clear_build(); /* frees temp memory used to index dict */
-  if ( (y = AppA::parse_path( dict_build, path, "RDMFieldDictionary" )) == 0){
-    EnumDef::parse_path( dict_build, path, "enumtype.def" );
-    dict_build.index_dict( "app_a", dict ); /* dict is a list */
-  }
-  dict_build.clear_build();
-  if ( (z = FlistMap::parse_path( dict_build, path, "flistmapping" )) == 0 ) {
-    dict_build.index_dict( "flist", dict );
-  }
-  dict_build.clear_build();
-  if ( dict != NULL ) { /* print which dictionaries loaded */
-    fprintf( stderr, "%s dict loaded (size: %u)\n", dict->dict_type,
-             dict->dict_size );
-    if ( dict->next != NULL ) {
-      fprintf( stderr, "%s dict loaded (size: %u)\n", dict->next->dict_type,
-               dict->next->dict_size );
-      if ( dict->next->next != NULL ) {
-        fprintf( stderr, "%s dict loaded (size: %u)\n",
-                 dict->next->next->dict_type, dict->next->next->dict_size );
-      }
-    }
-    return dict;
-  }
-  fprintf( stderr, "cfile status %d+%s, RDM status %d+%s flist status %d+%s\n",
-          x, Err::err( x )->descr, y, Err::err( y )->descr,
-          z, Err::err( z )->descr );
-  return NULL;
-}
 
 struct FieldIndex {
   static const uint32_t mask = 31;
@@ -240,47 +197,28 @@ struct WildIndex {
   }
 };
 
-struct SubKey {
-  const char * subj;
-  size_t       len;
-
-  size_t hash( void ) const {
-    size_t key = 5381;
-    for ( size_t i = 0; i < this->len; i++ ) {
-      size_t c = (size_t) (uint8_t) this->subj[ i ];
-      key = c ^ ( ( key << 5 ) + key );
-    }
-    return key;
-  }
-  bool equals( const SubKey &k ) const {
-    return k.len == this->len &&
-           ::memcmp( k.subj, this->subj, this->len ) == 0;
-  }
-  SubKey( const char *s,  size_t l ) : subj( s ), len( l ) {}
-};
-
-struct SubData : public SubKey {
+struct MetaData : public MDSubjectKey {
   uint16_t rec_type,
            flist;
   uint32_t seqno;
   MDFormClass * form;
 
   void * operator new( size_t, void *ptr ) { return ptr; }
-  SubData( const char *s,  size_t len,  uint16_t t,  uint16_t f,
-           MDFormClass *fm,  uint32_t n )
-    : SubKey( s, len ), rec_type( t ), flist( f ), seqno( n ), form( fm ) {}
+  MetaData( const char *s,  size_t len,  uint16_t t,  uint16_t f,
+            MDFormClass *fm,  uint32_t n )
+  : MDSubjectKey( s, len ), rec_type( t ), flist( f ), seqno( n ), form( fm ) {}
 
-  static SubData * make( const char *subj,  size_t len,  uint16_t rec_type,
-                         uint16_t flist,  MDFormClass *form,  uint32_t seqno ) {
-    void * m = ::malloc( sizeof( SubData ) + len + 1 );
-    char * p = &((char *) m)[ sizeof( SubData ) ];
+  static MetaData * make( const char *subj,  size_t len,  uint16_t rec_type,
+                          uint16_t flist,  MDFormClass *form, uint32_t seqno ) {
+    void * m = ::malloc( sizeof( MetaData ) + len + 1 );
+    char * p = &((char *) m)[ sizeof( MetaData ) ];
     ::memcpy( p, subj, len );
     p[ len ] = '\0';
-    return new ( m ) SubData( p, len, rec_type, flist, form, seqno );
+    return new ( m ) MetaData( p, len, rec_type, flist, form, seqno );
   }
 };
 
-typedef MDHashTabT<SubKey, SubData> SubHT;
+typedef MDHashTabT<MDSubjectKey, MetaData> SubHT;
 
 static const char *
 get_arg( int argc, char *argv[], int b, const char *f,
@@ -290,34 +228,6 @@ get_arg( int argc, char *argv[], int b, const char *f,
     if ( ::strcmp( f, argv[ i ] ) == 0 ) /* -p port */
       return argv[ i + b ];
   return def; /* default value */
-}
-
-template<class Writer>
-void append_hdr( Writer &w,  MDFormClass *form,  uint16_t msg_type,
-                 uint16_t rec_type,  uint16_t seqno,  uint16_t status,
-                 const char *subj,  size_t sublen )
-{
-  if ( msg_type != INITIAL_TYPE || form == NULL ) {
-    w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , msg_type );
-    if ( rec_type != 0 )
-      w.append_uint( SASS_REC_TYPE, SASS_REC_TYPE_LEN  , rec_type );
-    w.append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
-     .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, status );
-  }
-  else {
-    const MDFormEntry * e = form->entries;
-    MDLookup by;
-    if ( form->get( by.nm( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN ) ) == &e[ 0 ] )
-      w.append_uint( by.fname, by.fname_len, msg_type );
-    if ( form->get( by.nm( SASS_REC_TYPE, SASS_REC_TYPE_LEN ) ) == &e[ 1 ] )
-      w.append_uint( by.fname, by.fname_len, rec_type );
-    if ( form->get( by.nm( SASS_SEQ_NO, SASS_SEQ_NO_LEN ) ) == &e[ 2 ] )
-      w.append_uint( by.fname, by.fname_len, seqno );
-    if ( form->get( by.nm( SASS_REC_STATUS, SASS_REC_STATUS_LEN ) ) == &e[ 3 ] )
-      w.append_uint( by.fname, by.fname_len, status );
-    if ( form->get( by.nm( SASS_SYMBOL, SASS_SYMBOL_LEN ) ) == &e[ 4 ] )
-      w.append_string( by.fname, by.fname_len, subj, sublen );
-  }
 }
 
 int
@@ -471,64 +381,34 @@ main( int argc, char **argv )
   /*md_init_auto_unpack();*/
 
   /* read subject, size, message data */
-  FILE *fp = ( fn == NULL ? stdin : fopen( fn, "rb" ) );
-  if ( fp == NULL ) {
+  FILE *filep = ( fn == NULL ? stdin : fopen( fn, "rb" ) );
+  if ( filep == NULL ) {
     perror( fn );
     return 1;
   }
+  MDReplay replay( filep );
   SubHT    sub_ht( 128 );
-  char     subj[ 1024 ],
-           size[ 128 ];
-  size_t   sz,
-           buflen      = 0;
-  char   * buf         = NULL;
   uint64_t msg_count   = 0,
            err_cnt     = 0,
            discard_cnt = 0;
 
-  for (;;) {
-    if ( fgets( subj, sizeof( subj ), fp ) == NULL )
-      break;
-    if ( subj[ 0 ] <= ' ' || subj[ 0 ] == '#' )
-      continue;
-    if ( fgets( size, sizeof( size ), fp ) == NULL )
-      break;
-    if ( (sz = atoi( size )) == 0 )
-      break;
-    if ( sz > buflen ) {
-      buf = (char *) ::realloc( buf, sz );
-      buflen = sz;
-    }
+  for ( bool b = replay.first(); b; b = replay.next() ) {
     /* strip newline on subject */
-    size_t slen = ::strlen( subj );
-    while ( slen > 0 && subj[ slen - 1 ] < ' ' )
-      subj[ --slen ] = '\0';
-    for ( size_t n = 0; n < sz; ) {
-      size_t i = fread( &buf[ n ], 1, sz - n, fp ); /* message data */
-      if ( i == 0 ) {
-        if ( feof( fp ) )
-          fprintf( stderr, "eof, truncated msg (%s)\n", subj );
-        else
-          perror( fn ? fn : "stdin" );
-        err_cnt++;
-        sz = 0;
-      }
-      n += i;
-    }
-    if ( sz == 0 )
-      break;
+    char * subj = replay.subj;
+    size_t slen = replay.subjlen;
+    subj[ slen ] = '\0';
     if ( wild.sub_cnt != 0 && ! wild.match( subj ) )
       continue;
-    /* skip msgs filtered by argv[ 2 ]
-    if ( 2 < argc && ::strstr( subj, argv[ 2 ] ) == NULL )
-      continue; */
+
     /* try to unpack it */
     mem.reuse(); /* reset mem for next msg */
-    MDMsg * m = MDMsg::unpack( buf, 0, sz, 0, dict, mem );
-    void * msg = buf;
-    size_t msg_sz = sz;
+    MDMsg  * m      = MDMsg::unpack( replay.msgbuf, 0, replay.msglen, 0,
+                                     dict, mem );
+    void   * msg    = replay.msgbuf;
+    size_t   msg_sz = replay.msglen;
     uint32_t fldcnt = 0;
-    int status = -1;
+    int      status = -1;
+
     if ( m == NULL ) {
       err_cnt++;
       continue;
@@ -621,12 +501,12 @@ main( int argc, char **argv )
                 form = cfile_dict->get_form_class( fc );
               else
                 form = NULL;
-              SubKey k( subj, slen );
-              SubData * data;
+              MDSubjectKey k( subj, slen );
+              MetaData * data;
               size_t pos;
               if ( (data = sub_ht.find( k, pos )) == NULL ) {
-                sub_ht.insert( pos, SubData::make( subj, slen, rec_type, flist,
-                                                   form, ++seqno ) );
+                sub_ht.insert( pos, MetaData::make( subj, slen, rec_type, flist,
+                                                    form, ++seqno ) );
               }
               else {
                 data->rec_type = rec_type;
@@ -638,8 +518,8 @@ main( int argc, char **argv )
           }
         }
         else {
-          SubKey k( subj, slen );
-          SubData * data = sub_ht.find( k );
+          MDSubjectKey k( subj, slen );
+          MetaData * data = sub_ht.find( k );
           if ( data != NULL ) {
             rec_type = data->rec_type;
             flist    = data->flist;
@@ -649,12 +529,12 @@ main( int argc, char **argv )
         }
       }
       if ( seqno == 0 ) {
-        SubKey k( subj, slen );
-        SubData * data;
+        MDSubjectKey k( subj, slen );
+        MetaData * data;
         size_t pos;
         if ( (data = sub_ht.find( k, pos )) == NULL ) {
-          sub_ht.insert( pos, SubData::make( subj, slen, rec_type, flist,
-                                             form, ++seqno ) );
+          sub_ht.insert( pos, MetaData::make( subj, slen, rec_type, flist,
+                                              form, ++seqno ) );
         }
         else {
           rec_type = data->rec_type;
@@ -678,8 +558,8 @@ main( int argc, char **argv )
         }
         case RVMSG_TYPE_ID: {
           RvMsgWriter w( mem, buf_ptr, buf_sz );
-          append_hdr<RvMsgWriter>( w, form, msg_type, rec_type, seqno, 0,
-                                   subj, slen );
+          append_sass_hdr<RvMsgWriter>( w, form, msg_type, rec_type, seqno, 0,
+                                        subj, slen );
           if ( (status = w.convert_msg( *m, true )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
@@ -728,8 +608,8 @@ main( int argc, char **argv )
         }
         case TIBMSG_TYPE_ID: {
           TibMsgWriter w( mem, buf_ptr, buf_sz );
-          append_hdr<TibMsgWriter>( w, form, msg_type, rec_type, seqno, 0,
-                                    subj, slen );
+          append_sass_hdr<TibMsgWriter>( w, form, msg_type, rec_type, seqno, 0,
+                                         subj, slen );
           if ( (status = w.convert_msg( *m, true )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
@@ -740,8 +620,8 @@ main( int argc, char **argv )
         case TIB_SASS_TYPE_ID: {
           if ( form != NULL ) {
             TibSassMsgWriter w( mem, *form, buf_ptr, buf_sz );
-            append_hdr<TibSassMsgWriter>( w, form, msg_type, rec_type,
-                                          seqno, 0, subj, slen );
+            append_sass_hdr<TibSassMsgWriter>( w, form, msg_type, rec_type,
+                                               seqno, 0, subj, slen );
             if ( msg_type == INITIAL_TYPE )
               w.append_form_record();
             if ( (status = w.convert_msg( *m, true )) == 0 ) {
@@ -752,8 +632,8 @@ main( int argc, char **argv )
           }
           else {
             TibSassMsgWriter w( mem, cfile_dict, buf_ptr, buf_sz );
-            append_hdr<TibSassMsgWriter>( w, form, msg_type, rec_type,
-                                          seqno, 0, subj, slen );
+            append_sass_hdr<TibSassMsgWriter>( w, form, msg_type, rec_type,
+                                               seqno, 0, subj, slen );
             if ( (status = w.convert_msg( *m, true )) == 0 ) {
               msg    = w.buf;
               msg_sz = w.update_hdr();
@@ -811,8 +691,8 @@ main( int argc, char **argv )
     if ( discard_cnt > 0 )
       fprintf( stderr, "discarded %" PRIu64 "\n", discard_cnt );
   }
-  if ( fn != NULL && fp != NULL )
-    fclose( fp );
+  if ( fn != NULL && filep != NULL )
+    fclose( filep );
   if ( bout.close() != 0 ) {
     perror( out );
     err_cnt++;

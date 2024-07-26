@@ -22,6 +22,9 @@ struct RvMsg : public MDMsg {
   virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
   virtual int get_array_ref( MDReference &mref,  size_t i,
                              MDReference &aref ) noexcept;
+  virtual int time_to_string( MDReference &mref,  char *&buf,
+                              size_t &len ) noexcept final;
+  virtual int xml_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
   /* may return tibmsg, sass qform or rv */
   static bool is_rvmsg( void *bb,  size_t off,  size_t end,
                         uint32_t h ) noexcept;
@@ -45,12 +48,21 @@ struct RvFieldIter : public MDFieldIter {
   RvFieldIter( MDMsg &m )
     : MDFieldIter( m ), size( 0 ), type( 0 ), name_len( 0 ) {}
 
+  void dup_rv( RvFieldIter &i ) {
+    i.size     = this->size;
+    i.type     = this->type;
+    i.name_len = this->name_len;
+    this->MDFieldIter::dup_iter( i );
+  }
+  bool is_named( const char *name,  size_t name_len ) noexcept;
+  virtual MDFieldIter *copy( void ) noexcept final;
   virtual int get_name( MDName &name ) noexcept final;
   virtual int get_reference( MDReference &mref ) noexcept final;
   virtual int find( const char *name, size_t name_len,
                     MDReference &mref ) noexcept final;
   virtual int first( void ) noexcept final;
   virtual int next( void ) noexcept final;
+  virtual int update( MDReference &mref ) noexcept final;
   int unpack( void ) noexcept;
 };
 
@@ -77,7 +89,9 @@ enum {
   RV_ARRAY_U64 = 41,  /* 29 */
   RV_ARRAY_F32 = 44,  /* 2c */
   RV_ARRAY_F64 = 45,  /* 2d */
-  RV_ARRAY_STR = 48   /* 30 */
+  RV_XML       = 47,  /* 2f */
+  RV_ARRAY_STR = 48,  /* 30 */
+  RV_ARRAY_MSG = 49
 };
 
 static const uint8_t RV_TINY_SIZE  = 120; /* 78 */
@@ -162,6 +176,8 @@ struct RvMsgWriter {
   }
   bool resize( size_t len ) noexcept;
   size_t update_hdr( void ) {
+    if ( this->buflen == 0 )
+      this->resize( 8 );
     this->buf[ 0 ] = ( this->off >> 24 ) & 0xffU;
     this->buf[ 1 ] = ( this->off >> 16 ) & 0xffU;
     this->buf[ 2 ] = ( this->off >> 8 ) & 0xffU;
@@ -178,9 +194,23 @@ struct RvMsgWriter {
    * len = msg.update_hdr( submsg ); */
   RvMsgWriter & append_msg( const char *fname,  size_t fname_len,
                             RvMsgWriter &submsg ) noexcept;
+  RvMsgWriter & append_msg_elem( RvMsgWriter &submsg ) noexcept;
   size_t update_hdr( RvMsgWriter &submsg,  uint32_t suf_len = 0 ) {
     this->off += submsg.update_hdr() + suf_len;
     return this->update_hdr();
+  }
+  RvMsgWriter & append_msg_array( const char *fname,  size_t fname_len,
+                                  size_t &aroff ) noexcept;
+  void update_array_hdr( size_t aroff,  uint32_t num ) {
+    size_t sz = this->off - aroff;
+    this->buf[ aroff++ ] = ( sz >> 24 ) & 0xffU;
+    this->buf[ aroff++ ] = ( sz >> 16 ) & 0xffU;
+    this->buf[ aroff++ ] = ( sz >> 8 ) & 0xffU;
+    this->buf[ aroff++ ] = sz & 0xffU;
+    this->buf[ aroff++ ] = ( num >> 24 ) & 0xffU;
+    this->buf[ aroff++ ] = ( num >> 16 ) & 0xffU;
+    this->buf[ aroff++ ] = ( num >> 8 ) & 0xffU;
+    this->buf[ aroff++ ] = num & 0xffU;
   }
 
   template< class T >
@@ -193,7 +223,18 @@ struct RvMsgWriter {
     mref.fendian = md_endian; /* machine endian */
     return this->append_ref( fname, fname_len, mref );
   } 
-    
+  template< class T >
+  RvMsgWriter & append_array_type( const char *fname,  size_t fname_len,
+                                   const T *val,  size_t num,  MDType t ) {
+    MDReference mref;
+    mref.fptr     = (uint8_t *) (void *) val;
+    mref.fsize    = sizeof( val[ 0 ] ) * num;
+    mref.ftype    = MD_ARRAY;
+    mref.fentrysz = sizeof( val[ 0 ] );
+    mref.fentrytp = t;
+    mref.fendian  = md_endian; /* machine endian */
+    return this->append_ref( fname, fname_len, mref );
+  } 
   template< class T >
   RvMsgWriter & append_int( const char *fname,  size_t fname_len,  T ival ) {
     return this->append_type( fname, fname_len, ival, MD_INT );
@@ -258,12 +299,19 @@ struct RvMsgWriter {
                              MDTime &time ) noexcept;
   RvMsgWriter & append_date( const char *fname,  size_t fname_len,
                              MDDate &date ) noexcept;
+  RvMsgWriter & append_stamp( const char *fname,  size_t fname_len,
+                              MDStamp &stamp ) noexcept;
+  RvMsgWriter & append_xml( const char *fname,  size_t fname_len,
+                            const char *doc,  size_t doc_len ) noexcept;
   RvMsgWriter & append_enum( const char *fname,  size_t fname_len,
                              MDEnum &enu ) noexcept;
   RvMsgWriter & append_string_array( const char *fname,  size_t fname_len,
                                      char **ar,  size_t array_size,
                                      size_t fsize ) noexcept;
   RvMsgWriter & append_iter( MDFieldIter *iter ) noexcept;
+  RvMsgWriter & append_writer( const RvMsgWriter &wr ) noexcept;
+  RvMsgWriter & append_rvmsg( const RvMsg &msg ) noexcept;
+  RvMsgWriter & append_buffer( const void *buffer,  size_t len ) noexcept;
   int convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept;
 };
 

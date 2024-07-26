@@ -182,6 +182,16 @@ static inline T get_float( const MDReference &mref ) {
   return 0;
 }
 
+static inline void xchgb( uint8_t &a,  uint8_t &b ) { uint8_t x = a; a = b; b = x; }
+static inline void flip_endian( void *p,  size_t sz ) {
+  if ( sz == 2 )
+    set_u16<MD_BIG>( p, get_u16<MD_LITTLE>( p ) );
+  else if ( sz == 4 )
+    set_u32<MD_BIG>( p, get_u32<MD_LITTLE>( p ) );
+  else if ( sz == 8 )
+    set_u64<MD_BIG>( p, get_u64<MD_LITTLE>( p ) );
+}
+
 static inline uint16_t parse_u16( const char *val,  char **end ) {
   return (uint16_t) ::strtoul( val, end, 0 );
 }

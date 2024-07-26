@@ -574,6 +574,7 @@ MktfdFieldIter::first( void ) noexcept
 {
   this->field_start = ((MktfdMsg &) this->iter_msg).data_start;
   this->field_end   = ((MktfdMsg &) this->iter_msg).data_end;
+  this->field_index = 0;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
   return this->unpack();
@@ -584,6 +585,7 @@ MktfdFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
   this->field_end   = ((MktfdMsg &) this->iter_msg).data_end;
+  this->field_index++;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
   return this->unpack();

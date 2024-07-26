@@ -62,6 +62,19 @@ struct TibSassFieldIter : public MDFieldIter {
   TibSassFieldIter( MDMsg &m ) : MDFieldIter( m ), fname( 0 ), fsize( 0 ),
     fid( 0 ), ftype( MD_NODATA ), flags( MD_FIXED ), fnamelen( 0 ) {}
 
+  void dup_sass( TibSassFieldIter &i ) {
+    i.fname = this->fname;
+    i.fsize = this->fsize;
+    i.fid = this->fid;
+    i.ftype = this->ftype;
+    i.flags = this->flags,
+    i.fnamelen = this->fnamelen;
+    i.dec = this->dec;
+    i.time = this->time;
+    i.date = this->date;
+    this->MDFieldIter::dup_iter( i );
+  }
+  virtual MDFieldIter *copy( void ) noexcept final;
   virtual int get_name( MDName &name ) noexcept final;
   virtual int get_reference( MDReference &mref ) noexcept final;
   virtual int get_hint_reference( MDReference &mref ) noexcept final;
