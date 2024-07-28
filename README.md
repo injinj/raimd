@@ -1,6 +1,6 @@
 # Readme for Rai md
 
-[![copr status](https://copr.fedorainfracloud.org/coprs/injinj/gold/package/raimd/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/injinj/gold/package/raimd/)
+[![Copr build status](https://copr.fedorainfracloud.org/coprs/injinj/rel/package/raimd/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/injinj/rel/package/raimd/)
 
 ## What is Rai md
 
