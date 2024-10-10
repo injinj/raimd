@@ -96,6 +96,25 @@ struct MDFieldReader { /* iterator but w bool return with err field */
     return this->get_value( &dec, sizeof( MDDecimal ), MD_DECIMAL );
   }
   bool get_sub_msg( MDMsg *&msg ) noexcept;
+  bool string_eq( const char *str,  size_t len ) {
+    char * buf;
+    size_t buflen;
+    if ( ! this->get_string( buf, buflen ) )
+      return false;
+    if ( buflen > 0 && buf[ buflen - 1 ] == '\0' )
+      buflen--;
+    return buflen == len && ::memcmp( str, buf, buflen ) == 0;
+  }
+  template <class I>
+  bool int_eq( I i ) {
+    I ival;
+    return this->get_value( &ival, sizeof( I ), MD_INT ) && ival == i;
+  }
+  template <class I>
+  bool uint_eq( I u ) {
+    I uval;
+    return this->get_value( &uval, sizeof( I ), MD_UINT ) && uval == u;
+  }
 };
 
 struct MDIterMap {
