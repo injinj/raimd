@@ -2,6 +2,15 @@
 #define __rai_raimd__md_field_iter_h__
 
 #include <raimd/md_types.h>
+#include <time.h>
+
+extern "C" {
+struct tm;
+void md_localtime( time_t t, struct tm &tmbuf ) noexcept;
+void md_gmtime( time_t t, struct tm &tmbuf ) noexcept;
+time_t md_mktime( struct tm &tmbuf ) noexcept;
+time_t md_timegm( struct tm &tmbuf ) noexcept;
+}
 
 namespace rai {
 namespace md {
@@ -155,6 +164,9 @@ struct MDIterMap {
   void sint( const char *fn,  I &ival ) {
     this->elem( fn, &ival, sizeof( I ), MD_INT );
   }
+  void decimal( const char *fn,  MDDecimal &dec ) {
+    this->elem( fn, &dec, sizeof( MDDecimal ), MD_DECIMAL );
+  }
   void array( const char *fn,  void *fp,  uint32_t *elcnt,
               size_t arsz,  size_t elsz,  MDType eltp ) {
     this->elem( fn, fp, arsz, MD_ARRAY );
@@ -182,6 +194,7 @@ struct MDIterMap {
   bool copy_string( size_t i,  MDReference &mref ) noexcept;
   bool copy_uint( size_t i,  MDReference &mref ) noexcept;
   bool copy_sint( size_t i,  MDReference &mref ) noexcept;
+  bool copy_decimal( size_t i,  MDReference &mref ) noexcept;
   bool copy_array( MDMsg &msg,  MDReference &mref ) noexcept;
 
   static size_t get_map( MDMsg &msg,  MDIterMap *map,  size_t n,

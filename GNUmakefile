@@ -378,6 +378,17 @@ $(bind)/cache_msg$(exe): $(cache_msg_objs) $(cache_msg_libs) $(lnk_dep)
 all_exes += $(bind)/cache_msg$(exe)
 all_depends +=  $(cache_msg_deps)
 
+map_test_files := map_test
+map_test_cfile := $(addprefix test/, $(addsuffix .cpp, $(map_test_files)))
+map_test_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(map_test_files)))
+map_test_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(map_test_files)))
+map_test_libs  := $(raimd_lib)
+map_test_lnk   := $(lnk_lib)
+
+$(bind)/map_test$(exe): $(map_test_objs) $(map_test_libs) $(lnk_dep)
+all_exes += $(bind)/map_test$(exe)
+all_depends +=  $(map_test_deps)
+
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 
 all: $(all_libs) $(all_dlls) $(all_exes) cmake
@@ -432,6 +443,7 @@ CMakeLists.txt: .copr/Makefile
 	add_executable (basic_msg $(basic_msg_cfile))
 	add_executable (pretty_js $(pretty_js_cfile))
 	add_executable (cache_msg $(cache_msg_cfile))
+	add_executable (map_test $(map_test_cfile))
 	EOF
 
 

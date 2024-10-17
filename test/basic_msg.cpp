@@ -129,7 +129,7 @@ main( int argc, char **argv )
     m = MDMsg::unpack( &dec, 0, sizeof( dec ), MD_DECIMAL, NULL, mem );
     n = dec.get_string( str, sizeof( str ) );
     str[ n ] = '\0';
-    printf( "Decimal test (%s): degrade %u (%ld hint %d)\n", str, i, dec.ival,
+    printf( "Decimal test (%s): degrade %u (%" PRId64 " hint %d)\n", str, i, dec.ival,
             dec.hint );
     if ( m != NULL )
       m->print( &mout );
