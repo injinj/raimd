@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <zlib.h>
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 #include <raimd/rv_msg.h>
 #include <raimd/tib_msg.h>
 #include <raimd/tib_sass_msg.h>
@@ -247,7 +249,7 @@ RvMsg::time_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
     uint64_t usec = get_uint<uint64_t>( mref.fptr, MD_BIG );
     time_t   sec  = usec >> 32;
     struct tm tm;
-    gmtime_r( &sec, &tm );
+    md_gmtime( sec, tm );
     char * gmt;
     this->mem->alloc( 32, &gmt );
     strftime( gmt, 32, fmt, &tm );
@@ -255,7 +257,7 @@ RvMsg::time_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
     char * p = &gmt[ ::strlen( gmt ) ],
          * e = &gmt[ 32 ];
     uint64_t nsec = (uint64_t) ( usec & 0xffffffffU ) * 1000;
-    ::snprintf( p, e-p, "%luZ", nsec + 1000000000 );
+    ::snprintf( p, e-p, "%" PRIu64 "Z", nsec + 1000000000 );
     *p = '.';
     buf = gmt;
     len = strlen( p ) + ( p - gmt );

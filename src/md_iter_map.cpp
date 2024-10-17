@@ -159,6 +159,21 @@ MDIterMap::copy_sint( size_t i,  MDReference &mref ) noexcept
 }
 
 bool
+MDIterMap::copy_decimal( size_t i,  MDReference &mref ) noexcept
+{
+  void * ptr;
+  size_t sz;
+  if ( ! this->index_array( i, ptr, sz ) )
+    return false;
+  if ( sz != sizeof( MDDecimal ) ||
+       ((MDDecimal *) ptr)->get_decimal( mref ) != 0 )
+    return false;
+  if ( this->elem_count != NULL )
+    this->elem_count[ 0 ]++;
+  return true;
+}
+
+bool
 MDIterMap::copy_array( MDMsg &msg,  MDReference &mref ) noexcept
 {
   MDReference aref;
@@ -180,6 +195,8 @@ MDIterMap::copy_array( MDMsg &msg,  MDReference &mref ) noexcept
         b |= this->copy_uint( i, aref );
       else if ( this->elem_ftype == MD_INT )
         b |= this->copy_sint( i, aref );
+      else if ( this->elem_ftype == MD_DECIMAL )
+        b |= this->copy_decimal( i, mref );
     }
     return b;
   }
@@ -191,6 +208,8 @@ MDIterMap::copy_array( MDMsg &msg,  MDReference &mref ) noexcept
         b |= this->copy_uint( i, aref );
       else if ( this->elem_ftype == MD_INT )
         b |= this->copy_sint( i, aref );
+      else if ( this->elem_ftype == MD_DECIMAL )
+        b |= this->copy_decimal( i, mref );
     }
   }
   return b;
@@ -217,6 +236,8 @@ MDIterMap::get_map( MDMsg &msg,  MDIterMap *map,  size_t n,
         b = map[ i ].copy_uint( 0, mref );
       else if ( map[ i ].ftype == MD_INT )
         b = map[ i ].copy_sint( 0, mref );
+      else if ( map[ i ].ftype == MD_DECIMAL )
+        b = map[ i ].copy_decimal( 0, mref );
       else if ( map[ i ].ftype == MD_ARRAY ) {
         if ( mref.ftype == MD_ARRAY )
           b = map[ i ].copy_array( msg, mref );

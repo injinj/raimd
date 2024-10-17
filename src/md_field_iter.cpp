@@ -2152,7 +2152,7 @@ MDDecimal::get_string( char *str,  size_t len,
           if ( (str[ i ] = *s++) == '\0' )
             break;
         }
-        return i;
+        goto ok_dec;
 
       case MD_DEC_INF:  s = "Inf";  goto copy_s;
       case MD_DEC_NINF: s = "-Inf";  goto copy_s;
@@ -2163,7 +2163,8 @@ MDDecimal::get_string( char *str,  size_t len,
         i = int_digs( val );
         if ( i > len )
           goto out_of_space;
-        return int_str( val, str, i );
+        int_str( val, str, i );
+        goto ok_dec;
 
       case MD_DEC_FRAC_2:
       case MD_DEC_FRAC_4:
@@ -2212,7 +2213,7 @@ MDDecimal::get_string( char *str,  size_t len,
             str[ i++ ] = ( ( frac / div ) % 10 ) + '0';
             div /= 10;
           } while ( div != 0 );
-          return i;
+          goto ok_dec;
         }
         j = uint_digs( frac );
         k = uint_digs( div );
@@ -2226,7 +2227,8 @@ MDDecimal::get_string( char *str,  size_t len,
         i += j;
         str[ i++ ] = '/';
         uint_str( div, &str[ i ], k );
-        return i + k;
+        i += k;
+        goto ok_dec;
 
       default:
         goto bad_dec;
@@ -2241,7 +2243,7 @@ MDDecimal::get_string( char *str,  size_t len,
       str[ i++ ] = '0';
     str[ i++ ] = '.';
     str[ i++ ] = '0';
-    return i;
+    goto ok_dec;
   }
   if ( hint <= MD_DEC_LOGn10_1 ) {
     size_t n, m;
@@ -2275,7 +2277,8 @@ MDDecimal::get_string( char *str,  size_t len,
       n += 2;
       str[ i ] = '0';
       str[ i + 1 ] = '.';
-      return i + n;
+      i += n;
+      goto ok_dec;
     }
     else {
       n -= m;
@@ -2283,13 +2286,18 @@ MDDecimal::get_string( char *str,  size_t len,
         goto out_of_space;
       ::memmove( &str[ i + n + 1 ], &str[ i + n ], m );
       str[ i + n ] = '.';
-      return i + n + m + 1;
+      i += n + m + 1;
+    ok_dec:;
+      if ( i < len )
+        str[ i ] = '\0';
+      return i;
     }
   }
   /* other hits are invalid */
 bad_dec:;
-  return 0;
 out_of_space:;
+  if ( len > 0 )
+    str[ 0 ] = '\0';
   return 0;
 }
 
@@ -2310,33 +2318,35 @@ MDStamp::get_string( char *str,  size_t len ) const noexcept
   return d.get_string( str, len, false );
 }
 
+extern "C" {
 #if defined( _MSC_VER ) || defined( __MINGW32__ )
-static inline void md_localtime( time_t t, struct tm &tmbuf ) {
+void md_localtime( time_t t, struct tm &tmbuf ) noexcept {
   ::localtime_s( &tmbuf, &t );
 }
-static inline void md_gmtime( time_t t, struct tm &tmbuf ) {
+void md_gmtime( time_t t, struct tm &tmbuf ) noexcept {
   ::gmtime_s( &tmbuf, &t );
 }
-static inline time_t md_mktime( struct tm &tmbuf ) {
+time_t md_mktime( struct tm &tmbuf ) noexcept {
   return ::mktime( &tmbuf );
 }
-static inline time_t md_timegm( struct tm &tmbuf ) {
+time_t md_timegm( struct tm &tmbuf ) noexcept {
   return ::_mkgmtime( &tmbuf );
 }
 #else
-static inline void md_localtime( time_t t, struct tm &tmbuf ) {
+void md_localtime( time_t t, struct tm &tmbuf ) noexcept {
   ::localtime_r( &t, &tmbuf );
 }
-static inline void md_gmtime( time_t t, struct tm &tmbuf ) {
+void md_gmtime( time_t t, struct tm &tmbuf ) noexcept {
   ::gmtime_r( &t, &tmbuf );
 }
-static inline time_t md_mktime( struct tm &tmbuf ) {
+time_t md_mktime( struct tm &tmbuf ) noexcept {
   return ::mktime( &tmbuf );
 }
-static inline time_t md_timegm( struct tm &tmbuf ) {
+time_t md_timegm( struct tm &tmbuf ) noexcept {
   return ::timegm( &tmbuf );
 }
 #endif
+}
 
 int
 MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
