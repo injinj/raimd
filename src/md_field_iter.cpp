@@ -177,6 +177,54 @@ MDDecimal::get_decimal( const MDReference &mref ) noexcept
       this->set_real( fval );
       return 0;
     }
+    case MD_DATE: {
+      MDDate d;
+      if ( d.get_date( mref ) != 0 )
+        return Err::BAD_DECIMAL;
+      if ( d.is_null() ) {
+        this->ival = 0;
+        this->hint = MD_DEC_NULL;
+        return 0;
+      }
+      struct tm tm;
+      ::memset( &tm, 0, sizeof( tm ) );
+      tm.tm_year  = d.year > 1900 ? d.year - 1900 : 0;
+      tm.tm_mon   = d.mon > 0 ? d.mon - 1 : 0;
+      tm.tm_mday  = d.day;
+      tm.tm_isdst = -1;
+      this->ival = (int64_t) mktime( &tm );
+      this->hint = MD_DEC_INTEGER;
+      return 0;
+    }
+    case MD_TIME: {
+      MDTime t;
+      if ( t.get_time( mref ) != 0 )
+        return Err::BAD_DECIMAL;
+      if ( t.resolution == MD_RES_NULL ) {
+        this->ival = 0;
+        this->hint = MD_DEC_NULL;
+        return 0;
+      }
+      this->ival = (int64_t) t.hour * 3600 + (int64_t) t.minute * 60 +
+                   (int64_t) t.sec;
+      if ( t.resolution == MD_RES_MILLISECS ) {
+        this->ival *= 1000;
+        this->ival += t.fraction;
+        this->hint  = MD_DEC_LOGn10_3;
+      } else if ( t.resolution == MD_RES_MICROSECS ) {
+        this->ival *= 1000000;
+        this->ival += t.fraction;
+        this->hint  = MD_DEC_LOGn10_6;
+      } else if ( t.resolution == MD_RES_NANOSECS ) {
+        this->ival *= 1000000000;
+        this->ival += t.fraction;
+        this->hint  = MD_DEC_LOGn10_9;
+      }
+      else {
+        this->hint  = MD_DEC_INTEGER;
+      }
+      return 0;
+    }
   }
 }
 

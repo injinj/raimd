@@ -160,6 +160,9 @@ struct MDIterMap {
   void sint( const char *fn,  void *fp,  size_t sz ) {
     this->elem( fn, fp, sz, MD_INT );
   }
+  void boolean( const char *fn,  bool &bval ) {
+    this->elem( fn, &bval, sizeof( bool ), MD_BOOLEAN );
+  }
   template <class I>
   void sint( const char *fn,  I &ival ) {
     this->elem( fn, &ival, sizeof( I ), MD_INT );
