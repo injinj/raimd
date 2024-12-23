@@ -186,6 +186,9 @@ struct TibMsgWriter {
     return this->append_ref( fname, fname_len, mref );
   }
 
+  TibMsgWriter & append_bool( const char *fname,  size_t fname_len,  bool bval ) {
+    return this->append_type( fname, fname_len, bval, MD_BOOLEAN );
+  }
   template< class T >
   TibMsgWriter & append_int( const char *fname,  size_t fname_len,  T ival ) {
     return this->append_type( fname, fname_len, ival, MD_INT );
