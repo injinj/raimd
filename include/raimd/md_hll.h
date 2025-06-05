@@ -2,7 +2,12 @@
 #define __rai_raimd__md_hll_h__
 
 #include <raimd/md_msg.h>
-
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
+#ifdef __cplusplus
+}   
 namespace rai {
 namespace md {
 
@@ -174,4 +179,5 @@ struct HLLMsg : public MDMsg {
 }
 }
 
+#endif
 #endif

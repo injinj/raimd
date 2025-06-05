@@ -4,6 +4,59 @@
 #include <raimd/md_types.h>
 #include <raimd/md_hash_tab.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+enum {
+  MD_HAS_RIPPLE = 1 << 4, /* flags */
+  MD_HAS_NAME   = 1 << 5
+};
+
+typedef struct MDLookup_s {
+  const char * fname;
+  MDFid        fid;
+  uint32_t     fsize;
+  MDType       ftype;
+  uint8_t      fname_len,
+               flags,
+               rwflen,
+               mflen,
+               enumlen;
+  uint16_t     map_num;
+} MDLookup_t;
+
+void md_lookup_init_by_fid( MDLookup_t *p, MDFid fid );
+void md_lookup_init_by_name( MDLookup_t *p, const char *fn, size_t fn_len );
+void md_lookup_mf_type( MDLookup_t *p, uint8_t *mf_type, uint32_t *mf_len, uint32_t *enum_len );
+void md_lookup_rwf_type( MDLookup_t *p, uint8_t *rwf_type, uint32_t *rwf_len );
+int md_lookup_get_name_ripple( MDLookup_t *p, const char **name, uint8_t *name_len, const char **ripple, uint8_t *ripple_len );
+
+typedef struct MDFormEntry_s {
+  uint16_t fid,
+           foffset;
+} MDFormEntry_t;
+
+typedef struct MDDict_s {
+  struct MDDict_s * next;  /* list of multiple dictionaries)*/
+  char   dict_type[ 8 ];   /* cfile or RDM(app_a) */
+} MDDict_t;
+
+typedef struct MDFormClass_s MDFormClass_t;
+
+uint32_t md_dict_hash( const char *key, size_t len );
+bool md_dict_equals( const char *fname,  size_t len, const char *fname2,  size_t len2 );
+bool md_dict_lookup( const MDDict_t *dict, MDLookup_t *p );
+bool md_dict_get( const MDDict_t *dict, MDLookup_t *p );
+bool md_dict_get_enum_text( const MDDict_t *dict, MDFid fid, uint16_t val, const char **disp, size_t *disp_len );
+bool md_dict_get_enum_map_text( const MDDict_t *dict, uint32_t map_num, uint16_t val, const char **disp, size_t *disp_len );
+bool md_dict_get_enum_val( const MDDict_t *dict, MDFid fid, const char *disp, size_t disp_len, uint16_t *val );
+bool md_dict_get_enum_map_val( const MDDict_t *dict, uint32_t map_num, const char *disp, size_t disp_len, uint16_t *val );
+MDFormClass_t *md_dict_get_form_class( const MDDict_t *dict, MDLookup_t *fc );
+
+#ifdef __cplusplus
+}
+
 namespace rai {
 namespace md {
 
@@ -57,22 +110,10 @@ enum {
   MD_HAS_NAME   = 1 << 5
 };
 
-struct MDLookup {
-  const char * fname;
-  MDFid        fid;
-  uint32_t     fsize;
-  MDType       ftype;
-  uint8_t      fname_len,
-               flags,
-               rwflen,
-               mflen,
-               enumlen;
-  uint16_t     map_num;
-
+struct MDLookup : public MDLookup_s {
   MDLookup() {}
-  MDLookup( MDFid f ) : fid( f ) {}
-  MDLookup( const char *fn,  size_t fn_len )
-    : fname( fn ), fname_len( fn_len ) {}
+  MDLookup( MDFid f ) { this->id( f ); }
+  MDLookup( const char *fn,  size_t fn_len ) { this->nm( fn, fn_len ); }
   MDLookup &id( MDFid f ) { this->fid = f; return *this; }
   MDLookup &nm( const char *fn,  size_t fn_len ) {
     this->fname = fn; this->fname_len = fn_len; return *this; }
@@ -140,6 +181,7 @@ inline void md_dict_hash_decompose( uint64_t v,  MDLookup &by ) {
 struct MDEnumMap;
 struct MDFormMap;
 struct MDDict;
+struct MDFormEntry : public MDFormEntry_s {};
 
 struct MDFormKey {
   MDFid fid;
@@ -147,10 +189,6 @@ struct MDFormKey {
   size_t hash( void ) const { return hash( this->fid ); }
   bool equals( const MDFormKey &k ) const { return this->fid == k.fid; }
   MDFormKey( MDFid f ) : fid( f ) {}
-};
-struct MDFormEntry {
-  uint16_t fid,
-           foffset;
 };
 struct MDFormClass : public MDFormKey {
   MDDict      & dict;
@@ -175,7 +213,7 @@ struct MDFormClass : public MDFormKey {
 
 typedef struct MDHashTabT<MDFormKey, MDFormClass> MDFormClassHT;
 
-struct MDDict {
+struct MDDict : public MDDict_s {
   /*
    * [ type table (uint32 elem) ]  = offset 0 (sizeof(MDDict))
    * [ fid table (tab bits elem) ] = offset tab_off (+ntypes * uint32)
@@ -183,9 +221,7 @@ struct MDDict {
    * [ fname ht (tab bits ht) ]    = offset ht_off (+fnamesz ht_off - fname_off)
    * [ enum off (uint32_t off) ]   = offset map_off (+fid_bits * ht_size)
    */
-  MDDict      * next;        /* list of multiple dictionaries)*/
   MDFormClassHT form_class_ht; /* form classes, created on demand */
-  char          dict_type[ 8 ]; /* cfile or RDM(app_a) */
   MDFid         min_fid,     /* minumum fid indexed */
                 max_fid;     /* maximum fid indexed, inclusive */
   uint32_t      tab_off,     /* offset of bit array table */
@@ -207,6 +243,7 @@ struct MDDict {
                 fid_bits,    /* number of bits needed for a fid - min_fid + 1 */
                 pad[ 3 ];    /* tag strings */
 
+  MDDict * get_next( void ) const { return (MDDict *) this->next; }
   /* used by get() below */
   static uint32_t dict_hash( const char *key,  size_t len ) noexcept;
   /* equals allow nul termination in the fnames */
@@ -727,4 +764,5 @@ struct MDFormBuild {
 
 }
 }
+#endif
 #endif

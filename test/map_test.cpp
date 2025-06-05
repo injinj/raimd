@@ -98,7 +98,7 @@ main( int argc, char *argv[] )
   if ( path != NULL )
     dict.dict = load_dict_files( path );
   if ( dict.dict != NULL ) {
-    for ( MDDict *d = dict.dict; d != NULL; d = d->next ) {
+    for ( MDDict *d = dict.dict; d != NULL; d = d->get_next() ) {
       if ( d->dict_type[ 0 ] == 'c' )
         dict.cfile_dict = d;
       else if ( d->dict_type[ 0 ] == 'a' )

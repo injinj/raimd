@@ -4,32 +4,65 @@
 #include <raimd/md_types.h>
 #include <time.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
+
 struct tm;
-void md_localtime( time_t t, struct tm &tmbuf ) noexcept;
-void md_gmtime( time_t t, struct tm &tmbuf ) noexcept;
-time_t md_mktime( struct tm &tmbuf ) noexcept;
-time_t md_timegm( struct tm &tmbuf ) noexcept;
+void md_localtime( time_t t, struct tm *tmbuf );
+void md_gmtime( time_t t, struct tm *tmbuf );
+time_t md_mktime( struct tm *tmbuf );
+time_t md_timegm( struct tm *tmbuf );
+
+struct MDMsg_s;
+typedef struct MDFieldIter_s { /* generic field iterator */
+  struct MDMsg_s * field_iter_msg;
+  size_t           field_start,   /* geom of a field, if msg is byte blob */
+                   field_end,
+                   field_index;
+} MDFieldIter_t;
+
+MDFieldIter_t *md_field_iter_copy( MDFieldIter_t *iter );
+int md_field_iter_get_name( MDFieldIter_t *iter,  MDName_t *name );
+int md_field_iter_copy_name( MDFieldIter_t *iter,  char *name,  size_t *name_len,  MDFid *fid );
+int md_field_iter_get_reference( MDFieldIter_t *iter,  MDReference_t *mref );
+int md_field_iter_get_hint_reference( MDFieldIter_t *iter,  MDReference_t *mref );
+int md_field_iter_get_enum( MDFieldIter_t *iter,  MDReference_t *mref, MDEnum_t *enu );
+int md_field_iter_find( MDFieldIter_t *iter,  const char *name,  size_t name_len, MDReference_t *mref );
+int md_field_iter_first( MDFieldIter_t *iter );
+int md_field_iter_next( MDFieldIter_t *iter );
+int md_field_iter_update( MDFieldIter_t *iter,  MDReference_t *mref );
+size_t md_field_iter_fname_string( MDFieldIter_t *iter, char *fname_buf,  size_t *fname_len );
+int md_field_iter_print( MDFieldIter_t *iter, MDOutput_t *out );
+int md_field_iter_print_fmt( MDFieldIter_t *iter, MDOutput_t *out, int indent_newline, const char *fname_fmt, const char *type_fmt );
+
+typedef struct MDFieldReader_s MDFieldReader_t;
+typedef struct MDMsg_s MDMsg_t;
+MDFieldReader_t *md_msg_get_field_reader( MDMsg_t *m );
+bool md_field_reader_find( MDFieldReader_t *rd, const char *fn,  size_t flen );
+bool md_field_reader_first( MDFieldReader_t *rd, MDName_t *n );
+bool md_field_reader_next( MDFieldReader_t *rd, MDName_t *n );
+bool md_field_reader_get_uint( MDFieldReader_t *rd, void *u, size_t ulen );
+bool md_field_reader_get_int( MDFieldReader_t *rd, void *u, size_t ulen );
+bool md_field_reader_get_real( MDFieldReader_t *rd, void *r, size_t rlen );
+bool md_field_reader_get_string( MDFieldReader_t *rd, char **buf,  size_t *len );
+bool md_field_reader_get_opaque( MDFieldReader_t *rd, void **buf,  size_t *len );
+bool md_field_reader_get_string_buf( MDFieldReader_t *rd, char *buf, size_t buflen, size_t *blen );
+bool md_field_reader_get_time( MDFieldReader_t *rd,  MDTime_t *time );
+bool md_field_reader_get_date( MDFieldReader_t *rd,  MDDate_t *date );
+bool md_field_reader_get_decimal( MDFieldReader_t *rd,  MDDecimal_t *dec );
+bool md_field_reader_get_sub_msg( MDFieldReader_t *rd,  MDMsg_t **msg );
+
+#ifdef __cplusplus
 }
 
 namespace rai {
 namespace md {
 
-struct MDFieldIter { /* generic field iterator */
-  MDMsg & iter_msg;
-  size_t  field_start,   /* marks the area of a field, if msg is byte blob */
-          field_end,
-          field_index;
-
-  MDFieldIter( MDMsg &m )
-    : iter_msg( m ), field_start( 0 ), field_end( 0 ), field_index( 0 ) {}
-
-  /* these fuctions implemented in subclass */
-  void dup_iter( MDFieldIter &i ) {
-    i.field_start = this->field_start;
-    i.field_end   = this->field_end;
-    i.field_index = this->field_index;
-  }
+struct MDFieldIter : public MDFieldIter_s { /* generic field iterator */
+  MDMsg & iter_msg( void ) const noexcept;
+  MDFieldIter( MDMsg &m ) noexcept;
+  void dup_iter( MDFieldIter &i ) noexcept;
   virtual MDFieldIter *copy( void ) noexcept;
   virtual int get_name( MDName &name ) noexcept;
   virtual int copy_name( char *name,  size_t &name_len,  MDFid &fid ) noexcept;
@@ -207,4 +240,5 @@ struct MDIterMap {
 }
 } // namespace rai
 
+#endif
 #endif

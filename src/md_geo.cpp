@@ -18,6 +18,7 @@ GeoMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch geomsg_match = {
+  .name        = GeoMsg_proto_string,
   .off         = 0,
   .len         = 1, /* cnt of buf[] */
   .hint_size   = 0, /* cnt of hint[] */
@@ -25,8 +26,7 @@ static MDMatch geomsg_match = {
   .buf         = { GeoData::geo8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = GeoMsg::is_geomsg,
-  .unpack      = GeoMsg::unpack,
-  .name        = GeoMsg_proto_string
+  .unpack      = GeoMsg::unpack
 };
 
 static bool
@@ -114,7 +114,7 @@ GeoFieldIter::get_reference( MDReference &mref ) noexcept
   mref.fptr  = (uint8_t *) this->val.data;
   mref.fsize = this->val.sz;
   if ( this->val.sz2 > 0 ) {
-    this->iter_msg.mem->alloc( this->val.sz + this->val.sz2, &mref.fptr );
+    this->iter_msg().mem->alloc( this->val.sz + this->val.sz2, &mref.fptr );
     mref.fsize += this->val.sz2;
     ::memcpy( mref.fptr, this->val.data, this->val.sz );
     ::memcpy( &mref.fptr[ this->val.sz ], this->val.data2, this->val.sz2 );

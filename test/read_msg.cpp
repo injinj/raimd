@@ -277,7 +277,7 @@ main( int argc, char **argv )
   if ( path != NULL )
     dict = load_dict_files( path );
   if ( dict != NULL ) {
-    for ( MDDict *d = dict; d != NULL; d = d->next ) {
+    for ( MDDict *d = dict; d != NULL; d = d->get_next() ) {
       if ( d->dict_type[ 0 ] == 'c' )
         cfile_dict = d;
       else if ( d->dict_type[ 0 ] == 'a' )
@@ -453,7 +453,7 @@ main( int argc, char **argv )
       size_t   buf_sz     = msg_sz;
       void   * buf_ptr    = mem.make( buf_sz );
       uint16_t flist      = 0,
-               msg_type   = UPDATE_TYPE,
+               msg_type   = MD_UPDATE_TYPE,
                rec_type   = 0;
       uint32_t seqno      = 0;
 
@@ -482,9 +482,9 @@ main( int argc, char **argv )
         }
         default: {
           MDFieldReader rd( *m );
-          if ( rd.find( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN ) )
+          if ( rd.find( MD_SASS_MSG_TYPE, MD_SASS_MSG_TYPE_LEN ) )
             rd.get_uint( msg_type );
-          if ( rd.find( SASS_SEQ_NO, SASS_SEQ_NO_LEN ) )
+          if ( rd.find( MD_SASS_SEQ_NO, MD_SASS_SEQ_NO_LEN ) )
             rd.get_uint( seqno );
           break;
         }
@@ -568,7 +568,7 @@ main( int argc, char **argv )
           break;
         }
         case RWF_MSG_TYPE_ID: {
-          RwfMsgClass msg_class = ( msg_type == INITIAL_TYPE ?
+          RwfMsgClass msg_class = ( msg_type == MD_INITIAL_TYPE ?
                                     REFRESH_MSG_CLASS : UPDATE_MSG_CLASS );
           uint32_t stream_id = MDDict::dict_hash( subj, slen );
           RwfMsgWriter w( mem, rdm_dict, buf_ptr, buf_sz,
@@ -622,7 +622,7 @@ main( int argc, char **argv )
             TibSassMsgWriter w( mem, *form, buf_ptr, buf_sz );
             append_sass_hdr<TibSassMsgWriter>( w, form, msg_type, rec_type,
                                                seqno, 0, subj, slen );
-            if ( msg_type == INITIAL_TYPE )
+            if ( msg_type == MD_INITIAL_TYPE )
               w.append_form_record();
             if ( (status = w.convert_msg( *m, true )) == 0 ) {
               msg    = w.buf;

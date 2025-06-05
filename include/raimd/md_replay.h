@@ -3,24 +3,52 @@
 
 #include <raimd/md_msg.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
+typedef struct MDReplay_s {
+  MDMsgMem_t mem;
+  char     * buf,
+           * subj,
+           * msgbuf;
+  size_t     bufoff,
+             buflen,
+             bufsz,
+             subjlen,
+             msglen;
+  void     * input;
+} MDReplay_t;
+
+void md_replay_init( MDReplay_t *r,  void *inp );
+bool md_replay_open( MDReplay_t *r,  const char *fname );
+void md_replay_close( MDReplay_t *r );
+void md_replay_resize( MDReplay_t *r,  size_t sz );
+bool md_replay_fillbuf( MDReplay_t *r,  size_t need_bytes );
+bool md_replay_first( MDReplay_t *r );
+bool md_replay_next( MDReplay_t *r );
+bool md_replay_parse( MDReplay_t *r );
+#ifdef __cplusplus
+}   
 namespace rai {
 namespace md {
 
-struct MDReplay {
-  MDMsgMem mem;
-  char   * buf,
-         * subj,
-         * msgbuf;
-  size_t   bufoff,
-           buflen,
-           bufsz,
-           subjlen,
-           msglen;
-  void   * input;
+struct MDReplay : public MDReplay_s {
 
-  MDReplay( void *inp = NULL )
-    : buf( NULL ), subj( NULL ), msgbuf( NULL ),
-      buflen( 0 ), bufsz( 0 ), subjlen( 0 ), msglen( 0 ), input( inp ) {}
+  MDReplay( void *inp = NULL ) {
+    this->init( inp );
+  }
+  void init( void *inp ) {
+    md_msg_mem_init( &this->mem );
+    this->buf     = NULL;
+    this->subj    = NULL;
+    this->msgbuf  = NULL;
+    this->buflen  = 0;
+    this->bufsz   = 0;
+    this->subjlen = 0;
+    this->msglen  = 0;
+    this->input   = inp;
+  }
   bool open( const char *fname ) noexcept;
   void close( void ) noexcept;
   void resize( size_t sz ) noexcept;
@@ -32,5 +60,5 @@ struct MDReplay {
 
 }
 }
-
+#endif
 #endif

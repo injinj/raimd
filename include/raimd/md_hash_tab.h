@@ -1,26 +1,72 @@
 #ifndef __rai_raimd__md_hash_tab_h__
 #define __rai_raimd__md_hash_tab_h__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct MDSubjectKey_s {
+  const char * subj;
+  size_t       len;
+} MDSubjectKey_t;
+
+void md_subject_key_init( MDSubjectKey_t *k, const char *s, size_t l );
+bool md_subject_key_equals( const MDSubjectKey_t *k,  const MDSubjectKey_t *x );
+size_t md_subject_key_hash( const MDSubjectKey_t *k );
+
+typedef void (*MDHashTab_key_f)( void *value,  MDSubjectKey_t *k );
+
+typedef struct MDHashTab_s {
+  void            ** tab;
+  size_t             tab_mask,
+                     elem_count;
+  MDHashTab_key_f    get_key;
+} MDHashTab_t;
+
+void md_hash_tab_init( MDHashTab_t *tab,  size_t ini_sz,  MDHashTab_key_f key );
+void md_hash_tab_release( MDHashTab_t *tab );
+bool md_hash_tab_locate( MDHashTab_t *tab,  const MDSubjectKey_t *k,  size_t *pos );
+void * md_hash_tab_find( MDHashTab_t *tab,  const MDSubjectKey_t *k,  size_t *pos );
+void * md_hash_tab_insert( MDHashTab_t *tab,  size_t pos,  void *value );
+void * md_hash_tab_upsert( MDHashTab_t *tab,  const MDSubjectKey_t *k,  void *value );
+void * md_hash_tab_remove( MDHashTab_t *tab,  const MDSubjectKey_t *k );
+size_t md_hash_tab_min_size( MDHashTab_t *tab );
+size_t md_hash_tab_max_size( MDHashTab_t *tab );
+void * md_hash_tab_swap( MDHashTab_t *tab,  size_t pos,  void *val );
+void md_hash_tab_fill_empty_hole( MDHashTab_t *tab,  size_t pos );
+void md_hash_tab_grow( MDHashTab_t *tab );
+void md_hash_tab_shrink( MDHashTab_t *tab );
+void md_hash_tab_resize( MDHashTab_t *tab,  size_t new_sz );
+
+#ifdef __cplusplus
+}
+
 namespace rai {
 namespace md {
 
-struct MDSubjectKey {
-  const char * subj;
-  size_t       len;
-
-  size_t hash( void ) const {
+struct MDSubjectKey : public MDSubjectKey_s {
+  static inline size_t hash_subject( const char *subj,  size_t len ) {
     size_t key = 5381;
-    for ( size_t i = 0; i < this->len; i++ ) {
-      size_t c = (size_t) (uint8_t) this->subj[ i ];
+    for ( size_t i = 0; i < len; i++ ) {
+      size_t c = (size_t) (uint8_t) subj[ i ];
       key = c ^ ( ( key << 5 ) + key );
     }
     return key;
   }
-  bool equals( const MDSubjectKey &k ) const {
+  size_t hash( void ) const {
+    return hash_subject( this->subj, this->len );
+  }
+  bool equals( const MDSubjectKey_t &k ) const {
     return k.len == this->len &&
            ::memcmp( k.subj, this->subj, this->len ) == 0;
   }
-  MDSubjectKey( const char *s,  size_t l ) : subj( s ), len( l ) {}
+  void init( const char *s,  size_t l ) {
+    this->subj = s;
+    this->len  = l;
+  }
+  MDSubjectKey( const char *s,  size_t l ) {
+    this->init( s, l );
+  }
 };
 
 template <class Key, class Value>
@@ -153,4 +199,5 @@ struct MDHashTabT {
 
 }
 }
+#endif
 #endif

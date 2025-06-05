@@ -38,6 +38,11 @@ MDFormKey::hash( MDFid fid ) noexcept
   return hash_u32( fid );
 }
 
+extern "C" {
+uint32_t md_dict_hash( const char *key,  size_t len ) { return MDDict::dict_hash( key, len ); }
+bool md_dict_equals( const char *fname,  size_t len, const char *fname2,  size_t len2 ) { return MDDict::dict_equals( fname, len, fname2, len2 ); }
+}
+
 uint32_t
 MDDictIdx::file_lineno( const char *filename,  uint32_t lineno ) noexcept
 {
@@ -1221,5 +1226,28 @@ DictParser::consume_string_tok( void ) noexcept
   this->off += sz + 1;
   this->tok = this->ident_tok;
   return this->ident_tok;
+}
+
+extern "C" {
+/* C Interface for MDLookup */
+
+void md_lookup_init_by_fid(MDLookup_t *p, MDFid fid) { ((rai::md::MDLookup *)p)->id(fid); }
+void md_lookup_init_by_name(MDLookup_t *p, const char *fn, size_t fn_len) { ((rai::md::MDLookup *)p)->nm(fn, fn_len); }
+void md_lookup_mf_type(MDLookup_t *p, uint8_t *mf_type, uint32_t *mf_len, uint32_t *enum_len) { ((rai::md::MDLookup *)p)->mf_type(*mf_type, *mf_len, *enum_len); }
+void md_lookup_rwf_type(MDLookup_t *p, uint8_t *rwf_type, uint32_t *rwf_len) { ((rai::md::MDLookup *)p)->rwf_type(*rwf_type, *rwf_len); }
+int md_lookup_get_name_ripple(MDLookup_t *p, const char **name, uint8_t *name_len, const char **ripple, uint8_t *ripple_len) { return ((rai::md::MDLookup *)p)->get_name_ripple(*name, *name_len, *ripple, *ripple_len); }
+
+bool md_dict_lookup(const MDDict_t *dict, MDLookup_t *p) { return ((MDDict *) dict)->lookup(*(rai::md::MDLookup *)p); }
+bool md_dict_get(const MDDict_t *dict, MDLookup_t *p) { return ((MDDict *) dict)->get(*(rai::md::MDLookup *)p); }
+bool md_dict_get_enum_text(const MDDict_t *dict, MDFid fid, uint16_t val, const char **disp, size_t *disp_len) { return ((MDDict *) dict)->get_enum_text(fid, val, *disp, *disp_len); }
+bool md_dict_get_enum_map_text(const MDDict_t *dict, uint32_t map_num, uint16_t val, const char **disp, size_t *disp_len) { return ((MDDict *) dict)->get_enum_map_text(map_num, val, *disp, *disp_len); }
+bool md_dict_get_enum_val(const MDDict_t *dict, MDFid fid, const char *disp, size_t disp_len, uint16_t *val) { return ((MDDict *) dict)->get_enum_val(fid, disp, disp_len, *val); }
+bool md_dict_get_enum_map_val(const MDDict_t *dict, uint32_t map_num, const char *disp, size_t disp_len, uint16_t *val) { return ((MDDict *) dict)->get_enum_map_val(map_num, disp, disp_len, *val); }
+
+MDFormClass_t *
+md_dict_get_form_class( const MDDict_t *dict, MDLookup_t *fc )
+{
+  return (MDFormClass_t *) ((MDDict *) dict)->get_form_class( *(MDLookup *) fc );
+}
 }
 

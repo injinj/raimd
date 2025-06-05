@@ -4,6 +4,12 @@
 #include <raimd/md_hash.h>
 #include <raimd/decimal.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef __cplusplus
+}
 namespace rai {
 namespace md {
 
@@ -749,4 +755,5 @@ struct ZSetFieldIter : public MDFieldIter {
 }
 }
 
+#endif
 #endif

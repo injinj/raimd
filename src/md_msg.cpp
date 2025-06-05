@@ -7,10 +7,37 @@ extern "C" {
 #define md_stringify(S) md_str(S)
 #define md_str(S) #S
 
-const char *
-md_get_version( void )
+const char * md_get_version( void ) { return md_stringify( MD_VER ); }
+MDMatch_t * md_msg_first_match( uint32_t *i ) { return (MDMatch_t *) MDMsg::first_match( *i ); }
+MDMatch_t * md_msg_next_match( uint32_t *i ) { return (MDMatch_t *) MDMsg::next_match( *i ); }
+
+MDMsg_t * md_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                         MDDict_t *d,  MDMsgMem_t *m )
 {
-  return md_stringify( MD_VER );
+  return MDMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+}
+int
+md_msg_get_field_iter( MDMsg_t *m,  MDFieldIter_t **iter )
+{
+  MDFieldIter * i = NULL;
+  int x = static_cast<MDMsg *>( m )->get_field_iter( i );
+  *iter = i;
+  return x;
+}
+uint32_t
+md_msg_get_type_id( MDMsg_t *m )
+{
+  return static_cast<MDMsg *>( m )->get_type_id();
+}
+const char *
+md_msg_get_proto_string( MDMsg_t *m )
+{
+  return static_cast<MDMsg *>( m )->get_proto_string();
+}
+void
+md_msg_print( MDMsg_t *m, MDOutput_t *mout )
+{
+  return static_cast<MDMsg *>( m )->print( (MDOutput *) mout );
 }
 }
 
@@ -270,16 +297,16 @@ found_msg_type:;
 void *
 MDMsgMem::alloc_slow( size_t size ) noexcept
 {
-  MemBlock * p;
-  size_t     alloc_size = sizeof( MemBlock ) + sizeof( void * ),
-             edge;
-  edge = MEM_CNT;
-  if ( size + 1 > MEM_CNT ) {
+  MDMemBlock_t * p;
+  size_t         alloc_size = sizeof( MDMemBlock_t ) + sizeof( void * ),
+                 edge;
+  edge = MD_MSG_MEM_CNT;
+  if ( size + 1 > MD_MSG_MEM_CNT ) {
     edge = size;
-    alloc_size += ( size + 1 - MEM_CNT ) * sizeof( void * );
+    alloc_size += ( size + 1 - MD_MSG_MEM_CNT ) * sizeof( void * );
   }
   /* use malloc() for msg mem when local stack storage is exhausted */
-  p = (MemBlock *) ::malloc( alloc_size );
+  p = (MDMemBlock_t *) ::malloc( alloc_size );
   p->next = this->blk_ptr;
   p->size = edge;
   this->blk_ptr = p;
@@ -304,7 +331,7 @@ MDMsgMem::extend( size_t old_size,  size_t new_size,  void *ptr ) noexcept
   if ( (size_t) this->mem_off >= old_sz &&
    (void *) &this->blk_ptr->mem[ this->mem_off - old_sz ] == *(void **) ptr ) {
     size_t new_off = (size_t) this->mem_off - old_sz + new_sz;
-    if ( new_off <= MEM_CNT ) {
+    if ( new_off <= MD_MSG_MEM_CNT ) {
       this->mem_off = new_off;
       return;
     }
@@ -320,7 +347,7 @@ MDMsgMem::release( void ) noexcept
 {
   /* release malloc()ed mem */
   while ( this->blk_ptr != &this->blk ) {
-    MemBlock * next = this->blk_ptr->next;
+    MDMemBlock_t * next = this->blk_ptr->next;
     if ( (void *) this->blk_ptr != this->blk_ptr->mem[ this->blk_ptr->size ] )
       this->error();
     else
@@ -331,10 +358,10 @@ MDMsgMem::release( void ) noexcept
 }
 
 void
-MDMsgMem::reset( MemBlock *sav,  uint32_t off ) noexcept
+MDMsgMem::reset( MDMemBlock_t *sav,  uint32_t off ) noexcept
 {
   while ( this->blk_ptr != sav ) {
-    MemBlock * next = this->blk_ptr->next;
+    MDMemBlock_t * next = this->blk_ptr->next;
     if ( (void *) this->blk_ptr != this->blk_ptr->mem[ this->blk_ptr->size ] )
       this->error();
     else
@@ -376,6 +403,18 @@ MDMsg::print( MDOutput *out,  int indent_newline,  const char *fname_fmt,
       out->puts( "\n" );
     }
   }
+}
+
+extern "C" {
+void md_msg_mem_init( MDMsgMem_t *m ) { return ((MDMsgMem *) m)->init(); }
+void md_msg_mem_reuse( MDMsgMem_t *m ) { return ((MDMsgMem *) m)->reuse(); }
+void md_msg_mem_alloc( MDMsgMem_t *m,  size_t size,  void *ptr ) { return ((MDMsgMem *) m)->alloc( size, ptr ); }
+void * md_msg_mem_make( MDMsgMem_t *m,  size_t size ) { return ((MDMsgMem *) m)->make( size ); }
+char * md_msg_mem_str_make( MDMsgMem_t *m,  size_t size ) { return ((MDMsgMem *) m)->str_make( size ); }
+void md_msg_mem_extend( MDMsgMem_t *m,  size_t old_size,  size_t new_size,  void *ptr ) { return ((MDMsgMem *) m)->extend( old_size, new_size, ptr ); }
+char * md_msg_mem_stralloc( MDMsgMem_t *m,  size_t len,  const char *str ) { return ((MDMsgMem *) m)->stralloc( len, str ); }
+void * md_msg_mem_memalloc( MDMsgMem_t *m,  size_t len,  const void *mem ) { return ((MDMsgMem *) m)->memalloc( len, mem ); }
+void md_msg_mem_release( MDMsgMem_t *m ) { return ((MDMsgMem *) m)->release(); }
 }
 
 MDError

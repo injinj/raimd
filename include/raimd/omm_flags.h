@@ -1,10 +1,11 @@
 #ifndef __rai_raimd__omm_flags_h__
 #define __rai_raimd__omm_flags_h__
 
-namespace rai {
-namespace md {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-enum RwfMsgClass {
+typedef enum {
   MSG_KEY_CLASS     = 0, /* fake class */
   REQUEST_MSG_CLASS = 1,
   REFRESH_MSG_CLASS = 2,
@@ -14,28 +15,9 @@ enum RwfMsgClass {
   ACK_MSG_CLASS     = 6,
   GENERIC_MSG_CLASS = 7,
   POST_MSG_CLASS    = 8
-};
-#define RWF_MSG_CLASS_COUNT 9
-static inline bool is_valid_msg_class( uint8_t x ) {
-  return ( x >= REQUEST_MSG_CLASS && x <= POST_MSG_CLASS );
-}
-#ifndef DEFINE_RWF_MSG_DECODER
-extern const char *rwf_msg_class_str[ RWF_MSG_CLASS_COUNT ];
-#else
-const char *rwf_msg_class_str[ RWF_MSG_CLASS_COUNT ] = {
-  "msg_key",
-  "request",
-  "refresh",
-  "status",
-  "update",
-  "close",
-  "ack",
-  "generic",
-  "post"
-};
-#endif
+} RwfMsgClass;
 
-enum RdmDomainType { /* always included in *_MSG_CLASS */
+typedef enum { /* always included in *_MSG_CLASS */
   NO_DOMAIN                      = 0,
   LOGIN_DOMAIN                   = 1,
   RSVD_DOMAIN_2                  = 2,
@@ -74,55 +56,9 @@ enum RdmDomainType { /* always included in *_MSG_CLASS */
   POLL_DOMAIN                    = 35,
   FORECAST_DOMAIN                = 36,
   MARKET_BY_TIME_DOMAIN          = 37
-};
+} RdmDomainType;
 
-#define RDM_DOMAIN_COUNT 38
-#ifndef DEFINE_RWF_MSG_DECODER
-extern const char *rdm_domain_str[ RDM_DOMAIN_COUNT ];
-#else
-const char *rdm_domain_str[ RDM_DOMAIN_COUNT ] = {
-/*0 */ "no",
-/*1 */ "login",
-/*2 */ "rsvd_2",
-/*3 */ "rsvd_3",
-/*4 */ "source",
-/*5 */ "dictionary",
-/*6 */ "market_price",
-/*7 */ "market_by_order",
-/*8 */ "market_by_price",
-/*9 */ "market_maker",
-/*10*/ "symbol_list",
-/*11*/ "service_provider_status",
-/*12*/ "history",
-/*13*/ "headline",
-/*14*/ "story",
-/*15*/ "replayheadline",
-/*16*/ "replaystory",
-/*17*/ "transaction",
-/*18*/ "rsvd_18",
-/*19*/ "rsvd_19",
-/*20*/ "rsvd_20",
-/*21*/ "rsvd_21",
-/*22*/ "yield_curve",
-/*23*/ "rsvd_23",
-/*24*/ "rsvd_24",
-/*25*/ "rsvd_25",
-/*26*/ "rsvd_26",
-/*27*/ "contribution",
-/*28*/ "rsvd_28",
-/*29*/ "provider_admin",
-/*30*/ "analytics",
-/*31*/ "reference",
-/*32*/ "rsvd_32",
-/*33*/ "news_text_analytics",
-/*34*/ "economic_indicator",
-/*35*/ "poll",
-/*36*/ "forecast",
-/*37*/ "market_by_time"
-};
-#endif
-
-enum RdmDirSvcInfoId {
+typedef enum {
   DIR_SVC_INFO_ID       = 1,
   DIR_SVC_STATE_ID      = 2,
   DIR_SVC_GROUP_ID      = 3,
@@ -130,9 +66,9 @@ enum RdmDirSvcInfoId {
   DIR_SVC_DATA_ID       = 5,
   DIR_SVC_LINK_ID       = 6,
   DIR_SVC_SEQ_MCAST_ID  = 7,
-};
+} RdmDirSvcInfoId;
 #define rdm_svc_filter( id ) ( 1U << ( (int) id - 1 ) )
-enum RdmDirSvcFilterFlags {
+typedef enum {
   DIR_SVC_INFO_FILTER       = rdm_svc_filter( DIR_SVC_INFO_ID ),  /* source info */
   DIR_SVC_STATE_FILTER      = rdm_svc_filter( DIR_SVC_STATE_ID ), /* svc state */
   DIR_SVC_GROUP_FILTER      = rdm_svc_filter( DIR_SVC_GROUP_ID ), /* group info */
@@ -141,23 +77,23 @@ enum RdmDirSvcFilterFlags {
   DIR_SVC_LINK_FILTER       = rdm_svc_filter( DIR_SVC_LINK_ID ),  /* link state */
   DIR_SVC_SEQ_MCAST_FILTER  = rdm_svc_filter( DIR_SVC_SEQ_MCAST_ID ), /* mcast nfo*/
   DIR_SVC_ALL_FILTERS       = 0x7f
-};
+} RdmDirSvcFilterFlags;
 
-enum RdmNameType { /* msg key name type values */
+typedef enum { /* msg key name type values */
   NAME_TYPE_UNSPEC  = 0,
   NAME_TYPE_RIC     = 1,
   NAME_TYPE_CONTRIB = 2
-};
+} RdmNameType;
 
-enum RdmLoginType { /* login user name type values */
+typedef enum { /* login user name type values */
   NAME_TYPE_USER_NAME  = 1,
   NAME_TYPE_EMAIL_ADDR = 2,
   NAME_TYPE_USER_TOKEN = 3,
   NAME_TYPE_COOKIE     = 4,
   NAME_TYPE_AUTHN      = 5
-};
+} RdmLoginType;
 
-enum RdmUpdateType { /* always in UPDATE_MSG_CLASS */
+typedef enum { /* always in UPDATE_MSG_CLASS */
   UPD_TYPE_UNSPECIFIED      = 0,
   UPD_TYPE_QUOTE            = 1,
   UPD_TYPE_TRADE            = 2,
@@ -170,114 +106,45 @@ enum RdmUpdateType { /* always in UPDATE_MSG_CLASS */
   UPD_TYPE_QUOTES_TRADE     = 9,
   UPD_TYPE_MULTIPLE         = 10,
   UPD_TYPE_VERIFY           = 11
-};
+} RdmUpdateType;
 
-#define RDM_UPDATE_TYPE_COUNT 12
-#ifndef DEFINE_RWF_MSG_DECODER
-extern const char *rdm_update_type_str[ RDM_UPDATE_TYPE_COUNT ];
-#else
-const char *rdm_update_type_str[ RDM_UPDATE_TYPE_COUNT ] = {
-  "unspecified",
-  "quote",
-  "trade",
-  "news_alert",
-  "volume_alert",
-  "order_indication",
-  "closing_run",
-  "correction",
-  "market_digest",
-  "quotes_trade",
-  "multiple",
-  "verify"
-};
-#endif
-
-enum RdmPostRights {
+typedef enum {
   POST_NONE        = 0,
   POST_CREATE      = 1,
   POST_DELETE      = 2,
   POST_MODIFY_PERM = 4
-};
+} RdmPostRights;
 
-enum RdmQosTime {
+typedef enum {
   QOS_TIME_UNSPECIFIED     = 0,
   QOS_TIME_REALTIME        = 1,
   QOS_TIME_DELAYED_UNKNOWN = 2,
   QOS_TIME_DELAYED         = 3
-};
+} RdmQosTime;
 
-#define RDM_QOS_TIME_COUNT 4
-#ifndef DEFINE_RWF_MSG_DECODER
-extern const char *rdm_qos_time_str[ RDM_QOS_TIME_COUNT ];
-#else
-const char *rdm_qos_time_str[ RDM_QOS_TIME_COUNT ] = {
-  "unspecified",
-  "realtime",
-  "delayed_unknown",
-  "delayed"
-};
-#endif
-
-enum RdmQosRate {
+typedef enum {
   QOS_RATE_UNSPECIFIED    = 0,
   QOS_RATE_TICK_BY_TICK   = 1,
   QOS_RATE_JIT_CONFLATED  = 2,
   QOS_RATE_TIME_CONFLATED = 3
-};
+} RdmQosRate;
 
-#define RDM_QOS_RATE_COUNT 4
-#ifndef DEFINE_RWF_MSG_DECODER
-extern const char *rdm_qos_rate_str[ RDM_QOS_RATE_COUNT ];
-#else
-const char *rdm_qos_rate_str[ RDM_QOS_RATE_COUNT ] = {
-  "unspecified",
-  "tick_by_tick",
-  "jit_conflated",
-  "time_conflated"
-};
-#endif
-
-enum RdmStreamState {
+typedef enum {
   STREAM_STATE_UNSPECIFIED    = 0,
   STREAM_STATE_OPEN           = 1,
   STREAM_STATE_NON_STREAMING  = 2,
   STREAM_STATE_CLOSED_RECOVER = 3,
   STREAM_STATE_CLOSED         = 4,
   STREAM_STATE_REDIRECTED     = 5
-};
+} RdmStreamState;
 
-#define RDM_STREAM_STATE_COUNT 6
-#ifndef DEFINE_RWF_MSG_DECODER
-extern const char *rdm_stream_state_str[ RDM_STREAM_STATE_COUNT ];
-#else
-const char *rdm_stream_state_str[ RDM_STREAM_STATE_COUNT ] = {
-  "unspecified",
-  "open",
-  "non_streaming",
-  "closed_recover",
-  "closed",
-  "redirected",
-};
-#endif
-
-enum RdmDataState {
+typedef enum {
   DATA_STATE_NO_CHANGE = 0,
   DATA_STATE_OK        = 1,
   DATA_STATE_SUSPECT   = 2
-};
+} RdmDataState;
 
-#define RDM_DATA_STATE_COUNT 3
-#ifndef DEFINE_RWF_MSG_DECODER
-extern const char *rdm_data_state_str[ RDM_DATA_STATE_COUNT ];
-#else
-const char *rdm_data_state_str[ RDM_DATA_STATE_COUNT ] = {
-  "no_change",
-  "ok",
-  "suspect"
-};
-#endif
-
-enum RdmStatusCode {
+typedef enum {
   STATUS_CODE_NONE                         = 0,
   STATUS_CODE_NOT_FOUND                    = 1,
   STATUS_CODE_TIMEOUT                      = 2,
@@ -314,68 +181,26 @@ enum RdmStatusCode {
   STATUS_CODE_RSVD_33                      = 33,
   STATUS_CODE_GAP_FILL                     = 34,
   STATUS_CODE_APP_AUTHORIZATION_FAILED     = 35
-};
+} RdmStatusCode;
 #define RDM_STATUS_CODE_COUNT 36
-#ifndef DEFINE_RWF_MSG_DECODER
-extern const char *rdm_status_code_str[ RDM_STATUS_CODE_COUNT ];
-#else
-const char *rdm_status_code_str[ RDM_STATUS_CODE_COUNT ] = {
-/* 0 */ "No state code",
-/* 1 */ "Not found",
-/* 2 */ "Timeout",
-/* 3 */ "Not entitled",
-/* 4 */ "Invalid argument",
-/* 5 */ "Usage error",
-/* 6 */ "Preempted",
-/* 7 */ "Conflation started",
-/* 8 */ "Realtime resumed",
-/* 9 */ "Failover started",
-/* 10*/ "Failover completed",
-/* 11*/ "Gap detected",
-/* 12*/ "No resources",
-/* 13*/ "Too many items open",
-/* 14*/ "Item already open",
-/* 15*/ "Unknown source",
-/* 16*/ "Not open",
-/* 17*/ "Rsvd 17",
-/* 18*/ "Rsvd 18",
-/* 19*/ "Item was requested as streaming but does not update",
-/* 20*/ "View Type requested is not supported for this domain",
-/* 21*/ "An invalid view was requested",
-/* 22*/ "Although a view was requested, the full view is being provided",
-/* 23*/ "Although a batch of items were requested, the batch was split into individual request messages",
-/* 24*/ "Rsvd 24",
-/* 25*/ "Rsvd 25",
-/* 26*/ "Request does not support batch and view",
-/* 27*/ "Login rejected, exceeded maximum number of mounts per user",
-/* 28*/ "Internal error from sender",
-/* 29*/ "Connection to DACS down",
-/* 30*/ "User unknown to permissioning system",
-/* 31*/ "Maximum logins reached.",
-/* 32*/ "Access Denied",
-/* 33*/ "Rsvd 33",
-/* 34*/ "Content fill a recognized gap",
-/* 35*/ "Authorization failed"
-};
-#endif
 
-enum RdmLinkType {
+typedef enum {
   LINK_INTERACTIVE = 1,
   LINK_BROADCAST   = 2
-};
+} RdmLinkType;
 
-enum RdmLinkState {
+typedef enum {
   LINK_DOWN = 0,
   LINK_UP   = 1
-};
+} RdmLinkState;
 
-enum RdmLinkCode {
+typedef enum {
   LINK_OK               = 1,
   LINK_RECOVER_START    = 2,
   LINK_RECOVER_COMPLETE = 3
-};
+} RdmLinkCode;
 
-enum RwfMsgSerial {
+typedef enum {
   X_ACK_FLAG              = 0,  /* Close, Post flags */
   X_CLEAR_CACHE           = 1,  /* Refresh, Status flags */
   X_CONF_INFO_IN_UPDATES  = 2,  /* Request flags */
@@ -424,7 +249,190 @@ enum RwfMsgSerial {
 
   /* space holders */
   X_U4, X_U5, X_U6, X_U7, X_U8, X_U9, X_U10, X_U11, X_U12, X_U13, X_U14, X_U15
+} RwfMsgSerial;
+
+#ifdef __cplusplus
+}
+namespace rai {
+namespace md {
+
+#define RWF_MSG_CLASS_COUNT 9
+static inline bool is_valid_msg_class( uint8_t x ) {
+  return ( x >= REQUEST_MSG_CLASS && x <= POST_MSG_CLASS );
+}
+#ifndef DEFINE_RWF_MSG_DECODER
+extern const char *rwf_msg_class_str[ RWF_MSG_CLASS_COUNT ];
+#else
+const char *rwf_msg_class_str[ RWF_MSG_CLASS_COUNT ] = {
+  "msg_key",
+  "request",
+  "refresh",
+  "status",
+  "update",
+  "close",
+  "ack",
+  "generic",
+  "post"
 };
+#endif
+
+#define RDM_DOMAIN_COUNT 38
+#ifndef DEFINE_RWF_MSG_DECODER
+extern const char *rdm_domain_str[ RDM_DOMAIN_COUNT ];
+#else
+const char *rdm_domain_str[ RDM_DOMAIN_COUNT ] = {
+/*0 */ "no",
+/*1 */ "login",
+/*2 */ "rsvd_2",
+/*3 */ "rsvd_3",
+/*4 */ "source",
+/*5 */ "dictionary",
+/*6 */ "market_price",
+/*7 */ "market_by_order",
+/*8 */ "market_by_price",
+/*9 */ "market_maker",
+/*10*/ "symbol_list",
+/*11*/ "service_provider_status",
+/*12*/ "history",
+/*13*/ "headline",
+/*14*/ "story",
+/*15*/ "replayheadline",
+/*16*/ "replaystory",
+/*17*/ "transaction",
+/*18*/ "rsvd_18",
+/*19*/ "rsvd_19",
+/*20*/ "rsvd_20",
+/*21*/ "rsvd_21",
+/*22*/ "yield_curve",
+/*23*/ "rsvd_23",
+/*24*/ "rsvd_24",
+/*25*/ "rsvd_25",
+/*26*/ "rsvd_26",
+/*27*/ "contribution",
+/*28*/ "rsvd_28",
+/*29*/ "provider_admin",
+/*30*/ "analytics",
+/*31*/ "reference",
+/*32*/ "rsvd_32",
+/*33*/ "news_text_analytics",
+/*34*/ "economic_indicator",
+/*35*/ "poll",
+/*36*/ "forecast",
+/*37*/ "market_by_time"
+};
+#endif
+
+#define RDM_UPDATE_TYPE_COUNT 12
+#ifndef DEFINE_RWF_MSG_DECODER
+extern const char *rdm_update_type_str[ RDM_UPDATE_TYPE_COUNT ];
+#else
+const char *rdm_update_type_str[ RDM_UPDATE_TYPE_COUNT ] = {
+  "unspecified",
+  "quote",
+  "trade",
+  "news_alert",
+  "volume_alert",
+  "order_indication",
+  "closing_run",
+  "correction",
+  "market_digest",
+  "quotes_trade",
+  "multiple",
+  "verify"
+};
+#endif
+
+#define RDM_QOS_TIME_COUNT 4
+#ifndef DEFINE_RWF_MSG_DECODER
+extern const char *rdm_qos_time_str[ RDM_QOS_TIME_COUNT ];
+#else
+const char *rdm_qos_time_str[ RDM_QOS_TIME_COUNT ] = {
+  "unspecified",
+  "realtime",
+  "delayed_unknown",
+  "delayed"
+};
+#endif
+
+#define RDM_QOS_RATE_COUNT 4
+#ifndef DEFINE_RWF_MSG_DECODER
+extern const char *rdm_qos_rate_str[ RDM_QOS_RATE_COUNT ];
+#else
+const char *rdm_qos_rate_str[ RDM_QOS_RATE_COUNT ] = {
+  "unspecified",
+  "tick_by_tick",
+  "jit_conflated",
+  "time_conflated"
+};
+#endif
+
+#define RDM_STREAM_STATE_COUNT 6
+#ifndef DEFINE_RWF_MSG_DECODER
+extern const char *rdm_stream_state_str[ RDM_STREAM_STATE_COUNT ];
+#else
+const char *rdm_stream_state_str[ RDM_STREAM_STATE_COUNT ] = {
+  "unspecified",
+  "open",
+  "non_streaming",
+  "closed_recover",
+  "closed",
+  "redirected",
+};
+#endif
+
+#define RDM_DATA_STATE_COUNT 3
+#ifndef DEFINE_RWF_MSG_DECODER
+extern const char *rdm_data_state_str[ RDM_DATA_STATE_COUNT ];
+#else
+const char *rdm_data_state_str[ RDM_DATA_STATE_COUNT ] = {
+  "no_change",
+  "ok",
+  "suspect"
+};
+#endif
+
+#ifndef DEFINE_RWF_MSG_DECODER
+extern const char *rdm_status_code_str[ RDM_STATUS_CODE_COUNT ];
+#else
+const char *rdm_status_code_str[ RDM_STATUS_CODE_COUNT ] = {
+/* 0 */ "No state code",
+/* 1 */ "Not found",
+/* 2 */ "Timeout",
+/* 3 */ "Not entitled",
+/* 4 */ "Invalid argument",
+/* 5 */ "Usage error",
+/* 6 */ "Preempted",
+/* 7 */ "Conflation started",
+/* 8 */ "Realtime resumed",
+/* 9 */ "Failover started",
+/* 10*/ "Failover completed",
+/* 11*/ "Gap detected",
+/* 12*/ "No resources",
+/* 13*/ "Too many items open",
+/* 14*/ "Item already open",
+/* 15*/ "Unknown source",
+/* 16*/ "Not open",
+/* 17*/ "Rsvd 17",
+/* 18*/ "Rsvd 18",
+/* 19*/ "Item was requested as streaming but does not update",
+/* 20*/ "View Type requested is not supported for this domain",
+/* 21*/ "An invalid view was requested",
+/* 22*/ "Although a view was requested, the full view is being provided",
+/* 23*/ "Although a batch of items were requested, the batch was split into individual request messages",
+/* 24*/ "Rsvd 24",
+/* 25*/ "Rsvd 25",
+/* 26*/ "Request does not support batch and view",
+/* 27*/ "Login rejected, exceeded maximum number of mounts per user",
+/* 28*/ "Internal error from sender",
+/* 29*/ "Connection to DACS down",
+/* 30*/ "User unknown to permissioning system",
+/* 31*/ "Maximum logins reached.",
+/* 32*/ "Access Denied",
+/* 33*/ "Rsvd 33",
+/* 34*/ "Content fill a recognized gap",
+/* 35*/ "Authorization failed"
+};
+#endif
 
 #define RWF_MSG_SERIAL_COUNT 45
 #ifndef DEFINE_RWF_MSG_DECODER
@@ -706,4 +714,4 @@ const RwfMsgFlagMap * rwf_flags_map[ RWF_MSG_CLASS_COUNT ] = {
 }
 }
 #endif
-
+#endif

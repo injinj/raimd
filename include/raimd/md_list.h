@@ -3,6 +3,12 @@
 
 #include <raimd/md_msg.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef __cplusplus
+}
 namespace rai {
 namespace md {
 
@@ -1061,4 +1067,5 @@ struct ListMsg : public MDMsg {
 
 }
 }
+#endif
 #endif

@@ -7,15 +7,104 @@
 using namespace rai;
 using namespace md;
 
-RwfMsgWriterBase::RwfMsgWriterBase( RwfWriterType t,  MDMsgMem &m,  MDDict *d,
-                                    void *bb, size_t len ) noexcept
-                : mem( m ), dict( 0 ), buf( (uint8_t *) bb ), off( 0 ),
-                  buflen( len ), prefix_len( 0 ), len_bits( 0 ), err( 0 ),
-                  size_ptr( 0 ), parent( 0 ), child( 0 ), type( t ),
-                  is_complete( false )
+extern "C" {
+MDMsgWriter_t * rwf_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                       void *buf_ptr, size_t buf_sz,
+                                       RwfMsgClass cl, RdmDomainType dom,
+                                       uint32_t id )
 {
+  void * p = ((MDMsgMem *) mem)->make( sizeof( RwfMsgWriter ) );
+  return new ( p ) RwfMsgWriter( *(MDMsgMem *) mem, (MDDict *) d, buf_ptr, buf_sz, cl, dom, id );
+}
+
+MDMsgWriter_t * rwf_msg_writer_field_list_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                                  void *buf_ptr, size_t buf_sz )
+{
+  void * p = ((MDMsgMem *) mem)->make( sizeof( RwfFieldListWriter ) );
+  return new ( p ) RwfFieldListWriter( *(MDMsgMem *) mem, (MDDict *) d, buf_ptr, buf_sz );
+}
+
+int
+md_msg_writer_rwf_add_seq_num( MDMsgWriter_t *w, uint32_t seqno )
+{
+  RwfMsgWriter *x = (RwfMsgWriter *) w;
+  if ( x->wr_type != RWF_MSG_TYPE_ID )
+    return -1;
+  x->add_seq_num( seqno );
+  return 0;
+}
+int
+md_msg_writer_rwf_add_msg_key( MDMsgWriter_t *w, const char *subj, size_t slen )
+{
+  RwfMsgWriter *x = (RwfMsgWriter *) w;
+  if ( x->wr_type != RWF_MSG_TYPE_ID )
+    return -1;
+  x->add_msg_key()
+    .name( subj, slen )
+    .name_type( NAME_TYPE_RIC )
+    .end_msg_key();
+  return 0;
+}
+
+MDMsgWriter_t *
+md_msg_writer_rwf_add_field_list( MDMsgWriter_t *w )
+{
+  RwfMsgWriter *x = (RwfMsgWriter *) w;
+  if ( x->wr_type != RWF_MSG_TYPE_ID )
+    return NULL;
+  RwfFieldListWriter &y = x->add_field_list();
+  return (MDMsgWriter_t *) &y;
+}
+
+int
+md_msg_writer_rwf_add_flist( MDMsgWriter_t *fl, uint16_t flist )
+{
+  RwfFieldListWriter *x = (RwfFieldListWriter *) fl;
+  if ( x->wr_type != RWF_FIELD_LIST_TYPE_ID )
+    return -1;
+  x->add_flist( flist );
+  return 0;
+}
+
+int
+md_msg_writer_rwf_end_msg( MDMsgWriter_t *w )
+{
+  RwfMsgWriter *x = (RwfMsgWriter *) w;
+  if ( (uint32_t) x->wr_type != RWF_MSG_TYPE_ID )
+    return -1;
+  x->end_msg();
+  return 0;
+}
+
+int
+md_msg_writer_rwf_set( MDMsgWriter_t *w, RwfMsgSerial ser )
+{
+  RwfMsgWriter *x = (RwfMsgWriter *) w;
+  if ( (uint32_t) x->wr_type != RWF_MSG_TYPE_ID )
+    return -1;
+  x->set( ser );
+  return 0;
+}
+
+}
+
+RwfMsgWriterBase::RwfMsgWriterBase( RwfWriterType t,  MDMsgMem &m,  MDDict *d,
+                                    void *bb, size_t len ) noexcept : type( t )
+{
+  this->msg_mem     = &m;
+  this->buf         = (uint8_t *) bb;
+  this->off         = 0;
+  this->buflen      = len;
+  this->wr_type     = RWF_MSG_TYPE_ID;
+  this->err         = 0;
+  this->prefix_len  = 0;
+  this->len_bits    = 0;
+  this->size_ptr    = NULL;
+  this->parent      = NULL;
+  this->child       = NULL;
+  this->is_complete = false;
   while ( d != NULL && d->dict_type[ 0 ] != 'a' ) /* look for app_a type */
-    d = d->next;
+    d = d->get_next();
   this->dict = d;
 }
 
@@ -83,7 +172,7 @@ RwfMsgWriterBase::resize( size_t len ) noexcept
     new_len = max_size;
   uint8_t * old_buf = p->buf - p->prefix_len,
           * new_buf = old_buf;
-  this->mem.extend( old_len, new_len, &new_buf );
+  this->mem().extend( old_len, new_len, &new_buf );
   uint8_t * end = &new_buf[ new_len ];
 
   p->buf = &new_buf[ p->prefix_len ];
@@ -174,7 +263,7 @@ RwfMsgWriterBase::make_child( void ) noexcept
       this->child->end( this->child->type );
     return this->child;
   }
-  this->mem.alloc( sizeof( RwfMsgWriter ), &this->child );
+  this->mem().alloc( sizeof( RwfMsgWriter ), &this->child );
   return this->child;
 }
 
@@ -458,7 +547,7 @@ RwfMsgWriter::add_msg_key( void ) noexcept
 {
   RwfMsgKeyWriter * msg_key =
     new ( this->make_child() )
-      RwfMsgKeyWriter( this->mem, this->dict, NULL, 0 );
+      RwfMsgKeyWriter( this->mem(), this->dict, NULL, 0 );
   if ( this->check_container( *msg_key ) ) {
     this->set( X_HAS_MSG_KEY );
     this->msg_key_off = this->off;
@@ -471,7 +560,7 @@ template<class T>
 static T &
 add_msg_container( RwfMsgWriter &w ) noexcept
 {
-  T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
+  T * container = new ( w.make_child() ) T( w.mem(), w.dict, NULL, 0 );
   if ( w.check_container( *container ) ) {
     w.container_type = container->type;
     w.container_off  = ( w.off += w.size_after_msg_key() );
@@ -576,7 +665,7 @@ RwfMsgKeyWriter::attrib( void ) noexcept
 {
   RwfElementListWriter * elem_list =
     new ( this->make_child() )
-      RwfElementListWriter( this->mem, this->dict, NULL, 0 );
+      RwfElementListWriter( this->mem(), this->dict, NULL, 0 );
     
   if ( ( this->key_flags & ~( RwfMsgKey::HAS_ATTRIB - 1 )) != 0 )
     this->order_error( X_HAS_ATTRIB );
@@ -593,7 +682,7 @@ RwfFieldDefnWriter::add_defn( uint16_t id,  RwfFieldSetKind k ) noexcept
 {
   if ( this->set != NULL )
     this->end_defn();
-  this->parent.mem.alloc( sizeof( RwfFieldSetList ), &this->set );
+  this->parent.mem().alloc( sizeof( RwfFieldSetList ), &this->set );
   this->set->init( id, k );
   return *this;
 }
@@ -652,7 +741,7 @@ RwfFieldDefnWriter::append_defn( const char *fname,  uint8_t rwf_type ) noexcept
       oldsz = sizeof( RwfFieldSetList ) +
               sizeof( RwfFieldListSet::FieldEntry ) * p->fld_list_defn.count,
       newsz = oldsz + sizeof( RwfFieldListSet::FieldEntry );
-      this->parent.mem.extend( oldsz, newsz, &p );
+      this->parent.mem().extend( oldsz, newsz, &p );
       p->add( by.fid, rwf_type );
     }
   }
@@ -660,7 +749,7 @@ RwfFieldDefnWriter::append_defn( const char *fname,  uint8_t rwf_type ) noexcept
     oldsz = sizeof( RwfFieldSetList ) +
             sizeof( RwfElementListSet::ElemEntry ) * p->elem_list_defn.count,
     newsz = oldsz + sizeof( RwfElementListSet::ElemEntry );
-    this->parent.mem.extend( oldsz, newsz, &p );
+    this->parent.mem().extend( oldsz, newsz, &p );
     p->add( fname, rwf_type );
   }
   return *this;
@@ -2048,7 +2137,7 @@ RwfMapWriter::add_field_defn( void ) noexcept
   uint32_t hdr_off = 3;
   if ( this->key_fid != 0 )
     hdr_off += 2;
-  this->mem.alloc( sizeof( RwfFieldDefnWriter ), &m );
+  this->mem().alloc( sizeof( RwfFieldDefnWriter ), &m );
   this->field_defn = new ( m ) RwfFieldDefnWriter( *this, hdr_off );
   if ( this->summary_size != 0 || this->nitems != 0 )
     this->error( Err::INVALID_MSG );
@@ -2079,7 +2168,7 @@ template<class T>
 static T &
 add_map_summary( RwfMapWriter &w ) noexcept
 {
-  T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
+  T * container = new ( w.make_child() ) T( w.mem(), w.dict, NULL, 0 );
   if ( w.check_container( *container, true ) ) {
     w.off = 3 + w.field_defn_size;
     if ( w.key_fid != 0 )
@@ -2094,7 +2183,7 @@ static T &
 add_map_entry( RwfMapWriter &w,  RwfMapAction action,
                MDReference &key ) noexcept
 {
-  T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
+  T * container = new ( w.make_child() ) T( w.mem(), w.dict, NULL, 0 );
   if ( w.check_container( *container, false ) )
     w.add_action_entry( action, key, *container );
   return *container;
@@ -2342,7 +2431,7 @@ static T &
 add_filter_list_entry( RwfFilterListWriter &w,  RwfFilterAction action,
                        uint8_t id ) noexcept
 {
-  T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
+  T * container = new ( w.make_child() ) T( w.mem(), w.dict, NULL, 0 );
   w.add_action_entry( action, id, *container );
   return *container;
 }
@@ -2396,7 +2485,7 @@ RwfFieldDefnWriter &
 RwfSeriesWriter::add_field_defn( void ) noexcept
 {
   void * m = NULL;
-  this->mem.alloc( sizeof( RwfFieldDefnWriter ), &m );
+  this->mem().alloc( sizeof( RwfFieldDefnWriter ), &m );
   this->field_defn = new ( m ) RwfFieldDefnWriter( *this, 2 );
   if ( this->summary_size != 0 || this->nitems != 0 )
     this->error( Err::INVALID_MSG );
@@ -2427,7 +2516,7 @@ template<class T>
 static T &
 add_series_summary( RwfSeriesWriter &w ) noexcept
 {
-  T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
+  T * container = new ( w.make_child() ) T( w.mem(), w.dict, NULL, 0 );
   if ( w.check_container( *container, true ) ) {
     w.off = 2 + w.field_defn_size;
     w.append_base( *container, 15, &w.summary_size );
@@ -2439,7 +2528,7 @@ template<class T>
 static T &
 add_series_entry( RwfSeriesWriter &w ) noexcept
 {
-  T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
+  T * container = new ( w.make_child() ) T( w.mem(), w.dict, NULL, 0 );
   if ( w.check_container( *container, false ) ) {
     if ( w.nitems++ == 0 ) {
       w.off = 4 + w.summary_size + w.field_defn_size;
@@ -2521,7 +2610,7 @@ template<class T>
 static T &
 add_vector_summary( RwfVectorWriter &w ) noexcept
 {
-  T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
+  T * container = new ( w.make_child() ) T( w.mem(), w.dict, NULL, 0 );
   if ( w.check_container( *container, true ) ) {
     w.off = 2;
     w.append_base( *container, 15, &w.summary_size );
@@ -2534,7 +2623,7 @@ static T &
 add_vector_entry( RwfVectorWriter &w,  RwfVectorAction action,
                   uint32_t index ) noexcept
 {
-  T * container = new ( w.make_child() ) T( w.mem, w.dict, NULL, 0 );
+  T * container = new ( w.make_child() ) T( w.mem(), w.dict, NULL, 0 );
   if ( w.check_container( *container, false ) )
     w.add_action_entry( action, index, *container );
   return *container;

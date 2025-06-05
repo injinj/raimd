@@ -2,13 +2,13 @@
 #define __rai_raimd__hash32_h__
 
 #include <immintrin.h>
-
-namespace rai {
-namespace md {
-
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
 /* XXX replace with something else on non-x86 */
 static inline uint32_t
-hash32( const void *p,  size_t sz,  uint32_t seed )
+md_hash32( const void *p,  size_t sz,  uint32_t seed )
 {
 #define u16 ((uint16_t *) (void *) u8)
 #define u32 ((uint32_t *) (void *) u8)
@@ -44,11 +44,30 @@ hash32( const void *p,  size_t sz,  uint32_t seed )
 }
 
 static inline uint32_t
-hash_u32( uint32_t i )
+md_hash_u32( uint32_t i )
 {
   return _mm_crc32_u32( 0, i );
 }
 
+#ifdef __cplusplus
+}   
+namespace rai {
+namespace md {
+
+/* XXX replace with something else on non-x86 */
+static inline uint32_t
+hash32( const void *p,  size_t sz,  uint32_t seed )
+{
+  return md_hash32( p, sz, seed );
+}
+
+static inline uint32_t
+hash_u32( uint32_t i )
+{
+  return md_hash_u32( i );
+}
+
 }
 }
+#endif
 #endif

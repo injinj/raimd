@@ -6,6 +6,22 @@
 using namespace rai;
 using namespace md;
 
+extern "C" {
+MDMsg_t *
+json_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                 MDDict_t *d,  MDMsgMem_t *m )
+{
+  return JsonMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+}
+MDMsgWriter_t *
+json_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *,
+                        void *buf_ptr, size_t buf_sz )
+{
+  void * p = ((MDMsgMem *) mem)->make( sizeof( JsonMsgWriter ) );
+  return new ( p ) JsonMsgWriter( *(MDMsgMem *) mem, buf_ptr, buf_sz );
+}
+}
+
 static const char JsonMsg_proto_string[] = "JSON";
 const char *
 JsonMsg::get_proto_string( void ) noexcept
@@ -20,6 +36,7 @@ JsonMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch json_match = {
+  .name        = JsonMsg_proto_string,
   .off         = 0,
   .len         = 1, /* cnt of buf[] */
   .hint_size   = 1, /* cnt of hint[] */
@@ -27,8 +44,7 @@ static MDMatch json_match = {
   .buf         = { '{', 0, 0, 0 },
   .hint        = { JSON_TYPE_ID, 0 },
   .is_msg_type = JsonMsg::is_jsonmsg,
-  .unpack      = (md_msg_unpack_f) JsonMsg::unpack,
-  .name        = JsonMsg_proto_string
+  .unpack      = (md_msg_unpack_f) JsonMsg::unpack
 };
 
 bool
@@ -373,7 +389,7 @@ JsonMsgWriter::resize( size_t len ) noexcept
     new_len = max_size;
   uint8_t * old_buf = p->buf,
           * new_buf = old_buf;
-  this->mem.extend( old_len, new_len, &new_buf );
+  this->mem().extend( old_len, new_len, &new_buf );
   uint8_t * end = &new_buf[ new_len ];
 
   p->buf    = new_buf;
@@ -581,7 +597,7 @@ JsonMsgWriter::convert_msg( MDMsg &msg ) noexcept
       if ( name.fnamelen > 0 ) {
         switch ( mref.ftype ) {
           case MD_MESSAGE: {
-            JsonMsgWriter submsg( this->mem, NULL, 0 );
+            JsonMsgWriter submsg( this->mem(), NULL, 0 );
             MDMsg * msg2 = NULL;
             this->append_msg( name.fname, name.fnamelen, submsg );
             status = this->err;

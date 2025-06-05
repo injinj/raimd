@@ -8,6 +8,59 @@
 using namespace rai;
 using namespace md;
 
+extern "C" {
+MDMsg_t *
+rwf_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                MDDict_t *d,  MDMsgMem_t *m )
+{
+  return RwfMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+}
+
+MDMsg_t *
+rwf_msg_unpack_field_list( void *bb,  size_t off,  size_t end,
+                           uint32_t h,  MDDict_t *d,  MDMsgMem_t *m )
+{
+  return RwfMsg::unpack_field_list( bb, off, end, h, (MDDict *)d,
+                                    *(MDMsgMem *) m );
+}
+
+MDMsg_t *
+md_msg_rwf_get_container_msg( MDMsg_t *m )
+{
+  return (MDMsg_t *) static_cast<RwfMsg *>( m )->get_container_msg();
+}
+
+bool
+md_msg_rwf_get_flist( MDMsg_t *m, uint16_t *flist )
+{
+  if ( static_cast<MDMsg *>( m )->get_type_id() == RWF_FIELD_LIST_TYPE_ID ) {
+    *flist = static_cast<RwfMsg *>( m )->fields.flist;
+    return true;
+  }
+  return false;
+}
+
+bool
+md_msg_rwf_get_msg_flags( MDMsg_t *m,  uint64_t *fl )
+{
+  if ( static_cast<MDMsg *>( m )->get_type_id() == RWF_MSG_TYPE_ID ) {
+    *fl = static_cast<RwfMsg *>( m )->msg.flags;
+    return true;
+  }
+  return false;
+}
+
+bool
+md_msg_rwf_get_msg_seqnum( MDMsg_t *m, uint32_t *seqnum )
+{
+  if ( static_cast<MDMsg *>( m )->get_type_id() == RWF_MSG_TYPE_ID ) {
+    *seqnum = static_cast<RwfMsg *>( m )->msg.seq_num;
+    return true;
+  }
+  return false;
+}
+}
+
 static const char RwfMsg_proto_string[]         = "RWF_MSG",
                   RwfFieldList_proto_string[]   = "RWF_FIELD_LIST",
                   RwfMap_proto_string[]         = "RWF_MAP",
@@ -48,15 +101,14 @@ RwfMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch rwf_match[] = {
-  {0,   4,1,0, { 0x25, 0xcd, 0xab, 0xca }, { RWF_FIELD_LIST_TYPE_ID },
-                                                    RwfMsg::is_rwf_field_list,   (md_msg_unpack_f) RwfMsg::unpack_field_list,   RwfFieldList_proto_string },
-  {0,0xff,1,0, { 0 }, { RWF_MAP_TYPE_ID },          RwfMsg::is_rwf_map,          (md_msg_unpack_f) RwfMsg::unpack_map,          RwfMap_proto_string },
-  {0,0xff,1,0, { 0 }, { RWF_ELEMENT_LIST_TYPE_ID }, RwfMsg::is_rwf_element_list, (md_msg_unpack_f) RwfMsg::unpack_element_list, RwfElementList_proto_string },
-  {0,0xff,1,0, { 0 }, { RWF_FILTER_LIST_TYPE_ID },  RwfMsg::is_rwf_filter_list,  (md_msg_unpack_f) RwfMsg::unpack_filter_list,  RwfFilterList_proto_string },
-  {0,0xff,1,0, { 0 }, { RWF_SERIES_TYPE_ID },       RwfMsg::is_rwf_series,       (md_msg_unpack_f) RwfMsg::unpack_series,       RwfSeries_proto_string },
-  {0,0xff,1,0, { 0 }, { RWF_VECTOR_TYPE_ID },       RwfMsg::is_rwf_vector,       (md_msg_unpack_f) RwfMsg::unpack_vector,       RwfVector_proto_string },
-  {0,0xff,1,0, { 0 }, { RWF_MSG_TYPE_ID },          RwfMsg::is_rwf_message,      (md_msg_unpack_f) RwfMsg::unpack_message,      RwfMsg_proto_string },
-  {0,0xff,1,0, { 0 }, { RWF_MSG_KEY_TYPE_ID },      RwfMsg::is_rwf_msg_key,      (md_msg_unpack_f) RwfMsg::unpack_msg_key,      RwfMsgKey_proto_string }
+  {RwfFieldList_proto_string, 0,4,1,0, { 0x25, 0xcd, 0xab, 0xca }, { RWF_FIELD_LIST_TYPE_ID }, RwfMsg::is_rwf_field_list,   (md_msg_unpack_f) RwfMsg::unpack_field_list },
+  {RwfMap_proto_string,0,0xff,1,0,         { 0 }, { RWF_MAP_TYPE_ID },          RwfMsg::is_rwf_map,          (md_msg_unpack_f) RwfMsg::unpack_map },
+  {RwfElementList_proto_string,0,0xff,1,0, { 0 }, { RWF_ELEMENT_LIST_TYPE_ID }, RwfMsg::is_rwf_element_list, (md_msg_unpack_f) RwfMsg::unpack_element_list },
+  {RwfFilterList_proto_string,0,0xff,1,0,  { 0 }, { RWF_FILTER_LIST_TYPE_ID },  RwfMsg::is_rwf_filter_list,  (md_msg_unpack_f) RwfMsg::unpack_filter_list },
+  {RwfSeries_proto_string,0,0xff,1,0,      { 0 }, { RWF_SERIES_TYPE_ID },       RwfMsg::is_rwf_series,       (md_msg_unpack_f) RwfMsg::unpack_series },
+  {RwfVector_proto_string,0,0xff,1,0,      { 0 }, { RWF_VECTOR_TYPE_ID },       RwfMsg::is_rwf_vector,       (md_msg_unpack_f) RwfMsg::unpack_vector },
+  {RwfMsg_proto_string,0,0xff,1,0,         { 0 }, { RWF_MSG_TYPE_ID },          RwfMsg::is_rwf_message,      (md_msg_unpack_f) RwfMsg::unpack_message },
+  {RwfMsgKey_proto_string,0,0xff,1,0,      { 0 }, { RWF_MSG_KEY_TYPE_ID },      RwfMsg::is_rwf_msg_key,      (md_msg_unpack_f) RwfMsg::unpack_msg_key }
 };
 
 void
@@ -166,57 +218,57 @@ uint16_t
 rai::md::rwf_to_sass_msg_type( RwfMsg &rwf ) noexcept
 {
   if ( rwf.msg.msg_class == REFRESH_MSG_CLASS ) {
-    return INITIAL_TYPE;
+    return MD_INITIAL_TYPE;
   }
   if ( rwf.msg.msg_class == UPDATE_MSG_CLASS ) {
     switch ( rwf.msg.update_type ) {
-      default:                   return UPDATE_TYPE;  break;
-      case UPD_TYPE_CLOSING_RUN: return CLOSING_TYPE; break;
-      case UPD_TYPE_CORRECTION:  return CORRECT_TYPE; break;
-      case UPD_TYPE_VERIFY:      return VERIFY_TYPE;  break;
+      default:                   return MD_UPDATE_TYPE;  break;
+      case UPD_TYPE_CLOSING_RUN: return MD_CLOSING_TYPE; break;
+      case UPD_TYPE_CORRECTION:  return MD_CORRECT_TYPE; break;
+      case UPD_TYPE_VERIFY:      return MD_VERIFY_TYPE;  break;
     }
   }
   else if ( rwf.msg.msg_class == STATUS_MSG_CLASS ) {
-    return TRANSIENT_TYPE;
+    return MD_TRANSIENT_TYPE;
   }
-  return UPDATE_TYPE;
+  return MD_UPDATE_TYPE;
 }
 
 uint16_t
 rai::md::rwf_code_to_sass_rec_status( RwfMsg &rwf ) noexcept
 {
   switch ( rwf.msg.state.code ) {
-    default:                                       return OK_STATUS;
-    case STATUS_CODE_NOT_FOUND:                    return NOT_FOUND_STATUS;
-    case STATUS_CODE_TIMEOUT:                      return TEMP_UNAVAIL_STATUS;
-    case STATUS_CODE_NOT_ENTITLED:                 return PERMISSION_DENIED_STATUS;
-    case STATUS_CODE_INVALID_ARGUMENT:             return BAD_NAME_STATUS;
-    case STATUS_CODE_USAGE_ERROR:                  return BAD_NAME_STATUS;
-    case STATUS_CODE_PREEMPTED:                    return PREEMPTED_STATUS;
-    case STATUS_CODE_JIT_CONFLATION_STARTED:       return OK_STATUS;
-    case STATUS_CODE_REALTIME_RESUMED:             return OK_STATUS;
-    case STATUS_CODE_FAILOVER_STARTED:             return REASSIGN_STATUS;
-    case STATUS_CODE_FAILOVER_COMPLETED:           return OK_STATUS;
-    case STATUS_CODE_GAP_DETECTED:                 return STALE_VALUE_STATUS;
-    case STATUS_CODE_NO_RESOURCES:                 return BAD_LINE_STATUS;
-    case STATUS_CODE_TOO_MANY_ITEMS:               return CACHE_FULL_STATUS;
-    case STATUS_CODE_ALREADY_OPEN:                 return OK_STATUS;
-    case STATUS_CODE_SOURCE_UNKNOWN:               return TEMP_UNAVAIL_STATUS;
-    case STATUS_CODE_NOT_OPEN:                     return BAD_LINE_STATUS;
-    case STATUS_CODE_NON_UPDATING_ITEM:            return OK_STATUS;
-    case STATUS_CODE_UNSUPPORTED_VIEW_TYPE:        return BAD_LINE_STATUS;
-    case STATUS_CODE_INVALID_VIEW:                 return BAD_LINE_STATUS;
-    case STATUS_CODE_FULL_VIEW_PROVIDED:           return OK_STATUS;
-    case STATUS_CODE_UNABLE_TO_REQUEST_AS_BATCH:   return BAD_LINE_STATUS;
-    case STATUS_CODE_NO_BATCH_VIEW_SUPPORT_IN_REQ: return BAD_LINE_STATUS;
-    case STATUS_CODE_EXCEEDED_MAX_MOUNTS_PER_USER: return CACHE_FULL_STATUS;
-    case STATUS_CODE_ERROR:                        return BAD_LINE_STATUS;
-    case STATUS_CODE_DACS_DOWN:                    return TEMP_UNAVAIL_STATUS;
-    case STATUS_CODE_USER_UNKNOWN_TO_PERM_SYS:     return PERMISSION_DENIED_STATUS;
-    case STATUS_CODE_DACS_MAX_LOGINS_REACHED:      return TEMP_UNAVAIL_STATUS;
-    case STATUS_CODE_DACS_USER_ACCESS_DENIED:      return PERMISSION_DENIED_STATUS;
-    case STATUS_CODE_GAP_FILL:                     return OK_STATUS;
-    case STATUS_CODE_APP_AUTHORIZATION_FAILED:     return PERMISSION_DENIED_STATUS;
+    default:                                       return MD_OK_STATUS;
+    case STATUS_CODE_NOT_FOUND:                    return MD_NOT_FOUND_STATUS;
+    case STATUS_CODE_TIMEOUT:                      return MD_TEMP_UNAVAIL_STATUS;
+    case STATUS_CODE_NOT_ENTITLED:                 return MD_PERMISSION_DENIED_STATUS;
+    case STATUS_CODE_INVALID_ARGUMENT:             return MD_BAD_NAME_STATUS;
+    case STATUS_CODE_USAGE_ERROR:                  return MD_BAD_NAME_STATUS;
+    case STATUS_CODE_PREEMPTED:                    return MD_PREEMPTED_STATUS;
+    case STATUS_CODE_JIT_CONFLATION_STARTED:       return MD_OK_STATUS;
+    case STATUS_CODE_REALTIME_RESUMED:             return MD_OK_STATUS;
+    case STATUS_CODE_FAILOVER_STARTED:             return MD_REASSIGN_STATUS;
+    case STATUS_CODE_FAILOVER_COMPLETED:           return MD_OK_STATUS;
+    case STATUS_CODE_GAP_DETECTED:                 return MD_STALE_VALUE_STATUS;
+    case STATUS_CODE_NO_RESOURCES:                 return MD_BAD_LINE_STATUS;
+    case STATUS_CODE_TOO_MANY_ITEMS:               return MD_CACHE_FULL_STATUS;
+    case STATUS_CODE_ALREADY_OPEN:                 return MD_OK_STATUS;
+    case STATUS_CODE_SOURCE_UNKNOWN:               return MD_TEMP_UNAVAIL_STATUS;
+    case STATUS_CODE_NOT_OPEN:                     return MD_BAD_LINE_STATUS;
+    case STATUS_CODE_NON_UPDATING_ITEM:            return MD_OK_STATUS;
+    case STATUS_CODE_UNSUPPORTED_VIEW_TYPE:        return MD_BAD_LINE_STATUS;
+    case STATUS_CODE_INVALID_VIEW:                 return MD_BAD_LINE_STATUS;
+    case STATUS_CODE_FULL_VIEW_PROVIDED:           return MD_OK_STATUS;
+    case STATUS_CODE_UNABLE_TO_REQUEST_AS_BATCH:   return MD_BAD_LINE_STATUS;
+    case STATUS_CODE_NO_BATCH_VIEW_SUPPORT_IN_REQ: return MD_BAD_LINE_STATUS;
+    case STATUS_CODE_EXCEEDED_MAX_MOUNTS_PER_USER: return MD_CACHE_FULL_STATUS;
+    case STATUS_CODE_ERROR:                        return MD_BAD_LINE_STATUS;
+    case STATUS_CODE_DACS_DOWN:                    return MD_TEMP_UNAVAIL_STATUS;
+    case STATUS_CODE_USER_UNKNOWN_TO_PERM_SYS:     return MD_PERMISSION_DENIED_STATUS;
+    case STATUS_CODE_DACS_MAX_LOGINS_REACHED:      return MD_TEMP_UNAVAIL_STATUS;
+    case STATUS_CODE_DACS_USER_ACCESS_DENIED:      return MD_PERMISSION_DENIED_STATUS;
+    case STATUS_CODE_GAP_FILL:                     return MD_OK_STATUS;
+    case STATUS_CODE_APP_AUTHORIZATION_FAILED:     return MD_PERMISSION_DENIED_STATUS;
   }
 }
 
@@ -589,12 +641,12 @@ RwfMsgHdr::ref_iter( size_t which,  RwfFieldIter &iter ) noexcept
         it.namelen = 0;
         if ( this->container_type == RWF_FIELD_LIST ) {
           uint8_t * hdr =
-            &((uint8_t *) iter.iter_msg.msg_buf)[ this->data_start ];
+            &((uint8_t *) iter.iter_msg().msg_buf)[ this->data_start ];
           if ( ( hdr[ 0 ] & RwfFieldListHdr::HAS_FIELD_LIST_INFO ) != 0 ) {
             uint16_t flist = ( hdr[ 3 ] << 8 ) | hdr[ 4 ];
             if ( flist != 0 ) {
               int n = ::snprintf( buf, sizeof( buf ), "field_list [%u]", flist );
-              it.name = iter.iter_msg.mem->stralloc( n, buf );
+              it.name = iter.iter_msg().mem->stralloc( n, buf );
               it.namelen = n + 1;
             }
           }
@@ -691,7 +743,7 @@ RwfMsgKey::ref_iter( size_t which,  RwfFieldIter &iter ) noexcept
 int
 RwfFieldIter::unpack_message_entry( void ) noexcept
 {
-  RwfMsg & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
   if ( ! msg.msg.ref_iter( this->field_index, *this ) )
     return Err::NOT_FOUND;
   return 0;
@@ -700,7 +752,7 @@ RwfFieldIter::unpack_message_entry( void ) noexcept
 int
 RwfFieldIter::unpack_msg_key_entry( void ) noexcept
 {
-  RwfMsg & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
   if ( ! msg.msg_key.ref_iter( this->field_index, *this ) )
     return Err::NOT_FOUND;
   return 0;
@@ -762,7 +814,7 @@ RwfFieldListHdr::parse( const void *bb,  size_t off,  size_t end ) noexcept
 int
 RwfFieldIter::unpack_field_list_entry( void ) noexcept
 {
-  uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf,
+  uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf,
           * eob = &buf[ this->field_end ];
   size_t    i   = this->field_start + 2,
             j   = get_fe_prefix( &buf[ i ], eob, this->fsize );
@@ -781,7 +833,7 @@ RwfFieldIter::unpack_field_list_entry( void ) noexcept
 int
 RwfFieldIter::unpack_field_list_defn( void ) noexcept
 {
-  RwfMsg  & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg  & msg = (RwfMsg &) this->iter_msg();
   uint8_t * buf = (uint8_t *) msg.msg_buf,
           * eob = &buf[ this->field_end ];
   size_t    i   = this->field_start;
@@ -793,9 +845,9 @@ RwfFieldIter::unpack_field_list_defn( void ) noexcept
   if ( rwf_type == RWF_NONE )
     return Err::BAD_FIELD_TYPE;
 
-  if ( this->iter_msg.dict != NULL ) {
+  if ( this->iter_msg().dict != NULL ) {
     MDLookup by( this->u.field.fid );
-    if ( this->iter_msg.dict->lookup( by ) ) {
+    if ( this->iter_msg().dict->lookup( by ) ) {
       this->u.field.fname    = by.fname;
       this->u.field.fnamelen = by.fname_len;
     }
@@ -911,7 +963,7 @@ int
 RwfFieldIter::unpack_map_entry( void ) noexcept
 {
   RwfMapIter & it  = this->u.map;
-  RwfMsg     & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg     & msg = (RwfMsg &) this->iter_msg();
   uint8_t    * buf = (uint8_t *) msg.msg_buf,
              * eob = &buf[ msg.msg_end ];
   size_t       i, sz, keyoff;
@@ -1019,7 +1071,7 @@ int
 RwfFieldIter::unpack_element_list_entry( void ) noexcept
 {
   RwfElementListIter & it = this->u.elist;
-  uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf,
+  uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf,
           * eob = &buf[ this->field_end ];
   size_t    i   = this->field_start,
             sz;
@@ -1053,7 +1105,7 @@ RwfFieldIter::unpack_element_list_entry( void ) noexcept
 int
 RwfFieldIter::unpack_element_list_defn( void ) noexcept
 {
-  RwfMsg & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
   RwfElementListIter & it = this->u.elist;
   uint8_t * buf = (uint8_t *) msg.msg_buf,
           * eob = &buf[ this->field_end ];
@@ -1110,7 +1162,7 @@ int
 RwfFieldIter::unpack_filter_list_entry( void ) noexcept
 {
   RwfFilterListIter & it = this->u.flist;
-  RwfMsg     & msg    = (RwfMsg &) this->iter_msg;
+  RwfMsg     & msg    = (RwfMsg &) this->iter_msg();
   uint8_t    * buf    = (uint8_t *) msg.msg_buf,
              * eob    = &buf[ this->field_end ];
   size_t       i      = this->field_start, sz;
@@ -1202,7 +1254,7 @@ int
 RwfFieldIter::unpack_series_entry( void ) noexcept
 {
   RwfSeriesIter & it = this->u.series;
-  RwfMsg  & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg  & msg = (RwfMsg &) this->iter_msg();
   uint8_t * buf = (uint8_t *) msg.msg_buf,
           * eob = &buf[ msg.msg_end ];
   size_t    i, sz;
@@ -1276,7 +1328,7 @@ int
 RwfFieldIter::unpack_vector_entry( void ) noexcept
 {
   RwfVectorIter & it = this->u.vector;
-  RwfMsg     & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg     & msg = (RwfMsg &) this->iter_msg();
   uint8_t    * buf = (uint8_t *) msg.msg_buf,
              * eob = &buf[ msg.msg_end ];
   size_t       i, sz;
@@ -1349,7 +1401,7 @@ RwfMsg::unpack_field_list( void *bb,  size_t off,  size_t end,  uint32_t h,
   void * ptr;
   m.incr_ref();
   m.alloc( sizeof( RwfMsg ), &ptr );
-  for ( ; d != NULL; d = d->next )
+  for ( ; d != NULL; d = d->get_next() )
     if ( d->dict_type[ 0 ] == 'a' ) /* need app_a type */
       break;
   RwfMsg *msg = new ( ptr ) RwfMsg( bb, off, end, d, m );
@@ -1368,7 +1420,7 @@ unpack_rwf( void *bb,  size_t off,  size_t end,  uint32_t, MDDict *&d,
   void * ptr;
   m.incr_ref();
   m.alloc( sizeof( RwfMsg ), &ptr );
-  for ( ; d != NULL; d = d->next )
+  for ( ; d != NULL; d = d->get_next() )
     if ( d->dict_type[ 0 ] == 'a' ) /* need app_a type */
       break;
   RwfMsg *msg = new ( ptr ) RwfMsg( bb, off, end, d, m );
@@ -1668,9 +1720,9 @@ void
 RwfFieldIter::lookup_fid( void ) noexcept
 {
   if ( this->ftype == MD_NODATA ) {
-    if ( this->iter_msg.dict != NULL ) {
+    if ( this->iter_msg().dict != NULL ) {
       MDLookup by( this->u.field.fid );
-      if ( this->iter_msg.dict->lookup( by ) ) {
+      if ( this->iter_msg().dict->lookup( by ) ) {
         this->ftype = by.ftype;
         this->fsize = by.fsize;
         this->u.field.fname    = by.fname;
@@ -1693,7 +1745,7 @@ RwfFieldIter::get_name( MDName &name ) noexcept
   static const char nul_str[] = "-nul", upd_str[] = "-upd", set_str[] = "-set",
                     clr_str[] = "-clr", ins_str[] = "-ins", del_str[] = "-del",
                     add_str[] = "-add";
-  RwfMsg & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
   name.fid      = 0;
   name.fnamelen = 0;
   name.fname    = NULL;
@@ -1867,11 +1919,11 @@ int
 RwfFieldIter::get_enum( MDReference &mref,  MDEnum &enu ) noexcept
 {
   if ( mref.ftype == MD_ENUM ) {
-    RwfMsg & msg = (RwfMsg &) this->iter_msg;
+    RwfMsg & msg = (RwfMsg &) this->iter_msg();
     if ( msg.dict != NULL && msg.base.type_id == RWF_FIELD_LIST ) {
       enu.val = get_uint<uint16_t>( mref );
-      if ( this->iter_msg.dict->get_enum_text( this->u.field.fid, enu.val,
-                                               enu.disp, enu.disp_len ) )
+      if ( this->iter_msg().dict->get_enum_text( this->u.field.fid, enu.val,
+                                                 enu.disp, enu.disp_len ) )
         return 0;
     }
   }
@@ -1992,7 +2044,7 @@ RwfFieldIter::get_reference( MDReference &mref ) noexcept
   mref.fendian  = md_endian;
 
   if ( this->msg_fptr == NULL ) {
-    RwfMsg & msg = (RwfMsg &) this->iter_msg;
+    RwfMsg & msg = (RwfMsg &) this->iter_msg();
     uint8_t * buf = &((uint8_t *) msg.msg_buf)[ this->data_start ];
     if ( msg.base.type_id == RWF_FIELD_LIST ) {
       if ( this->ftype == MD_NODATA )
@@ -2283,7 +2335,7 @@ int
 RwfFieldIter::find( const char *name,  size_t name_len,
                     MDReference &mref ) noexcept
 {
-  RwfMsg & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
   MDLookup by( name, name_len );
   int status = Err::NOT_FOUND;
   bool is_field_list = ( msg.base.type_id == RWF_FIELD_LIST );
@@ -2314,7 +2366,7 @@ RwfFieldIter::find( const char *name,  size_t name_len,
 int
 RwfFieldIter::first( void ) noexcept
 {
-  RwfMsg & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
   int k;
 
   this->field_end = msg.msg_end;
@@ -2381,7 +2433,7 @@ RwfFieldIter::first( void ) noexcept
 int
 RwfFieldIter::next( void ) noexcept
 {
-  RwfMsg & msg = (RwfMsg &) this->iter_msg;
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
   int k;
 
   this->field_start = this->field_end;

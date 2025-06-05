@@ -3,11 +3,24 @@
 
 #include <raimd/md_msg.h>
 
-namespace rai {
-namespace md {
-
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
 static const uint32_t RAIMSG_TYPE_ID = 0x07344064,
                       TIBMSG_TYPE_ID = RAIMSG_TYPE_ID;
+#ifndef __cplusplus
+#define RAIMSG_TYPE_ID 0x07344064U
+#define TIBMSG_TYPE_ID 0x07344064U
+#endif
+MDMsg_t *tib_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                         MDDict_t *d,  MDMsgMem_t *m );
+MDMsgWriter_t * tib_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                       void *buf_ptr, size_t buf_sz );
+#ifdef __cplusplus
+}   
+namespace rai {
+namespace md {
 
 struct TibMsg : public MDMsg {
   bool is_submsg;         /* if has tibmsg 9 byte header */
@@ -121,18 +134,21 @@ enum {
   TIB_HINT_MF_ENUM         = 261   /* marketfeed enum */
 };
 
-struct TibMsgWriter {
-  MDMsgMem     & mem;
-  uint8_t      * buf;    /* output buffer */
-  size_t         off,    /* index to end of data (+9 for hdr) */
-                 buflen, /* max length of a buf */
-                 hdrlen;
-  int            err;
+struct TibMsgWriter : public MDMsgWriterBase {
+  size_t         hdrlen;
   TibMsgWriter * parent;
 
-  TibMsgWriter( MDMsgMem &m,  void *bb,  size_t len )
-    : mem( m ), buf( (uint8_t *) bb ), off( 0 ), buflen( len ), hdrlen( 9 ),
-      err( 0 ), parent( 0 ) {}
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  TibMsgWriter( MDMsgMem &m,  void *bb,  size_t len ) {
+    this->msg_mem = &m;
+    this->buf     = (uint8_t *) bb;
+    this->off     = 0;
+    this->buflen  = len;
+    this->wr_type = TIBMSG_TYPE_ID;
+    this->err     = 0;
+    this->hdrlen  = 9;
+    this->parent  = NULL;
+  }
   TibMsgWriter & error( int status ) {
     if ( this->err == 0 )
       this->err = status;
@@ -229,4 +245,5 @@ struct TibMsgWriter {
 }
 } // namespace rai
 
+#endif
 #endif

@@ -68,7 +68,7 @@ CacheData::get_msg_type( MsgDict &dict ) noexcept
   MDMsgMem mem;
   MDMsg * m = MDMsg::unpack( this->data, 0, this->datalen, this->type_id,
                              dict.dict, mem );
-  uint16_t msg_type = UPDATE_TYPE;
+  uint16_t msg_type = MD_UPDATE_TYPE;
   switch ( this->type_id ) {
     case MARKETFEED_TYPE_ID: {
       MktfdMsg & mf = *(MktfdMsg *) m;
@@ -82,7 +82,7 @@ CacheData::get_msg_type( MsgDict &dict ) noexcept
     }
     default: {
       MDFieldReader rd( *m );
-      if ( rd.find( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN ) )
+      if ( rd.find( MD_SASS_MSG_TYPE, MD_SASS_MSG_TYPE_LEN ) )
         rd.get_uint( msg_type );
       break;
     }
@@ -118,7 +118,7 @@ CacheData::get_rec_type( MsgDict &dict ) noexcept
     }
     default: {
       MDFieldReader rd( *m );
-      if ( rd.find( SASS_REC_TYPE, SASS_REC_TYPE_LEN ) )
+      if ( rd.find( MD_SASS_REC_TYPE, MD_SASS_REC_TYPE_LEN ) )
         rd.get_uint( rec_type );
       break;
     }
@@ -186,7 +186,7 @@ main( int argc, char *argv[] )
   if ( path != NULL )
     dict.dict = load_dict_files( path );
   if ( dict.dict != NULL ) {
-    for ( MDDict *d = dict.dict; d != NULL; d = d->next ) {
+    for ( MDDict *d = dict.dict; d != NULL; d = d->get_next() ) {
       if ( d->dict_type[ 0 ] == 'c' )
         dict.cfile_dict = d;
       else if ( d->dict_type[ 0 ] == 'a' )

@@ -3,10 +3,24 @@
 
 #include <raimd/md_msg.h>
 
-namespace rai {
-namespace md {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static const uint32_t MARKETFEED_TYPE_ID = 0x8ab3f4ae;
+#ifndef __cplusplus
+#define MARKETFEED_TYPE_ID 0x8ab3f4aeU
+#endif
+
+MDMsg_t * mf_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                         MDDict_t *d,  MDMsgMem_t *m );
+bool md_msg_mf_get_flist( MDMsg_t *m,  uint16_t *flist );
+bool md_msg_mf_get_rtl( MDMsg_t *m,  uint32_t *rtl );
+
+#ifdef __cplusplus
+}
+namespace rai {
+namespace md {
 
 enum MktfdFunc { /* func kinds */
   Cmd_2            = 2,
@@ -98,4 +112,5 @@ struct MktfdFieldIter : public MDFieldIter {
 }
 } // namespace rai
 
+#endif
 #endif

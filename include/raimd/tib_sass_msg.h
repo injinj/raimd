@@ -3,11 +3,26 @@
 
 #include <raimd/md_msg.h>
 
-namespace rai {
-namespace md {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static const uint32_t TIB_SASS_TYPE_ID      = 0x179ca0f5,
                       TIB_SASS_FORM_TYPE_ID = 0xa08b0040;
+#ifndef __cplusplus
+#define TIB_SASS_TYPE_ID      0x179ca0f5U
+#define TIB_SASS_FORM_TYPE_ID 0xa08b0040U
+#endif
+MDMsg_t *tib_sass_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                              MDDict_t *d,  MDMsgMem_t *m );
+MDMsgWriter_t *tib_sass_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                           void *buf_ptr, size_t buf_sz );
+MDMsgWriter_t *tib_sass_msg_writer_create_with_form( MDMsgMem_t *mem,  MDFormClass_t *form,
+                                           void *buf_ptr, size_t buf_sz );
+#ifdef __cplusplus
+}
+namespace rai {
+namespace md {
 
 enum MDSassDictFlags {
   MD_PRIMITIVE = 1,
@@ -130,17 +145,13 @@ struct MDFormClass;
 struct MDFormEntry;
 struct MDLookup;
 
-struct TibSassMsgWriter {
-  MDMsgMem    & mem;
+struct TibSassMsgWriter : public MDMsgWriterBase {
   MDDict      * dict;
   MDFormClass * form;
-  uint8_t     * buf;
-  size_t        off,
-                buflen;
-  int           err,
-                unk_fid;
+  int           unk_fid;
   bool          use_form;
 
+  void * operator new( size_t, void *ptr ) { return ptr; }
   TibSassMsgWriter( MDMsgMem &m,  MDDict *d,  void *bb,  size_t len ) noexcept;
   TibSassMsgWriter( MDMsgMem &m,  MDFormClass &f,  void *bb,
                     size_t len ) noexcept;
@@ -287,4 +298,5 @@ struct TibSassMsgWriter {
 }
 } // namespace rai
 
+#endif
 #endif

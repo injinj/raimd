@@ -8,6 +8,32 @@
 using namespace rai;
 using namespace md;
 
+extern "C" {
+
+MDFieldReader_t *
+md_msg_get_field_reader( MDMsg_t *m )
+{
+  void *p = ((MDMsgMem *) static_cast<MDMsg *>( m )->mem)->make( sizeof( MDFieldReader ) );
+  return (MDFieldReader_t *) new ( p ) MDFieldReader( *static_cast<MDMsg *>( m ) );
+}
+
+bool md_field_reader_find( MDFieldReader_t *rd, const char *fn,  size_t flen ) { return ((MDFieldReader *) rd)->find( fn, flen ); }
+bool md_field_reader_first( MDFieldReader_t *rd,  MDName_t *n ) { return ((MDFieldReader *) rd)->first( *(MDName *) n ); }
+bool md_field_reader_next( MDFieldReader_t *rd,  MDName_t *n ) { return ((MDFieldReader *) rd)->next( *(MDName *) n ); }
+MDType md_field_reader_type( MDFieldReader_t *rd ) { return ((MDFieldReader *) rd)->type(); }
+bool md_field_reader_get_uint( MDFieldReader_t *rd, void *u, size_t ulen ) { return ((MDFieldReader *) rd)->get_value( u, ulen, MD_UINT ); }
+bool md_field_reader_get_int( MDFieldReader_t *rd, void *u, size_t ulen ) { return ((MDFieldReader *) rd)->get_value( u, ulen, MD_INT ); }
+bool md_field_reader_get_real( MDFieldReader_t *rd, void *r, size_t rlen ) { return ((MDFieldReader *) rd)->get_value( r, rlen, MD_REAL ); }
+bool md_field_reader_get_string( MDFieldReader_t *rd, char **buf,  size_t *len ) { return ((MDFieldReader *) rd)->get_string( *buf, *len ); }
+bool md_field_reader_get_opaque( MDFieldReader_t *rd, void **buf,  size_t *len ) { return ((MDFieldReader *) rd)->get_opaque( *buf, *len ); }
+bool md_field_reader_get_string_buf( MDFieldReader_t *rd, char *buf, size_t len, size_t *blen ) { return ((MDFieldReader *) rd)->get_string( buf, len, *blen ); }
+bool md_field_reader_get_time( MDFieldReader_t *rd, MDTime_t *time ) { return ((MDFieldReader *) rd)->get_value( time, sizeof( MDTime ), MD_TIME ); }
+bool md_field_reader_get_date( MDFieldReader_t *rd, MDDate_t *date ) { return ((MDFieldReader *) rd)->get_value( date, sizeof( MDDate ), MD_DATE ); }
+bool md_field_reader_get_decimal( MDFieldReader_t *rd, MDDecimal_t *dec ) { return ((MDFieldReader *) rd)->get_value( dec, sizeof( MDDecimal ), MD_DECIMAL ); }
+bool md_field_reader_get_sub_msg( MDFieldReader_t *rd,  MDMsg_t **msg ) { MDMsg *m;  bool b = ((MDFieldReader *) rd)->get_sub_msg( m ); *msg = (MDMsg_t *) m; return b; }
+
+}
+
 bool
 MDIterMap::index_array( size_t i,  void *&ptr,  size_t &sz ) noexcept
 {
@@ -375,7 +401,7 @@ MDFieldReader::get_array_value( void *val,  size_t cnt,  size_t elsz,
       num = cnt;
     for ( size_t i = 0; i < num; i++ ) {
       MDReference aref;
-      this->err = this->iter->iter_msg.get_array_ref( this->mref, i, aref );
+      this->err = this->iter->iter_msg().get_array_ref( this->mref, i, aref );
       if ( this->err != 0 )
         break;
       switch ( t ) {
@@ -399,7 +425,7 @@ MDFieldReader::get_array_value( void *val,  size_t cnt,  size_t elsz,
             if ( aref.fsize > 0 ) {
               ptr = (char *) aref.fptr;
               if ( ptr[ aref.fsize - 1 ] != '\0' )
-                ptr = this->iter->iter_msg.mem->stralloc( aref.fsize, ptr );
+                ptr = this->iter->iter_msg().mem->stralloc( aref.fsize, ptr );
             }
             ((char **) val)[ 0 ] = ptr;
             break;
@@ -435,7 +461,7 @@ MDFieldReader::get_string( char *&buf,  size_t &len ) noexcept
     if ( this->mref.ftype == MD_NODATA )
       this->err = this->iter->get_reference( this->mref );
     if ( this->err == 0 )
-      this->err = this->iter->iter_msg.get_string( this->mref, buf, len );
+      this->err = this->iter->iter_msg().get_string( this->mref, buf, len );
   }
   if ( this->err != 0 )
     len = 0;
@@ -484,8 +510,8 @@ MDFieldReader::get_sub_msg( MDMsg *&msg ) noexcept
     if ( this->mref.ftype == MD_NODATA )
       this->err = this->iter->get_reference( this->mref );
     if ( this->err == 0 )
-      this->err = this->iter->iter_msg.get_sub_msg( this->mref, msg,
-                                                    this->iter );
+      this->err = this->iter->iter_msg().get_sub_msg( this->mref, msg,
+                                                      this->iter );
   }
   return this->err == 0;
 }

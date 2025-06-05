@@ -1,46 +1,110 @@
 #ifndef __rai_raimd__md_msg_h__
 #define __rai_raimd__md_msg_h__
 
-#include <raimd/md_field_iter.h>
+#include <raimd/md_types.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
+
 const char *md_get_version( void );
 void md_init_auto_unpack( void );
+
+#define MD_MSG_MEM_CNT (size_t) ( 256 - 4 )
+
+typedef struct MDMemBlock_s {
+  struct MDMemBlock_s * next;
+  size_t                size;
+  void                * mem[ MD_MSG_MEM_CNT ];
+} MDMemBlock_t;
+
+typedef struct MDMsgMem_s {
+  uint32_t     mem_off; /* offset in mem[] where next is allocated */
+  MDMemBlock_t blk,
+             * blk_ptr;
+} MDMsgMem_t;
+
+void md_msg_mem_init( MDMsgMem_t *m );
+void md_msg_mem_reuse( MDMsgMem_t *m );
+void md_msg_mem_alloc( MDMsgMem_t *m,  size_t size,  void *ptr );
+void * md_msg_mem_make( MDMsgMem_t *m,  size_t size );
+char * md_msg_mem_str_make( MDMsgMem_t *m,  size_t size );
+void md_msg_mem_extend( MDMsgMem_t *m,  size_t old_size,  size_t new_size,
+                        void *ptr );
+char * md_msg_mem_stralloc( MDMsgMem_t *m,  size_t len,  const char *str );
+void * md_msg_mem_memalloc( MDMsgMem_t *m,  size_t len,  const void *mem );
+void md_msg_mem_release( MDMsgMem_t *m );
+
+typedef struct MDMsg_s {
+  void * msg_buf;
+  size_t msg_off,    /* offset where message starts */
+         msg_end;    /* end offset of msg_buf */
+} MDMsg_t;
+
+typedef struct MDDict_s MDDict_t;
+typedef struct MDFieldIter_s MDFieldIter_t;
+
+MDMsg_t *md_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                        MDDict_t *d,  MDMsgMem_t *m );
+
+int md_msg_get_field_iter( MDMsg_t *m,  MDFieldIter_t **iter );
+uint32_t md_msg_get_type_id( MDMsg_t *m );
+const char *md_msg_get_proto_string( MDMsg_t *m );
+void md_msg_print( MDMsg_t *m, MDOutput_t *mout );
+
+typedef struct MDMsgWriter_s {
+  MDMsgMem_t * msg_mem;
+  uint8_t    * buf;
+  size_t       off,
+               buflen;
+  uint32_t     wr_type;
+  int          err;
+} MDMsgWriter_t;
+
+typedef struct MDDict_s MDDict_t;
+typedef struct MDFormClass_s MDFormClass_t;
+
+size_t md_msg_writer_update_hdr( MDMsgWriter_t *w );
+int md_msg_writer_append_iter( MDMsgWriter_t *w, MDFieldIter_t *iter );
+int md_msg_writer_convert_msg( MDMsgWriter_t *w, MDMsg_t *m, bool skip_hdr );
+int md_msg_writer_append_sass_hdr( MDMsgWriter_t *w, MDFormClass_t *form, uint16_t msg_type,
+                                   uint16_t rec_type,  uint16_t seqno,  uint16_t status,
+                                   const char *subj,  size_t sublen );
+int md_msg_writer_append_form_record( MDMsgWriter_t *w );
+
+bool md_msg_get_sass_msg_type( MDMsg_t *m, uint16_t *msg_type );
+
+typedef struct MDMatch_s { /* match msg features in the header */
+  const char * name;
+  uint8_t      off,       /* offset of feature */
+               len,       /* length of feature match */
+               hint_size, /* an external hint[] words */
+               ftype;
+  uint8_t      buf[ 4 ];  /* the values to match against the offset */
+  uint32_t     hint[ 2 ]; /* external hints */
+} MDMatch_t;
+
+MDMatch_t *md_msg_first_match( uint32_t *i );
+MDMatch_t *md_msg_next_match( uint32_t *i );
+
+#ifdef __cplusplus
 }
 
 namespace rai {
 namespace md {
 
-struct MDMsgMem {
-  static const size_t   MEM_CNT = 256 - 4;
-  uint32_t mem_off; /* offset in mem[] where next is allocated */
-#ifdef MD_REF_COUNT
-  static const uint32_t NO_REF_COUNT = 0x7fffffffU;
-  uint32_t ref_cnt; /* incremented when attached to a MDMsg */
-  void incr_ref( void ) {
-    if ( this->ref_cnt != NO_REF_COUNT )
-      this->ref_cnt++;
-  }
-#else
+struct MDFieldIter;
+struct MDMsgMem : public MDMsgMem_s {
   void incr_ref( void ) {}
-#endif
-  struct MemBlock {
-    MemBlock * next;
-    size_t     size;
-    void     * mem[ MEM_CNT ];
-  };
-  MemBlock blk, * blk_ptr;
-
-#ifdef MD_REF_COUNT
-  void * operator new( size_t, void *ptr ) { return ptr; }
-  void operator delete( void *ptr ) { ::free( ptr ); }
-#endif
   /* ref count should be set when created dynamically,
    * this default is set to not release memory based on refs */
   MDMsgMem() {
+    this->init();
+  }
+  void init( void ) {
     this->blk_ptr  = &this->blk;
     this->blk.next = &this->blk;
-    this->blk.size = MEM_CNT;
+    this->blk.size = MD_MSG_MEM_CNT;
     this->mem_off  = 0;
   }
   ~MDMsgMem() {
@@ -53,7 +117,7 @@ struct MDMsgMem {
       this->release();
     this->mem_off = 0;
   }
-  void reset( MemBlock *blk,  uint32_t off ) noexcept;
+  void reset( MDMemBlock_t *blk,  uint32_t off ) noexcept;
 
   void *reuse_make( size_t size ) {
     size = this->align_size( size );
@@ -73,7 +137,7 @@ struct MDMsgMem {
   void alloc( size_t size,  void *ptr ) {
     void * next = this->mem_ptr();
     size = this->align_size( size );
-    if ( size + (size_t) this->mem_off <= MEM_CNT )
+    if ( size + (size_t) this->mem_off <= MD_MSG_MEM_CNT )
       this->mem_off += (uint32_t) size;
     else
       next = this->alloc_slow( size );
@@ -85,7 +149,7 @@ struct MDMsgMem {
   void *make( size_t size ) {
     void * next = this->mem_ptr();
     size = this->align_size( size );
-    if ( size + (size_t) this->mem_off <= MEM_CNT ) {
+    if ( size + (size_t) this->mem_off <= MD_MSG_MEM_CNT ) {
       this->mem_off += (uint32_t) size;
       return next;
     }
@@ -119,6 +183,10 @@ struct MDMsgMem {
   void release( void ) noexcept; /* release alloced memory ) */
 };
 
+struct MDMsgWriterBase : public MDMsgWriter_s {
+  MDMsgMem &mem( void ) const { return *(MDMsgMem *) this->msg_mem; }
+};
+
 struct MDMsgMemSwap { /* push new local allocation for the current stack */
   MDMsgMem *& sav, * old;
   MDMsgMem    tmp;
@@ -140,16 +208,15 @@ typedef MDMsg *(*md_msg_unpack_f)( void *bb,  size_t off,  size_t end,
                                    uint32_t h,  MDDict *d,  MDMsgMem &m );
 
 struct MDMatch { /* match msg features in the header */
-  uint8_t  off,       /* offset of feature */
-           len,       /* length of feature match */
-           hint_size, /* an external hint[] words */
-           ftype;
-  uint8_t  buf[ 4 ];  /* the values to match against the offset */
-  uint32_t hint[ 2 ]; /* external hints */
-
+  const char * name;
+  uint8_t      off,       /* offset of feature */
+               len,       /* length of feature match */
+               hint_size, /* an external hint[] words */
+               ftype;
+  uint8_t      buf[ 4 ];  /* the values to match against the offset */
+  uint32_t     hint[ 2 ]; /* external hints */
   md_is_msg_type_f is_msg_type; /* test whether msg matches */
   md_msg_unpack_f  unpack;      /* wrap the msg in a decoder */
-  const char     * name;
 };
 
 struct MDMatchGroup {
@@ -210,10 +277,7 @@ struct MDMatchGroup {
                           uint16_t i ) noexcept;
 };
 
-struct MDMsg {
-  void     * msg_buf;
-  size_t     msg_off,    /* offset where message starts */
-             msg_end;    /* end offset of msg_buf */
+struct MDMsg : public MDMsg_s {
   MDDict   * dict;
   MDMsgMem * mem; /* ref count increment in unpack() and get_sub_msg()
                      ref count decrement in release() */
@@ -221,7 +285,9 @@ struct MDMsg {
   void operator delete( void * ) { /*::free( ptr );*/ } /* do nothing */
 
   MDMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem &m )
-    : msg_buf( bb ), msg_off( off ), msg_end( end ), dict( d ), mem( &m ) {}
+    : dict( d ), mem( &m ) {
+    this->msg_buf = bb; this->msg_off = off; this->msg_end = end;
+  }
   ~MDMsg() { this->release(); }
 
   static void add_match( MDMatch &ma ) noexcept;
@@ -292,5 +358,9 @@ struct MDMsg {
 
 }
 } // namespace rai
+
+#endif
+
+#include <raimd/md_field_iter.h>
 
 #endif

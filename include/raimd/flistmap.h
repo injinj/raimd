@@ -3,6 +3,12 @@
 
 #include <raimd/md_types.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
+#ifdef __cplusplus
+}   
 namespace rai {
 namespace md {
 
@@ -52,4 +58,4 @@ struct FlistMap : public DictParser {
 }
 }
 #endif
-
+#endif

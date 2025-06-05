@@ -3,6 +3,12 @@
 
 #include <raimd/md_hash.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
+#ifdef __cplusplus
+}   
 namespace rai {
 namespace md {
 
@@ -344,4 +350,5 @@ struct SetMsg : public MDMsg {
 }
 }
 
+#endif
 #endif

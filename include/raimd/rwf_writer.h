@@ -1,6 +1,26 @@
 #ifndef __rai_raimd__rwf_writer_h__
 #define __rai_raimd__rwf_writer_h__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+MDMsgWriter_t * rwf_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                       void *buf_ptr, size_t buf_sz,
+                                       RwfMsgClass cl, RdmDomainType dom,
+                                       uint32_t id );
+MDMsgWriter_t * rwf_msg_writer_field_list_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                                  void *buf_ptr, size_t buf_sz );
+int md_msg_writer_rwf_add_seq_num( MDMsgWriter_t *w, uint32_t seqno );
+int md_msg_writer_rwf_add_msg_key( MDMsgWriter_t *w, const char *subj, size_t slen );
+
+MDMsgWriter_t * md_msg_writer_rwf_add_field_list( MDMsgWriter_t *w );
+int md_msg_writer_rwf_add_flist(MDMsgWriter_t *fl, uint16_t flist);
+int md_msg_writer_rwf_end_msg(MDMsgWriter_t *fl);
+int md_msg_writer_rwf_set(MDMsgWriter_t *fl, RwfMsgSerial ser );
+
+#ifdef __cplusplus
+}
 namespace rai {
 namespace md {
 
@@ -28,16 +48,11 @@ enum RwfWriterType {
   W_MSG          = 141  /* RWF_MSG          */
 };
 
-struct RwfMsgWriterBase {
-  MDMsgMem & mem;
-  MDDict   * dict;
-  uint8_t  * buf;
-  size_t     off,
-             buflen,
-             prefix_len;
-  int        len_bits,
-             err;
-  size_t   * size_ptr;
+struct RwfMsgWriterBase : public MDMsgWriterBase {
+  MDDict * dict;
+  size_t   prefix_len;
+  int      len_bits;
+  size_t * size_ptr;
   RwfMsgWriterBase  * parent,
                     * child;
   const RwfWriterType type;
@@ -234,7 +249,7 @@ struct RwfMsgWriterHdr : public RwfMsgWriterBase {
   RwfMsgWriterBase & base;
   uint64_t           flags;
   RwfMsgWriterHdr( RwfMsgWriterBase &b,  uint64_t fl = 0 )
-    : RwfMsgWriterBase( W_NONE, b.mem, NULL, b.buf, b.buflen ), base( b ),
+    : RwfMsgWriterBase( W_NONE, b.mem(), NULL, b.buf, b.buflen ), base( b ),
       flags( fl ) {
     if ( b.len_bits != 0 || b.size_ptr != NULL )
       this->update_len( b );
@@ -1191,4 +1206,5 @@ struct RwfVectorWriter : RwfMsgWriterBase {
 }
 } // namespace rai
 
+#endif
 #endif
