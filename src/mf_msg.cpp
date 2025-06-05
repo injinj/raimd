@@ -6,6 +6,37 @@
 using namespace rai;
 using namespace md;
 
+extern "C" {
+
+MDMsg_t *
+mf_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+               MDDict_t *d,  MDMsgMem_t *m )
+{
+  return MktfdMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+}
+
+bool
+md_msg_mf_get_flist( MDMsg_t *m,  uint16_t *flist )
+{
+  if ( static_cast<MDMsg *>( m )->get_type_id() == MARKETFEED_TYPE_ID ) {
+    *flist = static_cast<MktfdMsg *>( m)->flist;
+    return true;
+  }
+  return false;
+}
+
+bool
+md_msg_mf_get_rtl( MDMsg_t *m,  uint32_t *rtl )
+{
+  if ( static_cast<MDMsg *>( m )->get_type_id() == MARKETFEED_TYPE_ID ) {
+    *rtl = static_cast<MktfdMsg *>( m )->rtl;
+    return true;
+  }
+  return false;
+}
+
+}
+
 static const char MktfdMsg_proto_string[] = "MARKETFEED";
 const char *
 MktfdMsg::get_proto_string( void ) noexcept
@@ -20,6 +51,7 @@ MktfdMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch mktfd_match = {
+  .name        = MktfdMsg_proto_string,
   .off         = 0,
   .len         = 1, /* cnt of buf[] */
   .hint_size   = 1, /* cnt of hint[] */
@@ -27,8 +59,7 @@ static MDMatch mktfd_match = {
   .buf         = { 0x1c },
   .hint        = { MARKETFEED_TYPE_ID },
   .is_msg_type = MktfdMsg::is_marketfeed,
-  .unpack      = (md_msg_unpack_f) MktfdMsg::unpack,
-  .name        = MktfdMsg_proto_string
+  .unpack      = (md_msg_unpack_f) MktfdMsg::unpack
 };
 
 namespace rai {
@@ -82,17 +113,17 @@ rai::md::mf_func_to_sass_msg_type( uint16_t func ) noexcept
 {
   switch ( func ) {
     case Cmd_2:
-    case BcastMsg_4:       return UPDATE_PASS_THRU_TYPE;
-    case Drop_308:         return DROP_TYPE;
-    case Close_312:        return CLOSING_TYPE;
-    case Upd_316:          return UPDATE_TYPE;
-    case Correct_317:      return CORRECT_TYPE;
-    case Verify_318:       return VERIFY_TYPE;
-    case Rec_340:          return INITIAL_TYPE;
-    case Snap_342:         return SNAPSHOT_TYPE;
-    case AggregateUpd_350: return UPDATE_TYPE;
+    case BcastMsg_4:       return MD_UPDATE_PASS_THRU_TYPE;
+    case Drop_308:         return MD_DROP_TYPE;
+    case Close_312:        return MD_CLOSING_TYPE;
+    case Upd_316:          return MD_UPDATE_TYPE;
+    case Correct_317:      return MD_CORRECT_TYPE;
+    case Verify_318:       return MD_VERIFY_TYPE;
+    case Rec_340:          return MD_INITIAL_TYPE;
+    case Snap_342:         return MD_SNAPSHOT_TYPE;
+    case AggregateUpd_350: return MD_UPDATE_TYPE;
     default:
-    case Status_407:       return TRANSIENT_TYPE;
+    case Status_407:       return MD_TRANSIENT_TYPE;
   }
 }
 
@@ -267,7 +298,7 @@ MktfdMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,
   void * ptr;
   m.incr_ref();
   m.alloc( sizeof( MktfdMsg ), &ptr );
-  for ( ; d != NULL; d = d->next )
+  for ( ; d != NULL; d = d->get_next() )
     if ( d->dict_type[ 0 ] == 'a' ) /* need app_a type */
       break;
   MktfdMsg *msg = new ( ptr ) MktfdMsg( bb, off, end, d, m );
@@ -289,9 +320,9 @@ inline void
 MktfdFieldIter::lookup_fid( void ) noexcept
 {
   if ( this->ftype == MD_NODATA ) {
-    if ( this->iter_msg.dict != NULL ) {
+    if ( this->iter_msg().dict != NULL ) {
       MDLookup by( this->fid );
-      if ( this->iter_msg.dict->lookup( by ) ) {
+      if ( this->iter_msg().dict->lookup( by ) ) {
         this->ftype    = by.ftype;
         this->fsize    = by.fsize;
         this->fnamelen = by.fname_len;
@@ -382,10 +413,10 @@ MktfdFieldIter::get_enum( MDReference &mref,  MDEnum &enu ) noexcept
 {
   enu.zero();
   if ( mref.ftype == MD_ENUM ) {
-    if ( this->iter_msg.dict != NULL ) {
+    if ( this->iter_msg().dict != NULL ) {
       enu.val = get_uint<uint16_t>( mref );
-      if ( this->iter_msg.dict->get_enum_text( this->fid, enu.val,
-                                               enu.disp, enu.disp_len ) )
+      if ( this->iter_msg().dict->get_enum_text( this->fid, enu.val,
+                                                 enu.disp, enu.disp_len ) )
         return 0;
     }
   }
@@ -395,7 +426,7 @@ MktfdFieldIter::get_enum( MDReference &mref,  MDEnum &enu ) noexcept
 int
 MktfdFieldIter::get_reference( MDReference &mref ) noexcept
 {
-  uint8_t * buf = &((uint8_t *) this->iter_msg.msg_buf)[ this->data_off ];
+  uint8_t * buf = &((uint8_t *) this->iter_msg().msg_buf)[ this->data_off ];
   char * eos;
   mref.fendian  = md_endian;
   mref.fentrysz = 0;
@@ -551,13 +582,13 @@ int
 MktfdFieldIter::find( const char *name,  size_t name_len,
                       MDReference &mref ) noexcept
 {
-  if ( this->iter_msg.dict == NULL )
+  if ( this->iter_msg().dict == NULL )
     return Err::NO_DICTIONARY;
 
   int status = Err::NOT_FOUND;
   if ( name_len > 0 ) {
     MDLookup by( name, name_len );
-    if ( this->iter_msg.dict->get( by ) ) {
+    if ( this->iter_msg().dict->get( by ) ) {
       if ( (status = this->first()) == 0 ) {
         do {
           if ( this->fid == by.fid )
@@ -572,8 +603,8 @@ MktfdFieldIter::find( const char *name,  size_t name_len,
 int
 MktfdFieldIter::first( void ) noexcept
 {
-  this->field_start = ((MktfdMsg &) this->iter_msg).data_start;
-  this->field_end   = ((MktfdMsg &) this->iter_msg).data_end;
+  this->field_start = ((MktfdMsg &) this->iter_msg()).data_start;
+  this->field_end   = ((MktfdMsg &) this->iter_msg()).data_end;
   this->field_index = 0;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
@@ -584,7 +615,7 @@ int
 MktfdFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
-  this->field_end   = ((MktfdMsg &) this->iter_msg).data_end;
+  this->field_end   = ((MktfdMsg &) this->iter_msg()).data_end;
   this->field_index++;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
@@ -594,7 +625,7 @@ MktfdFieldIter::next( void ) noexcept
 int
 MktfdFieldIter::unpack( void ) noexcept
 {
-  uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
+  uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf;
   size_t    i   = this->field_start;
   uint8_t   c;
   

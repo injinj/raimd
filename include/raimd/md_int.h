@@ -6,6 +6,15 @@
 #include <intrin.h>
 /* disable delete() constructor (4291), fopen deprecated (4996) */
 #pragma warning( disable : 4291 4996 )
+#endif
+
+#include <raimd/md_int_c.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef _MSC_VER
 inline uint32_t
 md_ctzl( uint64_t val )
 {
@@ -28,6 +37,9 @@ inline uint32_t md_ctzl( uint64_t val ) { return __builtin_ctzll( val ); }
 inline uint32_t md_clzl( uint64_t val ) { return __builtin_clzll( val ); }
 #endif
 
+#ifdef __cplusplus 
+} 
+  
 namespace rai {
 namespace md {
 
@@ -40,17 +52,12 @@ static inline Int to_ival( const void *val ) {
 
 template<MDEndian end>
 static inline uint16_t get_u16( const void *val ) {
-  const uint8_t *u = (const uint8_t *) val;
-  return end == MD_LITTLE ?
-    ( ( (uint16_t) u[ 1 ] << 8 ) | ( (uint16_t) u[ 0 ] ) ) :
-    ( ( (uint16_t) u[ 0 ] << 8 ) | ( (uint16_t) u[ 1 ] ) );
+  return end == MD_LITTLE ? get_u16_md_little( val ) : get_u16_md_big( val );
 }
 
 template<MDEndian end>
 static inline void set_u16( void *val,  uint16_t i ) {
-  if ( end == MD_BIG )
-    i = get_u16<MD_BIG>( &i );
-  ::memcpy( val, &i, sizeof( i ) );
+  end == MD_LITTLE ? set_u16_md_little( val, i ) : set_u16_md_big( val, i );
 }
 
 template<MDEndian end>
@@ -60,19 +67,12 @@ static inline int16_t get_i16( const void *val ) {
 
 template<MDEndian end>
 static inline uint32_t get_u32( const void *val ) {
-  const uint8_t *u = (const uint8_t *) val;
-  return end == MD_LITTLE ?
-    ( ( (uint32_t) u[ 3 ] << 24 ) | ( (uint32_t) u[ 2 ] << 16 ) |
-      ( (uint32_t) u[ 1 ] << 8 )  |   (uint32_t) u[ 0 ] ) :
-    ( ( (uint32_t) u[ 0 ] << 24 ) | ( (uint32_t) u[ 1 ] << 16 ) |
-      ( (uint32_t) u[ 2 ] << 8 )  |   (uint32_t) u[ 3 ] );
+  return end == MD_LITTLE ? get_u32_md_little( val ) : get_u32_md_big( val );
 }
 
 template<MDEndian end>
 static inline void set_u32( void *val,  uint32_t i ) {
-  if ( end == MD_BIG )
-    i = get_u32<MD_BIG>( &i );
-  ::memcpy( val, &i, sizeof( i ) );
+  end == MD_LITTLE ? set_u32_md_little( val, i ) : set_u32_md_big( val, i );
 }
 
 template<MDEndian end>
@@ -89,23 +89,12 @@ static inline float get_f32( const void *val ) {
 
 template<MDEndian end>
 static inline uint64_t get_u64( const void *val ) {
-  const uint8_t *u = (const uint8_t *) val;
-  return end == MD_LITTLE ?
-    ( ( (uint64_t) u[ 7 ] << 56 ) | ( (uint64_t) u[ 6 ] << 48 ) |
-      ( (uint64_t) u[ 5 ] << 40 ) | ( (uint64_t) u[ 4 ] << 32 ) |
-      ( (uint64_t) u[ 3 ] << 24 ) | ( (uint64_t) u[ 2 ] << 16 ) |
-      ( (uint64_t) u[ 1 ] << 8 )  |   (uint64_t) u[ 0 ] ) :
-    ( ( (uint64_t) u[ 0 ] << 56 ) | ( (uint64_t) u[ 1 ] << 48 ) |
-      ( (uint64_t) u[ 2 ] << 40 ) | ( (uint64_t) u[ 3 ] << 32 ) |
-      ( (uint64_t) u[ 4 ] << 24 ) | ( (uint64_t) u[ 5 ] << 16 ) |
-      ( (uint64_t) u[ 6 ] << 8 )  |   (uint64_t) u[ 7 ] );
+  return end == MD_LITTLE ? get_u64_md_little( val ) : get_u64_md_big( val );
 }
 
 template<MDEndian end>
 static inline void set_u64( void *val,  uint64_t i ) {
-  if ( end == MD_BIG )
-    i = get_u64<MD_BIG>( &i );
-  ::memcpy( val, &i, sizeof( i ) );
+  end == MD_LITTLE ? set_u64_md_little( val, i ) : set_u64_md_big( val, i );
 }
 
 template<MDEndian end>
@@ -648,4 +637,5 @@ get_u64_prefix( const uint8_t *buf,  const uint8_t *end,  Int &sz )
 }
 }
 
+#endif
 #endif

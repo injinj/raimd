@@ -45,11 +45,11 @@ MDReplay::resize( size_t sz ) noexcept
 {
   size_t oldsz = this->bufsz;
   if ( oldsz == 0 || oldsz > sz ) {
-    this->mem.reuse();
-    this->buf = (char *) this->mem.make( sz );
+    ((MDMsgMem &) this->mem).reuse();
+    this->buf = (char *) ((MDMsgMem &) this->mem).make( sz );
   }
   else {
-    this->mem.extend( oldsz, sz, &this->buf );
+    ((MDMsgMem &) this->mem).extend( oldsz, sz, &this->buf );
   }
   this->bufsz  = sz;
   this->subj   = this->buf;
@@ -154,3 +154,13 @@ MDReplay::parse( void ) noexcept
   return true;
 }
 
+extern "C" {
+void md_replay_init( MDReplay_t *r,  void *inp ) { ((MDReplay *) r)->init( inp ); }
+bool md_replay_open( MDReplay_t *r,  const char *fname ) { return ((MDReplay *) r)->open( fname ); }
+void md_replay_close( MDReplay_t *r ) { ((MDReplay *) r)->close(); }
+void md_replay_resize( MDReplay_t *r,  size_t sz ) { ((MDReplay *) r)->resize( sz ); }
+bool md_replay_fillbuf( MDReplay_t *r,  size_t need_bytes ) { return ((MDReplay *) r)->fillbuf( need_bytes ); }
+bool md_replay_first( MDReplay_t *r ) { return ((MDReplay *) r)->first(); }
+bool md_replay_next( MDReplay_t *r ) { return ((MDReplay *) r)->next(); }
+bool md_replay_parse( MDReplay_t *r ) { return ((MDReplay *) r)->parse(); }
+}

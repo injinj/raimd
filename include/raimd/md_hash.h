@@ -4,6 +4,12 @@
 #include <raimd/md_list.h>
 #include <raimd/hash32.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef __cplusplus
+}
 namespace rai {
 namespace md {
 
@@ -890,5 +896,5 @@ struct HashFieldIter : public MDFieldIter {
 
 }
 }
-
+#endif
 #endif

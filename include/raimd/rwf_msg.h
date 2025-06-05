@@ -4,6 +4,40 @@
 #include <raimd/md_msg.h>
 #include <raimd/omm_msg.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static const uint32_t RWF_FIELD_LIST_TYPE_ID   = 0x25cdabca,
+                      RWF_MAP_TYPE_ID          = 0x0d20015c,
+                      RWF_ELEMENT_LIST_TYPE_ID = 0xfb5beb1f,
+                      RWF_FILTER_LIST_TYPE_ID  = 0xb3685beb,
+                      RWF_SERIES_TYPE_ID       = 0x0e396966,
+                      RWF_VECTOR_TYPE_ID       = 0x5c8b2bf3,
+                      RWF_MSG_TYPE_ID          = 0xd13463b7,
+                      RWF_MSG_KEY_TYPE_ID      = 0xa5a60b23;
+#ifndef __cplusplus
+#define RWF_FIELD_LIST_TYPE_ID   0x25cdabcaU
+#define RWF_MAP_TYPE_ID          0x0d20015cU
+#define RWF_ELEMENT_LIST_TYPE_ID 0xfb5beb1fU
+#define RWF_FILTER_LIST_TYPE_ID  0xb3685bebU
+#define RWF_SERIES_TYPE_ID       0x0e396966U
+#define RWF_VECTOR_TYPE_ID       0x5c8b2bf3U
+#define RWF_MSG_TYPE_ID          0xd13463b7U
+#define RWF_MSG_KEY_TYPE_ID      0xa5a60b23U
+#endif
+
+MDMsg_t *rwf_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                         MDDict_t *d,  MDMsgMem_t *m );
+MDMsg_t *rwf_msg_unpack_field_list( void *bb,  size_t off,  size_t end,
+                                    uint32_t h,  MDDict_t *d,  MDMsgMem_t *m );
+MDMsg_t *md_msg_rwf_get_container_msg( MDMsg_t *m );
+bool md_msg_rwf_get_flist( MDMsg_t *m,  uint16_t *flist );
+bool md_msg_rwf_get_msg_flags( MDMsg_t *m, uint64_t *fl );
+bool md_msg_rwf_get_msg_seqnum( MDMsg_t *m,  uint32_t *seqnum );
+
+#ifdef __cplusplus
+}
 namespace rai {
 namespace md {
 
@@ -232,14 +266,6 @@ struct RwfVectorHdr : public RwfBase {
   }
 };
 
-static const uint32_t RWF_FIELD_LIST_TYPE_ID   = 0x25cdabca,
-                      RWF_MAP_TYPE_ID          = 0x0d20015c,
-                      RWF_ELEMENT_LIST_TYPE_ID = 0xfb5beb1f,
-                      RWF_FILTER_LIST_TYPE_ID  = 0xb3685beb,
-                      RWF_SERIES_TYPE_ID       = 0x0e396966,
-                      RWF_VECTOR_TYPE_ID       = 0x5c8b2bf3,
-                      RWF_MSG_TYPE_ID          = 0xd13463b7,
-                      RWF_MSG_KEY_TYPE_ID      = 0xa5a60b23;
 struct MDDictBuild;
 struct RwfMsg : public MDMsg {
   union {
@@ -393,7 +419,7 @@ struct RwfFieldIter : public MDFieldIter {
   void alloc_string( const char *p ) {
     this->set_string( p, ::strlen( p ) );
     this->msg_fptr = (uint8_t *)
-      this->iter_msg.mem->stralloc( this->fsize, (char *) this->msg_fptr );
+      this->iter_msg().mem->stralloc( this->fsize, (char *) this->msg_fptr );
   }
   union {
     RwfFieldListIter   field;
@@ -447,4 +473,5 @@ uint8_t md_type_to_rwf_primitive_type( MDType type ) noexcept;
 
 #include <raimd/rwf_writer.h>
 
+#endif
 #endif

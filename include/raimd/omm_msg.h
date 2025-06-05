@@ -3,6 +3,12 @@
 
 #include <raimd/omm_flags.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef __cplusplus
+}
 namespace rai {
 namespace md {
 
@@ -518,4 +524,5 @@ struct RwfMsgDecode : public DecodeT<RwfMsgDecode> {
 
 }
 }
+#endif
 #endif

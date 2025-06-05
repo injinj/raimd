@@ -18,6 +18,7 @@ SetMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch setmsg_match = {
+  .name        = SetMsg_proto_string,
   .off         = 0,
   .len         = 1, /* cnt of buf[] */
   .hint_size   = 0, /* cnt of hint[] */
@@ -25,8 +26,7 @@ static MDMatch setmsg_match = {
   .buf         = { SetData::set8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = SetMsg::is_setmsg,
-  .unpack      = SetMsg::unpack,
-  .name        = SetMsg_proto_string
+  .unpack      = SetMsg::unpack
 };
 
 static bool

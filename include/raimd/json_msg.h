@@ -4,13 +4,25 @@
 #include <raimd/md_msg.h>
 #include <raimd/json.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static const uint32_t JSON_TYPE_ID = 0x4a014cc2U;
+#ifndef __cplusplus
+#define JSON_TYPE_ID 0x4a014cc2U
+#endif
+MDMsg_t *json_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                          MDDict_t *d,  MDMsgMem_t *m );
+MDMsgWriter_t * json_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                        void *buf_ptr, size_t buf_sz );
+#ifdef __cplusplus
+}
 namespace rai {
 namespace md {
 
 struct JsonParser;
 struct JsonObject;
-
-static const uint32_t JSON_TYPE_ID = 0x4a014cc2;
 
 struct JsonMsg : public MDMsg {
   /* used by unpack() to alloc in MDMsgMem */
@@ -73,21 +85,24 @@ struct JsonFieldIter : public MDFieldIter {
   virtual int next( void ) noexcept final;
 };
 
-struct JsonMsgWriter {
+struct JsonMsgWriter : public MDMsgWriterBase {
   enum {
     FIRST_FIELD = 1
   };
-  MDMsgMem      & mem;
-  uint8_t       * buf;
-  size_t          off,
-                  buflen;
-  int             flags,
-                  err;
+  int             flags;
   JsonMsgWriter * parent;
 
-  JsonMsgWriter( MDMsgMem &m,  void *bb,  size_t len )
-    : mem( m ), buf( (uint8_t *) bb ), off( 0 ), buflen( len ), flags( 0 ),
-      err( 0 ), parent( 0 ) {}
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  JsonMsgWriter( MDMsgMem &m,  void *bb,  size_t len ) {
+    this->msg_mem = &m;
+    this->buf     = (uint8_t *) bb;
+    this->off     = 0;
+    this->buflen  = len;
+    this->wr_type = JSON_TYPE_ID;
+    this->err     = 0;
+    this->flags   = 0;
+    this->parent  = NULL;
+  }
   JsonMsgWriter & error( int status ) {
     if ( this->err == 0 )
       this->err = status;
@@ -195,4 +210,5 @@ struct JsonMsgWriter {
 }
 }
 
+#endif
 #endif

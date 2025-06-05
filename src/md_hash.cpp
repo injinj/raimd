@@ -18,6 +18,7 @@ HashMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch hashmsg_match = {
+  .name        = HashMsg_proto_string,
   .off         = 0,
   .len         = 1, /* cnt of buf[] */
   .hint_size   = 0, /* cnt of hint[] */
@@ -25,8 +26,7 @@ static MDMatch hashmsg_match = {
   .buf         = { HashData::hsh8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = HashMsg::is_hashmsg,
-  .unpack      = HashMsg::unpack,
-  .name        = HashMsg_proto_string
+  .unpack      = HashMsg::unpack
 };
 
 static bool
@@ -100,7 +100,7 @@ HashFieldIter::get_reference( MDReference &mref ) noexcept
   mref.fptr  = (uint8_t *) this->val.data;
   mref.fsize = this->val.sz;
   if ( this->val.sz2 > 0 ) {
-    this->iter_msg.mem->alloc( this->val.sz + this->val.sz2, &mref.fptr );
+    this->iter_msg().mem->alloc( this->val.sz + this->val.sz2, &mref.fptr );
     mref.fsize += this->val.sz2;
     ::memcpy( mref.fptr, this->val.data, this->val.sz );
     ::memcpy( &mref.fptr[ this->val.sz ], this->val.data2, this->val.sz2 );

@@ -13,6 +13,21 @@
 using namespace rai;
 using namespace md;
 
+extern "C" {
+MDMsg_t * rv_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h, 
+                        MDDict_t *d,  MDMsgMem_t *m ) 
+{   
+  return RvMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+}
+MDMsgWriter_t *
+rv_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *,
+                      void *buf_ptr, size_t buf_sz )
+{
+  void * p = ((MDMsgMem *) mem)->make( sizeof( RvMsgWriter ) );
+  return new ( p ) RvMsgWriter( *(MDMsgMem *) mem, buf_ptr, buf_sz );
+}
+}
+
 static const char RvMsg_proto_string[] = "RVMSG";
 const char *
 RvMsg::get_proto_string( void ) noexcept
@@ -27,6 +42,7 @@ RvMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch rvmsg_match = {
+  .name        = RvMsg_proto_string,
   .off         = 4,
   .len         = 4, /* cnt of buf[] */
   .hint_size   = 1, /* cnt of hint[] */
@@ -34,8 +50,7 @@ static MDMatch rvmsg_match = {
   .buf         = { 0x99, 0x55, 0xee, 0xaa },
   .hint        = { RVMSG_TYPE_ID, 0 },
   .is_msg_type = RvMsg::is_rvmsg,
-  .unpack      = RvMsg::unpack,
-  .name        = RvMsg_proto_string
+  .unpack      = RvMsg::unpack
 };
 
 bool
@@ -249,7 +264,7 @@ RvMsg::time_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept
     uint64_t usec = get_uint<uint64_t>( mref.fptr, MD_BIG );
     time_t   sec  = usec >> 32;
     struct tm tm;
-    md_gmtime( sec, tm );
+    md_gmtime( sec, &tm );
     char * gmt;
     this->mem->alloc( 32, &gmt );
     strftime( gmt, 32, fmt, &tm );
@@ -322,8 +337,8 @@ RvFieldIter::copy( void ) noexcept
 {
   RvFieldIter *iter;
   void * ptr;
-  this->iter_msg.mem->alloc( sizeof( RvFieldIter ), &ptr );
-  iter = new ( ptr ) RvFieldIter( this->iter_msg );
+  this->iter_msg().mem->alloc( sizeof( RvFieldIter ), &ptr );
+  iter = new ( ptr ) RvFieldIter( this->iter_msg() );
   this->dup_rv( *iter );
   return iter;
 }
@@ -348,7 +363,7 @@ get_rv_name( char *fname,  size_t fnamelen,  MDName &name )
 int
 RvFieldIter::get_name( MDName &name ) noexcept
 {
-  get_rv_name( &((char *) this->iter_msg.msg_buf)[ this->field_start + 1 ],
+  get_rv_name( &((char *) this->iter_msg().msg_buf)[ this->field_start + 1 ],
                this->name_len, name );
   return 0;
 }
@@ -356,7 +371,7 @@ RvFieldIter::get_name( MDName &name ) noexcept
 int
 RvFieldIter::get_reference( MDReference &mref ) noexcept
 {
-  uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
+  uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf;
   mref.fendian = MD_BIG;
   mref.ftype   = (MDType) rv_type_to_md_type[ this->type ];
   mref.fsize   = this->size;
@@ -475,7 +490,7 @@ RvFieldIter::find( const char *name,  size_t name_len,
   MDName n, n2;
   get_rv_name( (char *) name, name_len, n );
 
-  char * buf = (char *) this->iter_msg.msg_buf;
+  char * buf = (char *) this->iter_msg().msg_buf;
   int status;
   if ( (status = this->first()) == 0 ) {
     do {
@@ -494,7 +509,7 @@ RvFieldIter::is_named( const char *name,  size_t name_len ) noexcept
   MDName n, n2;
   get_rv_name( (char *) name, name_len, n );
 
-  char * buf = (char *) this->iter_msg.msg_buf;
+  char * buf = (char *) this->iter_msg().msg_buf;
   get_rv_name( &buf[ this->field_start + 1 ], this->name_len, n2 );
   if ( ( n.fid != 0 && n2.fid != 0 && n.fid == n2.fid ) ||
        MDDict::dict_equals( n.fname, n.fnamelen, n2.fname, n2.fnamelen ) )
@@ -505,8 +520,8 @@ RvFieldIter::is_named( const char *name,  size_t name_len ) noexcept
 int
 RvFieldIter::first( void ) noexcept
 {
-  this->field_start = this->iter_msg.msg_off + 8;
-  this->field_end   = this->iter_msg.msg_end;
+  this->field_start = this->iter_msg().msg_off + 8;
+  this->field_end   = this->iter_msg().msg_end;
   this->field_index = 0;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
@@ -517,7 +532,7 @@ int
 RvFieldIter::next( void ) noexcept
 {
   this->field_start = this->field_end;
-  this->field_end   = this->iter_msg.msg_end;
+  this->field_end   = this->iter_msg().msg_end;
   this->field_index++;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
@@ -527,7 +542,7 @@ RvFieldIter::next( void ) noexcept
 int
 RvFieldIter::unpack( void ) noexcept
 {
-  const uint8_t * buf     = (uint8_t *) this->iter_msg.msg_buf;
+  const uint8_t * buf     = (uint8_t *) this->iter_msg().msg_buf;
   size_t          i       = this->field_start;
   uint8_t         szbytes = 0;
 
@@ -620,7 +635,7 @@ RvFieldIter::update( MDReference &mref ) noexcept
 {
   MDType ftype = (MDType) rv_type_to_md_type[ this->type ];
   if ( mref.ftype == ftype && mref.fsize == this->size ) {
-    uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
+    uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf;
     size_t    i   = this->field_end - this->size;
     ::memcpy( &buf[ i ], mref.fptr, mref.fsize );
     return 0;
@@ -651,7 +666,7 @@ RvMsgWriter::resize( size_t len ) noexcept
     new_len = max_size;
   uint8_t * old_buf = p->buf,
           * new_buf = old_buf;
-  this->mem.extend( old_len, new_len, &new_buf );
+  this->mem().extend( old_len, new_len, &new_buf );
   uint8_t * end = &new_buf[ new_len ];
 
   p->buf    = new_buf;
@@ -1029,7 +1044,7 @@ RvMsgWriter::append_decimal( const char *fname,  size_t fname_len,
   ptr[ 1 ] = (uint8_t) 8;
   ptr = &ptr[ 2 ];
 
-  if ( ! is_little_endian )
+  if ( md_endian != MD_LITTLE )
     ::memcpy( ptr, &val, 8 );
   else {
     uint8_t * fptr = (uint8_t *) (void *) &val;
@@ -1146,14 +1161,14 @@ RvMsgWriter::append_xml( const char *fname,  size_t fname_len,
         zdoc_len = sizeof( chunk ) - zs.avail_out;
       }
       else {
-        this->mem.extend( zdoc_len, zdoc_len + sizeof( chunk ) - zs.avail_out,
-                          &zdoc );
+        this->mem().extend( zdoc_len, zdoc_len + sizeof( chunk ) - zs.avail_out,
+                            &zdoc );
         ::memcpy( &zdoc[ zdoc_len ], chunk, sizeof( chunk ) - zs.avail_out );
         zdoc_len += sizeof( chunk ) - zs.avail_out;
       }
       break;
     }
-    this->mem.extend( zdoc_len, zdoc_len + sizeof( chunk ), &zdoc );
+    this->mem().extend( zdoc_len, zdoc_len + sizeof( chunk ), &zdoc );
     ::memcpy( &zdoc[ zdoc_len ], chunk, sizeof( chunk ) );
     zdoc_len += sizeof( chunk );
   }
@@ -1314,7 +1329,7 @@ RvMsgWriter::convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept
             status = this->err;
             break;
           case MD_MESSAGE: {
-            RvMsgWriter submsg( this->mem, NULL, 0 );
+            RvMsgWriter submsg( this->mem(), NULL, 0 );
             MDMsg * jmsg2 = NULL;
             this->append_msg( name.fname, name.fnamelen, submsg );
             status = this->err;
@@ -1457,7 +1472,7 @@ RvMsgWriter::append_iter( MDFieldIter *iter ) noexcept
     return this->error( Err::NO_SPACE );
 
   uint8_t * ptr = &this->buf[ this->off ];
-  ::memcpy( ptr, &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ], len );
+  ::memcpy( ptr, &((uint8_t *) iter->iter_msg().msg_buf)[ iter->field_start ], len );
   this->off += len;
   return *this;
 }

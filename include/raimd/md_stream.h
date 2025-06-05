@@ -3,6 +3,12 @@
 
 #include <raimd/md_list.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
+#ifdef __cplusplus
+}   
 namespace rai {
 namespace md {
 
@@ -774,5 +780,5 @@ struct StreamFieldIter : public MDFieldIter {
 
 }
 }
-
+#endif
 #endif

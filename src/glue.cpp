@@ -152,23 +152,23 @@ unpack_decimal( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
 }
 
 static MDMatch basic_match[] = {
-  { 0,0,0, MD_MESSAGE, { 0 }, { 0 }, is_basic, unpack_basic, "MESSAGE" },
-  { 0,0,0, MD_STRING, { 0 }, { 0 }, is_string, unpack_string, "STRING" },
-  { 0,0,0, MD_OPAQUE, { 0 }, { 0 }, is_opaque, unpack_opaque, "OPAQUE" },
-  { 0,0,0, MD_BOOLEAN, { 0 }, { 0 }, is_boolean, unpack_boolean, "BOOLEAN" },
-  { 0,0,0, MD_INT, { 0 }, { 0 }, is_int, unpack_int, "INT" },
-  { 0,0,0, MD_UINT, { 0 }, { 0 }, is_uint, unpack_uint, "UINT" },
-  { 0,0,0, MD_REAL, { 0 }, { 0 }, is_real, unpack_real, "REAL" },
-  { 0,0,0, MD_ARRAY, { 0 }, { 0 }, is_basic, unpack_basic, "ARRAY" },
-  { 0,0,0, MD_PARTIAL, { 0 }, { 0 }, is_basic, unpack_basic, "PARTIAL" },
-  { 0,0,0, MD_IPDATA, { 0 }, { 0 }, is_ipdata, unpack_ipdata, "IPDATA" },
-  { 0,0,0, MD_SUBJECT, { 0 }, { 0 }, is_subject, unpack_subject, "SUBJECT" },
-  { 0,0,0, MD_ENUM, { 0 }, { 0 }, is_enum, unpack_enum, "ENUM" },
-  { 0,0,0, MD_TIME, { 0 }, { 0 }, is_time, unpack_time, "TIME" },
-  { 0,0,0, MD_DATE, { 0 }, { 0 }, is_date, unpack_date, "DATE" },
-  { 0,0,0, MD_DATETIME, { 0 }, { 0 }, is_basic, unpack_basic, "DATETIME" },
-  { 0,0,0, MD_STAMP, { 0 }, { 0 }, is_basic, unpack_basic, "STAMP" },
-  { 0,0,0, MD_DECIMAL, { 0 }, { 0 }, is_decimal, unpack_decimal, "DECIMAL" }
+  { "MESSAGE", 0,0,0, MD_MESSAGE, { 0 }, { 0 }, is_basic, unpack_basic },
+  { "STRING", 0,0,0, MD_STRING, { 0 }, { 0 }, is_string, unpack_string },
+  { "OPAQUE", 0,0,0, MD_OPAQUE, { 0 }, { 0 }, is_opaque, unpack_opaque },
+  { "BOOLEAN", 0,0,0, MD_BOOLEAN, { 0 }, { 0 }, is_boolean, unpack_boolean },
+  { "INT", 0,0,0, MD_INT, { 0 }, { 0 }, is_int, unpack_int },
+  { "UINT", 0,0,0, MD_UINT, { 0 }, { 0 }, is_uint, unpack_uint },
+  { "REAL", 0,0,0, MD_REAL, { 0 }, { 0 }, is_real, unpack_real },
+  { "ARRAY", 0,0,0, MD_ARRAY, { 0 }, { 0 }, is_basic, unpack_basic },
+  { "PARTIAL", 0,0,0, MD_PARTIAL, { 0 }, { 0 }, is_basic, unpack_basic },
+  { "IPDATA", 0,0,0, MD_IPDATA, { 0 }, { 0 }, is_ipdata, unpack_ipdata },
+  { "SUBJECT", 0,0,0, MD_SUBJECT, { 0 }, { 0 }, is_subject, unpack_subject },
+  { "ENUM", 0,0,0, MD_ENUM, { 0 }, { 0 }, is_enum, unpack_enum },
+  { "TIME", 0,0,0, MD_TIME, { 0 }, { 0 }, is_time, unpack_time },
+  { "DATE", 0,0,0, MD_DATE, { 0 }, { 0 }, is_date, unpack_date },
+  { "DATETIME", 0,0,0, MD_DATETIME, { 0 }, { 0 }, is_basic, unpack_basic },
+  { "STAMP", 0,0,0, MD_STAMP, { 0 }, { 0 }, is_basic, unpack_basic },
+  { "DECIMAL", 0,0,0, MD_DECIMAL, { 0 }, { 0 }, is_decimal, unpack_decimal }
 };
 
 #ifdef _MSC_VER

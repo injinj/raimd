@@ -18,6 +18,7 @@ StreamMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch streammsg_match = {
+  .name        = StreamMsg_proto_string,
   .off         = 0,
   .len         = 1, /* cnt of buf[] */
   .hint_size   = 0, /* cnt of hint[] */
@@ -25,8 +26,7 @@ static MDMatch streammsg_match = {
   .buf         = { StreamData::str8_sig & 0xffU },
   .hint        = { 0 },
   .is_msg_type = StreamMsg::is_streammsg,
-  .unpack      = StreamMsg::unpack,
-  .name        = StreamMsg_proto_string
+  .unpack      = StreamMsg::unpack
 };
 
 bool
@@ -119,7 +119,7 @@ StreamFieldIter::get_reference( MDReference &mref ) noexcept
   mref.fptr  = (uint8_t *) lv.data;
   mref.fsize = lv.sz;
   if ( lv.sz2 > 0 ) {
-    this->iter_msg.mem->alloc( lv.sz + lv.sz2, &mref.fptr );
+    this->iter_msg().mem->alloc( lv.sz + lv.sz2, &mref.fptr );
     mref.fsize += lv.sz2;
     ::memcpy( mref.fptr, lv.data, lv.sz );
     ::memcpy( &mref.fptr[ lv.sz ], lv.data2, lv.sz2 );

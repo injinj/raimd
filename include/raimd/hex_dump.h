@@ -1,6 +1,12 @@
 #ifndef __rai_raimd__hex_dump_h__
 #define __rai_raimd__hex_dump_h__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef __cplusplus
+}
 namespace rai {
 namespace md {
 
@@ -60,4 +66,5 @@ struct MDHexDump {
 }
 }
 
+#endif
 #endif

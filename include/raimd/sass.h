@@ -1,8 +1,10 @@
 #ifndef __rai_raimd__sass_h__
 #define __rai_raimd__sass_h__
 
-namespace rai {
-namespace md {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define SASS_DEF_MSG_TYPE( DEF ) \
   DEF( VERIFY ) \
   DEF( UPDATE ) \
@@ -87,11 +89,11 @@ namespace md {
   DEF( 85, FEED_NOT_ACCEPTING )
 
 #define SASS_DEF_STRING( ENUM ) \
-  static const char ENUM ## _STRING[] = #ENUM ;
+  static const char MD_ ## ENUM ## _STRING[] = #ENUM ;
 #define SASS_DEF_ENUM_TYPE( ENUM ) \
-  ENUM ## _TYPE ,
+  MD_ ## ENUM ## _TYPE ,
 #define SASS_DEF_ENUM_STRING( ENUM ) \
-  ENUM ## _STRING ,
+  MD_ ## ENUM ## _STRING ,
 
 SASS_DEF_MSG_TYPE( SASS_DEF_STRING )
 
@@ -100,18 +102,15 @@ enum SassMsgType {
   MAX_MSG_TYPE
 };
 
-extern const char * sass_msg_type_string( unsigned short msg_type,
-                                          char *buf ) noexcept;
-
 #define SASS_DEF_ENUM_STATUS( N, ENUM ) \
-  ENUM ## _STATUS = N,
+  MD_ ## ENUM ## _STATUS = N,
 #define SASS_DEF_STRING_2( N, ENUM ) \
-  static const char ENUM ## _STRING[] = #ENUM ;
+  static const char MD_ ## ENUM ## _STRING[] = #ENUM ;
 #define SASS_STR_CHAR2( c, d ) (uint16_t) \
                                  ( ( (uint16_t) (uint8_t) c ) | \
                                  ( ( (uint16_t) (uint8_t) d ) << 8 ) )
 #define SASS_DEF_ENUM_STRING_2( N, ENUM ) \
-  { N, SASS_STR_CHAR2( ( ENUM ## _STRING )[ 0 ], ( ENUM ## _STRING )[ 1 ] ), ENUM ## _STRING },
+  { N, SASS_STR_CHAR2( ( MD_ ## ENUM ## _STRING )[ 0 ], ( MD_ ## ENUM ## _STRING )[ 1 ] ), MD_ ## ENUM ## _STRING },
 SASS_DEF_REC_STATUS( SASS_DEF_STRING_2 )
 
 enum SassRecStatus {
@@ -119,21 +118,33 @@ enum SassRecStatus {
   MAX_REC_STATUS
 };
 
+extern const char   MD_SASS_MSG_TYPE[],
+                    MD_SASS_REC_TYPE[],
+                    MD_SASS_SEQ_NO[],
+                    MD_SASS_REC_STATUS[],
+                    MD_SASS_SYMBOL[];
+static const size_t MD_SASS_MSG_TYPE_LEN   = sizeof( "MSG_TYPE" ),
+                    MD_SASS_REC_TYPE_LEN   = sizeof( "REC_TYPE" ),
+                    MD_SASS_SEQ_NO_LEN     = sizeof( "SEQ_NO" ),
+                    MD_SASS_REC_STATUS_LEN = sizeof( "REC_STATUS" ),
+                    MD_SASS_SYMBOL_LEN     = sizeof( "SYMBOL" );
+#if 0
+const char * md_sass_msg_type_string( unsigned short msg_type, char *buf );
+const char * md_sass_rec_status_string( unsigned short rec_status, char *buf );
+uint16_t md_sass_rec_status_val( const char *str, size_t str_len );
+#endif
+#ifdef __cplusplus
+}
+namespace rai {
+namespace md {
+
+extern const char * sass_msg_type_string( unsigned short msg_type,
+                                          char *buf ) noexcept;
 extern const char * sass_rec_status_string( unsigned short rec_status,
                                             char *buf ) noexcept;
 extern uint16_t sass_rec_status_val( const char *str,
                                      size_t str_len ) noexcept;
 
-extern const char   SASS_MSG_TYPE[],
-                    SASS_REC_TYPE[],
-                    SASS_SEQ_NO[],
-                    SASS_REC_STATUS[],
-                    SASS_SYMBOL[];
-static const size_t SASS_MSG_TYPE_LEN   = sizeof( "MSG_TYPE" ),
-                    SASS_REC_TYPE_LEN   = sizeof( "REC_TYPE" ),
-                    SASS_SEQ_NO_LEN     = sizeof( "SEQ_NO" ),
-                    SASS_REC_STATUS_LEN = sizeof( "REC_STATUS" ),
-                    SASS_SYMBOL_LEN     = sizeof( "SYMBOL" );
 static inline uint32_t w4c( char a, char b, char c, char d ) {
   return ( (uint32_t) (uint8_t) d << 24 ) |
          ( (uint32_t) (uint8_t) c << 16 ) |
@@ -143,7 +154,7 @@ static inline uint32_t w4c( char a, char b, char c, char d ) {
 static inline bool is_sass_hdr( const MDName &n ) {
   #define B( c ) ( 1U << ( c - 'M' ) )
   static const uint32_t mask = B( 'M' ) | B( 'R' ) | B( 'S' );
-  if ( n.fnamelen >= SASS_SEQ_NO_LEN - 1 &&
+  if ( n.fnamelen >= MD_SASS_SEQ_NO_LEN - 1 &&
        ( B( n.fname[ 0 ] ) & mask ) != 0 ) {
   #undef B
     static const uint32_t MSG_TYPE   = 0x545f4753U, /*w4c( 'S', 'G', '_', 'T' ),*/
@@ -154,15 +165,15 @@ static inline bool is_sass_hdr( const MDName &n ) {
     uint32_t x = w4c( n.fname[ 1 ], n.fname[ 2 ], n.fname[ 3 ], n.fname[ 4 ] );
     if ( x >= SEQ_NO && x <= MSG_TYPE ) {
       if ( x == MSG_TYPE )
-        return n.equals( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN );
+        return n.equals( MD_SASS_MSG_TYPE, MD_SASS_MSG_TYPE_LEN );
       if ( x == REC_TYPE )
-        return n.equals( SASS_REC_TYPE, SASS_REC_TYPE_LEN );
+        return n.equals( MD_SASS_REC_TYPE, MD_SASS_REC_TYPE_LEN );
       if ( x == SEQ_NO )
-        return n.equals( SASS_SEQ_NO, SASS_SEQ_NO_LEN );
+        return n.equals( MD_SASS_SEQ_NO, MD_SASS_SEQ_NO_LEN );
       if ( x == REC_STATUS )
-        return n.equals( SASS_REC_STATUS, SASS_REC_STATUS_LEN );
+        return n.equals( MD_SASS_REC_STATUS, MD_SASS_REC_STATUS_LEN );
       if ( x == SYMBOL )
-        return n.equals( SASS_SYMBOL, SASS_SYMBOL_LEN );
+        return n.equals( MD_SASS_SYMBOL, MD_SASS_SYMBOL_LEN );
     }
   }
   return false;
@@ -173,25 +184,25 @@ void append_sass_hdr( Writer &w,  MDFormClass *form,  uint16_t msg_type,
                       uint16_t rec_type,  uint16_t seqno,  uint16_t status,
                       const char *subj,  size_t sublen )
 {
-  if ( msg_type != INITIAL_TYPE || form == NULL ) {
-    w.append_uint( SASS_MSG_TYPE  , SASS_MSG_TYPE_LEN  , msg_type );
+  if ( msg_type != MD_INITIAL_TYPE || form == NULL ) {
+    w.append_uint( MD_SASS_MSG_TYPE  , MD_SASS_MSG_TYPE_LEN  , msg_type );
     if ( rec_type != 0 )
-      w.append_uint( SASS_REC_TYPE, SASS_REC_TYPE_LEN  , rec_type );
-    w.append_uint( SASS_SEQ_NO    , SASS_SEQ_NO_LEN    , seqno )
-     .append_uint( SASS_REC_STATUS, SASS_REC_STATUS_LEN, status );
+      w.append_uint( MD_SASS_REC_TYPE, MD_SASS_REC_TYPE_LEN  , rec_type );
+    w.append_uint( MD_SASS_SEQ_NO    , MD_SASS_SEQ_NO_LEN    , seqno )
+     .append_uint( MD_SASS_REC_STATUS, MD_SASS_REC_STATUS_LEN, status );
   }
   else {
     const MDFormEntry * e = form->entries;
     MDLookup by;
-    if ( form->get( by.nm( SASS_MSG_TYPE, SASS_MSG_TYPE_LEN ) ) == &e[ 0 ] )
+    if ( form->get( by.nm( MD_SASS_MSG_TYPE, MD_SASS_MSG_TYPE_LEN ) ) == &e[ 0 ] )
       w.append_uint( by.fname, by.fname_len, msg_type );
-    if ( form->get( by.nm( SASS_REC_TYPE, SASS_REC_TYPE_LEN ) ) == &e[ 1 ] )
+    if ( form->get( by.nm( MD_SASS_REC_TYPE, MD_SASS_REC_TYPE_LEN ) ) == &e[ 1 ] )
       w.append_uint( by.fname, by.fname_len, rec_type );
-    if ( form->get( by.nm( SASS_SEQ_NO, SASS_SEQ_NO_LEN ) ) == &e[ 2 ] )
+    if ( form->get( by.nm( MD_SASS_SEQ_NO, MD_SASS_SEQ_NO_LEN ) ) == &e[ 2 ] )
       w.append_uint( by.fname, by.fname_len, seqno );
-    if ( form->get( by.nm( SASS_REC_STATUS, SASS_REC_STATUS_LEN ) ) == &e[ 3 ] )
+    if ( form->get( by.nm( MD_SASS_REC_STATUS, MD_SASS_REC_STATUS_LEN ) ) == &e[ 3 ] )
       w.append_uint( by.fname, by.fname_len, status );
-    if ( form->get( by.nm( SASS_SYMBOL, SASS_SYMBOL_LEN ) ) == &e[ 4 ] )
+    if ( form->get( by.nm( MD_SASS_SYMBOL, MD_SASS_SYMBOL_LEN ) ) == &e[ 4 ] )
       w.append_string( by.fname, by.fname_len, subj, sublen );
   }
 }
@@ -211,4 +222,5 @@ main( void )
 #endif
 }
 }
+#endif
 #endif

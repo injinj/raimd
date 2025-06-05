@@ -3,6 +3,12 @@
 
 #include <raimd/md_zset.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+  
+#ifdef __cplusplus
+}   
 namespace rai {
 namespace md {
 
@@ -176,4 +182,5 @@ struct GeoFieldIter : public MDFieldIter {
 }
 }
 
+#endif
 #endif

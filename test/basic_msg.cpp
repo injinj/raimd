@@ -94,6 +94,37 @@ main( int argc, char **argv )
     return 1;
   }
 
+  static uint8_t ival[ 8 ] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  uint8_t itest[ 8 ], itest2[ 8 ];
+
+  uint32_t z, a;
+  z = get_u32_md_little( ival );
+  a = get_u32<MD_LITTLE>( ival );
+  set_u32_md_little( itest, 0x01020304 );
+  set_u32<MD_LITTLE>( itest2, 0x01020304 );
+  printf( "32 little test: %x %x %d %d %d\n", z, a, z == a,
+    itest[ 0 ] == 4 && itest[ 3 ] == 1, ::memcmp( itest, itest2, 4 ) == 0 );
+  z = get_u32_md_big( ival );
+  a = get_u32<MD_BIG>( ival );
+  set_u32_md_big( itest, 0x01020304 );
+  set_u32<MD_BIG>( itest2, 0x01020304 );
+  printf( "32 big test: %x %x %d %d %d\n", z, a, z == a,
+    itest[ 0 ] == 1 && itest[ 3 ] == 4, ::memcmp( itest, itest2, 4 ) == 0 );
+
+  uint64_t zz, aa;
+  zz = get_u64_md_little( ival );
+  aa = get_u64<MD_LITTLE>( ival );
+  set_u64_md_little( itest, 0x0102030405060708ULL );
+  set_u64<MD_LITTLE>( itest2, 0x0102030405060708ULL );
+  printf( "64 little test: %lx %lx %d %d %d\n", zz, aa, zz == aa,
+    itest[ 0 ] == 8 && itest[ 7 ] == 1, ::memcmp( itest, itest2, 8 ) == 0 );
+  zz = get_u64_md_big( ival );
+  aa = get_u64<MD_BIG>( ival );
+  set_u64_md_big( itest,  0x0102030405060708ULL );
+  set_u64<MD_BIG>( itest2,  0x0102030405060708ULL );
+  printf( "64 big test: %lx %lx %d %d %d\n", zz, aa, zz == aa,
+    itest[ 0 ] == 1 && itest[ 7 ] == 8, ::memcmp( itest, itest2, 8 ) == 0 );
+
   MDOutput mout;
   MDMsgMem mem;
   MDMsg  * m;

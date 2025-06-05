@@ -83,11 +83,13 @@ rai::md::sass_rec_status_val( const char *str,  size_t len ) noexcept
   return 0;
 }
 
-const char rai::md::SASS_MSG_TYPE[]   = "MSG_TYPE",
-           rai::md::SASS_REC_TYPE[]   = "REC_TYPE",
-           rai::md::SASS_SEQ_NO[]     = "SEQ_NO",
-           rai::md::SASS_REC_STATUS[] = "REC_STATUS",
-           rai::md::SASS_SYMBOL[]     = "SYMBOL";
+extern "C" {
+const char MD_SASS_MSG_TYPE[]   = "MSG_TYPE",
+           MD_SASS_REC_TYPE[]   = "REC_TYPE",
+           MD_SASS_SEQ_NO[]     = "SEQ_NO",
+           MD_SASS_REC_STATUS[] = "REC_STATUS",
+           MD_SASS_SYMBOL[]     = "SYMBOL";
+}
 
 const char * MDMsg::get_proto_string( void ) noexcept
 { return "NO PROTOCOL"; }
@@ -118,6 +120,29 @@ int MDFieldIter::update( MDReference & ) noexcept
 { return Err::NO_MSG_IMPL; }
 MDFieldIter *MDFieldIter::copy( void ) noexcept
 { return NULL; }
+
+MDMsg &
+MDFieldIter::iter_msg( void ) const noexcept
+{
+  return *static_cast<MDMsg *>( this->field_iter_msg );
+}
+
+MDFieldIter::MDFieldIter( MDMsg &m ) noexcept
+{
+  this->field_iter_msg = (struct MDMsg_s *) &m;
+  this->field_start    = 0;
+  this->field_end      = 0;
+  this->field_index    = 0;
+}
+
+void
+MDFieldIter::dup_iter( MDFieldIter &i ) noexcept
+{
+  i.field_iter_msg = this->field_iter_msg;
+  i.field_start    = this->field_start;
+  i.field_end      = this->field_end;
+  i.field_index    = this->field_index;
+}
 
 int
 MDFieldIter::copy_name( char *name_buf, size_t &name_len, MDFid &fid ) noexcept
@@ -1224,7 +1249,7 @@ int
 MDFieldIter::print( MDOutput *out, int indent_newline,
                     const char *fname_fmt,  const char *type_fmt ) noexcept
 {
-  MDMsgMemSwap swap( this->iter_msg.mem );
+  MDMsgMemSwap swap( this->iter_msg().mem );
   MDReference mref, href;
 
   this->get_reference( mref );
@@ -1253,7 +1278,7 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
   switch ( ftype ) {
     case MD_MESSAGE: {
       MDMsg * msg;
-      if ( this->iter_msg.get_sub_msg( mref, msg, this ) == 0 ) {
+      if ( this->iter_msg().get_sub_msg( mref, msg, this ) == 0 ) {
         if ( indent_newline != 0 ) {
           out->puts( "{\n" );
           indent_newline += 4;
@@ -1271,7 +1296,7 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
       break;
     }
     case MD_SUBJECT:
-      if ( this->iter_msg.get_subject_string( mref, str, len ) == 0 ) {
+      if ( this->iter_msg().get_subject_string( mref, str, len ) == 0 ) {
         out->puts( str );
         break;
       }
@@ -1279,30 +1304,30 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
     case MD_NODATA:
     case MD_OPAQUE:
        if ( ( out->output_hints & MD_OUTPUT_OPAQUE_TO_HEX ) != 0 ) {
-         if ( this->iter_msg.get_hex_string( mref, str, len ) == 0 )
+         if ( this->iter_msg().get_hex_string( mref, str, len ) == 0 )
            out->puts( str );
          break;
        }
        if ( ( out->output_hints & MD_OUTPUT_OPAQUE_TO_B64 ) != 0 ) {
-         if ( this->iter_msg.get_b64_string( mref, str, len ) == 0 )
+         if ( this->iter_msg().get_b64_string( mref, str, len ) == 0 )
            out->puts( str );
          break;
        }
       /* FALLTHRU */
     case MD_STRING:
-      if ( this->iter_msg.get_escaped_string( mref, "\"", str, len ) == 0 )
+      if ( this->iter_msg().get_escaped_string( mref, "\"", str, len ) == 0 )
         out->puts( str );
       break;
 
     case MD_PARTIAL:
       if ( fsize == 0 )
         out->puts( nul_string );
-      else if ( this->iter_msg.get_escaped_string( mref, "\"", str, len ) == 0 )
+      else if ( this->iter_msg().get_escaped_string( mref, "\"", str, len ) == 0 )
         out->printf( "%s <offset=%u>", str, mref.fentrysz );
       break;
 
     case MD_ENUM:
-      if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
+      if ( this->iter_msg().get_string( mref, str, len ) == 0 ) {
         MDEnum enu;
         out->puts( str );
         if ( this->get_enum( mref, enu ) == 0 )
@@ -1312,25 +1337,25 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
 
     case MD_INT:
     case MD_UINT:
-      if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
+      if ( this->iter_msg().get_string( mref, str, len ) == 0 ) {
         const char * extra = NULL;
         char tmp_buf[ 32 ];
         if ( fname_buf[ 0 ] >= 'M' && fname_buf[ 1 ] >= 'E' &&
              fname_buf[ 2 ] >= 'C' && fname_buf[ 3 ] == '_' ) {
-          if ( MDDict::dict_equals( fname_buf, fname_len, SASS_MSG_TYPE,
-                                    SASS_MSG_TYPE_LEN ) )
+          if ( MDDict::dict_equals( fname_buf, fname_len, MD_SASS_MSG_TYPE,
+                                    MD_SASS_MSG_TYPE_LEN ) )
             extra = sass_msg_type_string( get_int<int16_t>( mref ), tmp_buf );
-          else if ( MDDict::dict_equals( fname_buf, fname_len, SASS_REC_TYPE,
-                                         SASS_REC_TYPE_LEN ) ) {
+          else if ( MDDict::dict_equals( fname_buf, fname_len, MD_SASS_REC_TYPE,
+                                         MD_SASS_REC_TYPE_LEN ) ) {
             MDLookup by( get_int<uint16_t>( mref ) );
-            if ( this->iter_msg.dict != NULL &&
-                 this->iter_msg.dict->lookup( by ) ) {
+            if ( this->iter_msg().dict != NULL &&
+                 this->iter_msg().dict->lookup( by ) ) {
               if ( by.ftype == MD_MESSAGE )
                 extra = by.fname;
             }
           }
-          else if ( MDDict::dict_equals( fname_buf, fname_len, SASS_REC_STATUS,
-                                         SASS_REC_STATUS_LEN ) )
+          else if ( MDDict::dict_equals( fname_buf, fname_len, MD_SASS_REC_STATUS,
+                                         MD_SASS_REC_STATUS_LEN ) )
             extra = sass_rec_status_string( get_int<int16_t>( mref ), tmp_buf );
         }
         out->puts( str );
@@ -1356,14 +1381,14 @@ MDFieldIter::print( MDOutput *out, int indent_newline,
     case MD_HYPERLOGLOG:
     case MD_STREAM:
     case MD_XML:
-      if ( this->iter_msg.get_string( mref, str, len ) == 0 ) {
+      if ( this->iter_msg().get_string( mref, str, len ) == 0 ) {
         out->puts( str );
       }
       break;
   }
 
   if ( this->get_hint_reference( href ) == 0 ) {
-    if ( this->iter_msg.get_string( href, str, len ) == 0 )
+    if ( this->iter_msg().get_string( href, str, len ) == 0 )
       out->printf( " <%s>", str );
   }
   if ( indent_newline != 0 )
@@ -2368,30 +2393,30 @@ MDStamp::get_string( char *str,  size_t len ) const noexcept
 
 extern "C" {
 #if defined( _MSC_VER ) || defined( __MINGW32__ )
-void md_localtime( time_t t, struct tm &tmbuf ) noexcept {
-  ::localtime_s( &tmbuf, &t );
+void md_localtime( time_t t, struct tm *tmbuf ) {
+  ::localtime_s( tmbuf, &t );
 }
-void md_gmtime( time_t t, struct tm &tmbuf ) noexcept {
-  ::gmtime_s( &tmbuf, &t );
+void md_gmtime( time_t t, struct tm *tmbuf ) {
+  ::gmtime_s( tmbuf, &t );
 }
-time_t md_mktime( struct tm &tmbuf ) noexcept {
-  return ::mktime( &tmbuf );
+time_t md_mktime( struct tm *tmbuf ) {
+  return ::mktime( tmbuf );
 }
-time_t md_timegm( struct tm &tmbuf ) noexcept {
-  return ::_mkgmtime( &tmbuf );
+time_t md_timegm( struct tm *tmbuf ) {
+  return ::_mkgmtime( tmbuf );
 }
 #else
-void md_localtime( time_t t, struct tm &tmbuf ) noexcept {
-  ::localtime_r( &t, &tmbuf );
+void md_localtime( time_t t, struct tm *tmbuf ) {
+  ::localtime_r( &t, tmbuf );
 }
-void md_gmtime( time_t t, struct tm &tmbuf ) noexcept {
-  ::gmtime_r( &t, &tmbuf );
+void md_gmtime( time_t t, struct tm *tmbuf ) {
+  ::gmtime_r( &t, tmbuf );
 }
-time_t md_mktime( struct tm &tmbuf ) noexcept {
-  return ::mktime( &tmbuf );
+time_t md_mktime( struct tm *tmbuf ) {
+  return ::mktime( tmbuf );
 }
-time_t md_timegm( struct tm &tmbuf ) noexcept {
-  return ::timegm( &tmbuf );
+time_t md_timegm( struct tm *tmbuf ) {
+  return ::timegm( tmbuf );
 }
 #endif
 }
@@ -2463,7 +2488,7 @@ MDTime::parse( const char *fptr,  const size_t fsize ) noexcept
     if ( val > 1300000000U && val <= 0xffffffffU ) {
       time_t t = (time_t) val;
       struct tm tmbuf;
-      md_localtime( t, tmbuf );
+      md_localtime( t, &tmbuf );
 
       this->hour   = tmbuf.tm_hour;
       this->minute = tmbuf.tm_min;
@@ -2499,7 +2524,7 @@ static bool get_current_year( uint32_t m,  uint32_t d,  uint32_t &y ) {
   time_t now = time( 0 );
   if ( now < when || now - when > 60000 ) {
     struct tm tmbuf;
-    md_localtime( now, tmbuf );
+    md_localtime( now, &tmbuf );
 
     yr   = tmbuf.tm_year + 1900;
     mon  = tmbuf.tm_mon + 1;
@@ -2620,7 +2645,7 @@ static bool parse_excel_date( const char *p,  uint32_t n,  uint32_t &m,
   t = ( t - 25569 ) * 86400;
 
   struct tm tmbuf;
-  md_localtime( t, tmbuf );
+  md_localtime( t, &tmbuf );
   y = tmbuf.tm_year + 1900;
   m = tmbuf.tm_mon + 1;
   d = tmbuf.tm_mday;
@@ -3051,9 +3076,9 @@ MDDate::to_utc( bool is_gm_time ) noexcept
   if ( this->year == 0 || this->mon == 0 || this->day == 0 ) {
     t = ::time( NULL );
     if ( is_gm_time )
-      md_gmtime( t, tmbuf );
+      md_gmtime( t, &tmbuf );
     else
-      md_localtime( t, tmbuf );
+      md_localtime( t, &tmbuf );
     tmbuf.tm_sec = 0;
     tmbuf.tm_min = 0;
     tmbuf.tm_hour = 0;
@@ -3069,9 +3094,9 @@ MDDate::to_utc( bool is_gm_time ) noexcept
   tmbuf.tm_isdst = -1;
 
   if ( is_gm_time )
-    t = md_timegm( tmbuf );
+    t = md_timegm( &tmbuf );
   else
-    t = md_mktime( tmbuf );
+    t = md_mktime( &tmbuf );
   if ( t == -1 )
     return 0;
   return (uint64_t) t;
@@ -3089,9 +3114,9 @@ MDTime::to_utc( MDDate *dt,  bool is_gm_time ) noexcept
   if ( dt == NULL || dt->year == 0 || dt->mon == 0 || dt->day == 0 ) {
     t = ::time( NULL );
     if ( is_gm_time )
-      md_gmtime( t, tmbuf );
+      md_gmtime( t, &tmbuf );
     else
-      md_localtime( t, tmbuf );
+      md_localtime( t, &tmbuf );
 
     if ( dt == NULL && this->hour < tmbuf.tm_hour )
       next_day = true;
@@ -3110,9 +3135,9 @@ MDTime::to_utc( MDDate *dt,  bool is_gm_time ) noexcept
   tmbuf.tm_min  = this->minute;
   tmbuf.tm_sec  = this->sec;
   if ( is_gm_time )
-    t = md_timegm( tmbuf );
+    t = md_timegm( &tmbuf );
   else
-    t = md_mktime( tmbuf );
+    t = md_mktime( &tmbuf );
   if ( t == -1 )
     return 0;
   if ( next_day )
@@ -3120,3 +3145,95 @@ MDTime::to_utc( MDDate *dt,  bool is_gm_time ) noexcept
   return (uint64_t) t;
 }
 
+extern "C" {
+// MDName functions
+void md_name_zero(MDName_t *name) { ((rai::md::MDName *)name)->zero(); }
+bool md_name_equals_name(const MDName_t *name, const MDName_t *nm) { return ((rai::md::MDName *)name)->equals(*(rai::md::MDName *)nm); }
+bool md_name_equals(const MDName_t *name, const char *fname, size_t len2) { return ((rai::md::MDName *)name)->equals(fname, len2); }
+// MDDecimal functions
+void md_decimal_set(MDDecimal_t *dec, int64_t i, int8_t h) { ((rai::md::MDDecimal *)dec)->set(i, h); }
+int md_decimal_parse_len(MDDecimal_t *dec, const char *s, const size_t fsize) { return ((rai::md::MDDecimal *)dec)->parse(s, fsize); }
+int md_decimal_parse(MDDecimal_t *dec, const char *s) { return ((rai::md::MDDecimal *)dec)->parse(s); }
+void md_decimal_zero(MDDecimal_t *dec) { ((rai::md::MDDecimal *)dec)->zero(); }
+int md_decimal_get_real(MDDecimal_t *dec, double *val) { return ((rai::md::MDDecimal *)dec)->get_real(*val); }
+int md_decimal_get_integer(MDDecimal_t *dec, int64_t *val) { return ((rai::md::MDDecimal *)dec)->get_integer(*val); }
+int md_decimal_degrade(MDDecimal_t *dec) { return ((rai::md::MDDecimal *)dec)->degrade(); }
+void md_decimal_set_real(MDDecimal_t *dec, double fval) { ((rai::md::MDDecimal *)dec)->set_real(fval); }
+int md_decimal_get_decimal(MDDecimal_t *dec, MDReference_t *mref) { return ((rai::md::MDDecimal *)dec)->get_decimal(*(rai::md::MDReference *)mref); }
+size_t md_decimal_get_string(MDDecimal_t *dec, char *str, size_t len, bool expand_fractions) { return ((rai::md::MDDecimal *)dec)->get_string(str, len, expand_fractions); }
+// MDTime functions
+void md_time_set(MDTime_t *time, uint8_t h, uint8_t m, uint8_t s, uint32_t f, uint8_t r) { ((rai::md::MDTime *)time)->set(h, m, s, f, r); }
+int md_time_parse(MDTime_t *time, const char *fptr, const size_t fsize) { return ((rai::md::MDTime *)time)->parse(fptr, fsize); }
+void md_time_zero(MDTime_t *time) { ((rai::md::MDTime *)time)->zero(); }
+size_t md_time_get_string(MDTime_t *time, char *str, size_t len) { return ((rai::md::MDTime *)time)->get_string(str, len); }
+bool md_time_is_null(MDTime_t *time) { return ((rai::md::MDTime *)time)->is_null(); }
+uint8_t md_time_res(MDTime_t *time) { return ((rai::md::MDTime *)time)->res(); }
+const char *md_time_res_string(MDTime_t *time) { return ((rai::md::MDTime *)time)->res_string(); }
+int md_time_get_time(MDTime_t *time, MDReference_t *mref) { return ((rai::md::MDTime *)time)->get_time(*(rai::md::MDReference *)mref); }
+uint64_t md_time_to_utc(MDTime_t *time, MDDate_t *dt, bool is_gm_time) { return ((rai::md::MDTime *)time)->to_utc((rai::md::MDDate *)dt, is_gm_time); }
+// MDDate functions
+void md_date_set(MDDate_t *date, uint16_t y, uint8_t m, uint8_t d) { ((rai::md::MDDate *)date)->set(y, m, d); }
+void md_date_zero(MDDate_t *date) { ((rai::md::MDDate *)date)->zero(); }
+size_t md_date_get_string(MDDate_t *date, char *str, size_t len, MDDateFormat fmt) { return ((rai::md::MDDate *)date)->get_string(str, len, fmt); }
+bool md_date_is_null(MDDate_t *date) { return ((rai::md::MDDate *)date)->is_null(); }
+/*int md_date_parse_format(const char *s, MDDateFormat *fmt) { return rai::md::MDDate::parse_format(s, *fmt); }*/
+int md_date_parse(MDDate_t *date, const char *fptr, const size_t flen) { return ((rai::md::MDDate *)date)->parse(fptr, flen); }
+int md_date_get_date(MDDate_t *date, MDReference_t *mref) { return ((rai::md::MDDate *)date)->get_date(*(rai::md::MDReference *)mref); }
+uint64_t md_date_to_utc(MDDate_t *date, bool is_gm_time) { return ((rai::md::MDDate *)date)->to_utc(is_gm_time); }
+// MDReference functions
+void md_reference_zero(MDReference_t *ref) { ((rai::md::MDReference *)ref)->zero(); }
+void md_reference_set(MDReference_t *ref, void *fp, size_t sz, MDType ft, MDEndian end) { ((rai::md::MDReference *)ref)->set(fp, sz, ft, end); }
+void md_reference_set_string(MDReference_t *ref, const char *p, size_t len) { ((rai::md::MDReference *)ref)->set_string(p, len); }
+void md_reference_set_string_z(MDReference_t *ref, const char *p) { ((rai::md::MDReference *)ref)->set_string(p); }
+bool md_reference_equals(MDReference_t *ref, MDReference_t *mref) { return ((rai::md::MDReference *)ref)->equals(*(rai::md::MDReference *)mref); }
+
+void md_output_init( MDOutput_t **mout ) { *mout = (MDOutput_t *) new ( ::malloc( sizeof( MDOutput ) ) ) MDOutput(); } 
+void md_output_release( MDOutput_t *mout ) { delete reinterpret_cast<MDOutput *>( mout ); }
+int md_output_open( MDOutput_t *mout,  const char *fn,  const char *mode ) { return reinterpret_cast<MDOutput *>(mout)->open( fn, mode ); }
+int md_output_close( MDOutput_t *mout ) { return reinterpret_cast<MDOutput *>(mout)->close(); }
+int md_output_flush( MDOutput_t *mout ) { return reinterpret_cast<MDOutput *>(mout)->flush(); }
+size_t md_output_write( MDOutput_t *mout,  const void *buf,  size_t buflen ) { return reinterpret_cast<MDOutput *>(mout)->write( buf, buflen ); }
+int md_output_puts( MDOutput_t *mout,  const char *s ) { return reinterpret_cast<MDOutput *>(mout)->puts( s ); }
+int md_output_printf( MDOutput_t *mout,  const char *fmt, ... )
+{
+  MDOutput *p = reinterpret_cast<MDOutput *>(mout);
+  FILE * fp = ( p->filep == NULL ? stdout : (FILE *) p->filep );
+  va_list ap;
+  int n;
+  va_start( ap, fmt );
+  n = vfprintf( fp, fmt, ap );
+  va_end( ap );
+  return n;
+}
+int md_output_printe( MDOutput_t *mout,  const char *fmt, ... )
+{
+  MDOutput *p = reinterpret_cast<MDOutput *>(mout);
+  FILE * fp = ( p->filep == NULL ? stderr : (FILE *) p->filep );
+  va_list ap;
+  int n;
+  va_start( ap, fmt );
+  n = vfprintf( fp, fmt, ap );
+  va_end( ap );
+  if ( p->filep == NULL )
+    fflush( stderr );
+  return n;
+}
+int md_output_print_hex( MDOutput_t *mout,  const void *buf,  size_t buflen ) { return reinterpret_cast<MDOutput *>(mout)->print_hex( buf, buflen ); }
+int md_output_print_msg_hex( MDOutput_t *mout,  struct MDMsg_s *msg ) { return reinterpret_cast<MDOutput *>(mout)->print_hex( (MDMsg *) msg ); }
+
+MDFieldIter_t *md_field_iter_copy( MDFieldIter_t *iter ) { return (MDFieldIter_t *) static_cast<MDFieldIter *>(iter)->copy(); }
+int md_field_iter_get_name( MDFieldIter_t *iter,  MDName_t *name ) { return static_cast<MDFieldIter *>(iter)->get_name( *(MDName *) name ); }
+int md_field_iter_copy_name( MDFieldIter_t *iter,  char *name,  size_t *name_len,  MDFid *fid ) { return static_cast <MDFieldIter *>(iter)->copy_name( name, *name_len, *fid ); }
+int md_field_iter_get_reference( MDFieldIter_t *iter,  MDReference_t *mref ) { return static_cast<MDFieldIter *>(iter)->get_reference( *(MDReference *) mref ); }
+int md_field_iter_get_hint_reference( MDFieldIter_t *iter,  MDReference_t *mref ) { return static_cast<MDFieldIter *>(iter)->get_hint_reference( *(MDReference *) mref ); }
+int md_field_iter_get_enum( MDFieldIter_t *iter,  MDReference_t *mref, MDEnum_t *enu ) { return static_cast<MDFieldIter *>(iter)->get_enum( *(MDReference *) mref, *(MDEnum *) enu ); }
+int md_field_iter_find( MDFieldIter_t *iter,  const char *name, size_t name_len, MDReference_t *mref ) { return static_cast<MDFieldIter *>(iter)->find( name, name_len, *(MDReference *) mref ); }
+int md_field_iter_first( MDFieldIter_t *iter ) { return static_cast<MDFieldIter *>(iter)->first(); }
+int md_field_iter_next( MDFieldIter_t *iter ) { return static_cast<MDFieldIter *>(iter)->next(); }
+int md_field_iter_update( MDFieldIter_t *iter,  MDReference_t *mref ) { return static_cast<MDFieldIter *>(iter)->update( *(MDReference *) mref ); }
+size_t md_field_iter_fname_string( MDFieldIter_t *iter, char *fname_buf,  size_t *fname_len ) { return static_cast<MDFieldIter *>(iter)->fname_string( fname_buf, *fname_len ); }
+int md_field_iter_print( MDFieldIter_t *iter, MDOutput_t *out ) { return static_cast<MDFieldIter *>(iter)->print( (MDOutput *) out ); }
+int md_field_iter_print_fmt( MDFieldIter_t *iter, MDOutput_t *out, int indent_newline, const char *fname_fmt, const char *type_fmt ) { return static_cast<MDFieldIter *>(iter)->print( (MDOutput *) out, indent_newline, fname_fmt, type_fmt ); }
+#if 0
+#endif
+}

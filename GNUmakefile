@@ -159,7 +159,8 @@ $(objd)/md_msg.fpic.o : .copr/Makefile
 libraimd_files := md_msg md_field_iter md_iter_map json json_msg rv_msg tib_msg \
                   tib_sass_msg mf_msg rwf_msg rwf_writer rwf_dict md_dict cfile \
 		  app_a enum_def flistmap decimal md_list md_hash md_set md_zset \
-		  md_geo md_hll md_stream glue md_replay
+		  md_geo md_hll md_stream glue md_replay md_hash_tab dict_load \
+		  md_msg_writer
 libraimd_cfile := $(addprefix src/, $(addsuffix .cpp, $(libraimd_files)))
 libraimd_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(libraimd_files)))
 libraimd_dbjs  := $(addprefix $(objd)/, $(addsuffix .fpic.o, $(libraimd_files)))
@@ -388,6 +389,17 @@ map_test_lnk   := $(lnk_lib)
 $(bind)/map_test$(exe): $(map_test_objs) $(map_test_libs) $(lnk_dep)
 all_exes += $(bind)/map_test$(exe)
 all_depends +=  $(map_test_deps)
+
+read_msg_c_files := read_msg_c
+read_msg_c_cfile := $(addprefix test/, $(addsuffix .cpp, $(read_msg_c_files)))
+read_msg_c_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(read_msg_c_files)))
+read_msg_c_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(read_msg_c_files)))
+read_msg_c_libs  := $(raimd_lib)
+read_msg_c_lnk   := $(lnk_lib)
+
+$(bind)/read_msg_c$(exe): $(read_msg_c_objs) $(read_msg_c_libs) $(lnk_dep)
+all_exes += $(bind)/read_msg_c$(exe)
+all_depends +=  $(read_msg_c_deps)
 
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 

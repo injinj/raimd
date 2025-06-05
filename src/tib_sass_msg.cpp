@@ -6,6 +6,28 @@
 using namespace rai;
 using namespace md;
 
+extern "C" {
+MDMsg_t *tib_sass_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
+                              MDDict_t *d,  MDMsgMem_t *m )
+{
+  return TibSassMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+}
+MDMsgWriter_t *
+tib_sass_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *d,
+                            void *buf_ptr, size_t buf_sz )
+{
+  void * p = ((MDMsgMem *) mem)->make( sizeof( TibSassMsgWriter ) );
+  return new ( p ) TibSassMsgWriter( *(MDMsgMem *) mem, (MDDict *) d, buf_ptr, buf_sz );
+}
+MDMsgWriter_t *
+tib_sass_msg_writer_create_with_form( MDMsgMem_t *mem,  MDFormClass_t *form,
+                                      void *buf_ptr, size_t buf_sz )
+{
+  void * p = ((MDMsgMem *) mem)->make( sizeof( TibSassMsgWriter ) );
+  return new ( p ) TibSassMsgWriter( *(MDMsgMem *) mem, *(MDFormClass *) form, buf_ptr, buf_sz );
+}
+}
+
 static const char TibSassMsg_proto_string[] = "TIB_QFORM";
 const char *
 TibSassMsg::get_proto_string( void ) noexcept
@@ -20,6 +42,7 @@ TibSassMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch tibsassmsg_match = {
+  .name        = TibSassMsg_proto_string,
   .off         = 0,
   .len         = 4, /* cnt of buf[] */
   .hint_size   = 2, /* cnt of hint[] */
@@ -27,8 +50,7 @@ static MDMatch tibsassmsg_match = {
   .buf         = { 0x11, 0x11, 0x11, 0x12 },
   .hint        = { TIB_SASS_TYPE_ID, 0xa08b0040 },
   .is_msg_type = TibSassMsg::is_tibsassmsg,
-  .unpack      = (md_msg_unpack_f) TibSassMsg::unpack,
-  .name        = TibSassMsg_proto_string
+  .unpack      = (md_msg_unpack_f) TibSassMsg::unpack
 };
 
 bool
@@ -57,7 +79,7 @@ TibSassMsg::unpack( void *bb,  size_t off,  size_t end,  uint32_t,  MDDict *d,
   void * ptr;
   m.incr_ref();
   m.alloc( sizeof( TibSassMsg ), &ptr );
-  for ( ; d != NULL; d = d->next )
+  for ( ; d != NULL; d = d->get_next() )
     if ( d->dict_type[ 0 ] == 'c' ) /* need cfile type */
       break;
   return new ( ptr ) TibSassMsg( bb, off, off + msg_size + 8, d, m );
@@ -83,8 +105,8 @@ TibSassFieldIter::copy( void ) noexcept
 {
   void * ptr;
   TibSassFieldIter *iter;
-  this->iter_msg.mem->alloc( sizeof( TibSassFieldIter ), &ptr );
-  iter = new ( ptr ) TibSassFieldIter( this->iter_msg );
+  this->iter_msg().mem->alloc( sizeof( TibSassFieldIter ), &ptr );
+  iter = new ( ptr ) TibSassFieldIter( this->iter_msg() );
   this->dup_sass( *iter );
   return iter;
 }
@@ -101,7 +123,7 @@ TibSassFieldIter::get_name( MDName &name ) noexcept
 int
 TibSassFieldIter::get_reference( MDReference &mref ) noexcept
 {
-  uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
+  uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf;
 
   mref.ftype    = this->ftype;
   mref.fendian  = MD_BIG;
@@ -242,7 +264,7 @@ TibSassFieldIter::get_hint_reference( MDReference &mref ) noexcept
       break;
     }
     case MD_DECIMAL: {
-      uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
+      uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf;
       mref.fsize = 1;
       mref.ftype = MD_UINT;
       mref.fptr  = &buf[ this->field_start + 2 + this->fsize - 1 ];
@@ -256,7 +278,7 @@ TibSassFieldIter::get_hint_reference( MDReference &mref ) noexcept
       break;
     }
     /*case MD_PARTIAL: {
-      uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
+      uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf;
       mref.fsize   = 2;
       mref.ftype   = MD_UINT;
       mref.fptr    = &buf[ this->field_start + 2 ];
@@ -274,13 +296,13 @@ int
 TibSassFieldIter::find( const char *name,  size_t name_len,
                         MDReference &mref ) noexcept
 {
-  if ( this->iter_msg.dict == NULL )
+  if ( this->iter_msg().dict == NULL )
     return Err::NO_DICTIONARY;
 
   int status = Err::NOT_FOUND;
   if ( name != NULL ) {
     MDLookup by( name, name_len );
-    if ( this->iter_msg.dict->get( by ) ) {
+    if ( this->iter_msg().dict->get( by ) ) {
       if ( (status = this->first()) == 0 ) {
         do {
           if ( this->fid == by.fid )
@@ -296,8 +318,8 @@ int
 TibSassFieldIter::first( void ) noexcept
 {
   int x;
-  this->field_start = this->iter_msg.msg_off + 8;
-  this->field_end   = this->iter_msg.msg_end;
+  this->field_start = this->iter_msg().msg_off + 8;
+  this->field_end   = this->iter_msg().msg_end;
   this->field_index = 0;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
@@ -313,7 +335,7 @@ TibSassFieldIter::next( void ) noexcept
 {
   int x;
   this->field_start = this->field_end;
-  this->field_end   = this->iter_msg.msg_end;
+  this->field_end   = this->iter_msg().msg_end;
   this->field_index++;
   if ( this->field_start >= this->field_end )
     return Err::NOT_FOUND;
@@ -327,17 +349,17 @@ TibSassFieldIter::next( void ) noexcept
 int
 TibSassFieldIter::unpack( void ) noexcept
 {
-  const uint8_t * buf = (uint8_t *) this->iter_msg.msg_buf;
+  const uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf;
   size_t          i   = this->field_start;
 
   if ( i + 2 > this->field_end )
     return Err::BAD_FIELD_BOUNDS;
 
   this->fid = get_u16<MD_BIG>( &buf[ i ] ) & 0x3fffU;
-  if ( this->iter_msg.dict == NULL )
+  if ( this->iter_msg().dict == NULL )
     return Err::NO_DICTIONARY;
   MDLookup by( this->fid );
-  if ( ! this->iter_msg.dict->lookup( by ) ) {
+  if ( ! this->iter_msg().dict->lookup( by ) ) {
     if ( this->fid == 0 )
       return Err::NULL_FID;
     return Err::UNKNOWN_FID;
@@ -370,10 +392,19 @@ TibSassFieldIter::unpack( void ) noexcept
 
 TibSassMsgWriter::TibSassMsgWriter( MDMsgMem &m,  MDDict *d,  void *bb,
                                     size_t len ) noexcept
-    : mem( m ), dict( d ), form( NULL ), buf( (uint8_t *) bb ), off( 0 ),
-      buflen( len ), err( 0 ), unk_fid( 0 ), use_form( false )
 {
-  for ( ; d != NULL; d = d->next ) {
+  this->msg_mem  = &m;
+  this->buf      = (uint8_t *) bb;
+  this->off      = 0;
+  this->buflen   = len;
+  this->wr_type  = TIB_SASS_TYPE_ID;
+  this->err      = 0;
+  this->dict     = NULL;
+  this->form     = NULL;
+  this->unk_fid  = 0;
+  this->use_form = false;
+
+  for ( ; d != NULL; d = d->get_next() ) {
     if ( d->dict_type[ 0 ] == 'c' ) { /* look for cfile type */
       this->dict = d;
       break;
@@ -383,9 +414,17 @@ TibSassMsgWriter::TibSassMsgWriter( MDMsgMem &m,  MDDict *d,  void *bb,
 
 TibSassMsgWriter::TibSassMsgWriter( MDMsgMem &m,  MDFormClass &f,  void *bb,
                                     size_t len ) noexcept
-    : mem( m ), dict( &f.dict ), form( &f ), buf( (uint8_t *) bb ), off( 0 ),
-      buflen( len ), err( 0 ), unk_fid( 0 ), use_form( false )
 {
+  this->msg_mem  = &m;
+  this->buf      = (uint8_t *) bb;
+  this->off      = 0;
+  this->buflen   = len;
+  this->wr_type  = TIB_SASS_TYPE_ID;
+  this->err      = 0;
+  this->dict     = &f.dict;
+  this->form     = &f;
+  this->unk_fid  = 0;
+  this->use_form = false;
 }
 
 bool
@@ -405,7 +444,7 @@ TibSassMsgWriter::resize( size_t len ) noexcept
   if ( new_len > max_size )
     new_len = max_size;
   uint8_t * new_buf = this->buf;
-  this->mem.extend( old_len, new_len, &new_buf );
+  this->mem().extend( old_len, new_len, &new_buf );
   this->buf    = new_buf;
   this->buflen = new_len;
   return this->off + 8 + len <= this->buflen;
@@ -993,7 +1032,7 @@ TibSassMsgWriter::append_iter( MDFieldIter *iter ) noexcept
   if ( ! this->has_space( len ) )
     return this->error( Err::NO_SPACE );
   uint8_t * ptr  = &this->buf[ this->off + 8 ],
-          * iptr = &((uint8_t *) iter->iter_msg.msg_buf)[ iter->field_start ];
+          * iptr = &((uint8_t *) iter->iter_msg().msg_buf)[ iter->field_start ];
   ::memcpy( ptr, iptr, len );
   this->off += len;
   return *this;

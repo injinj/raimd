@@ -37,6 +37,7 @@ HLLMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch hllmsg_match = {
+  .name        = HLLMsg_proto_string,
   .off         = 0,
   .len         = 4, /* cnt of buf[] */
   .hint_size   = 0, /* cnt of hint[] */
@@ -44,8 +45,7 @@ static MDMatch hllmsg_match = {
   .buf         = { 0x02, 0x06, 0x0e, 0x06 },
   .hint        = { 0 },
   .is_msg_type = HLLMsg::is_hllmsg,
-  .unpack      = HLLMsg::unpack,
-  .name        = HLLMsg_proto_string
+  .unpack      = HLLMsg::unpack
 };
 
 bool
