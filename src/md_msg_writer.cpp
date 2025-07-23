@@ -62,6 +62,8 @@ md_msg_writer_update_hdr( MDMsgWriter_t *w )
       return ((JsonMsgWriter *) w)->update_hdr();
     case RWF_MSG_TYPE_ID:
       return ((RwfMsgWriter *) w)->update_hdr();
+    case RWF_FIELD_LIST_TYPE_ID:
+      return ((RwfFieldListWriter *) w)->update_hdr();
     default:
       return 0;
   }
@@ -84,6 +86,7 @@ md_msg_writer_convert_msg( MDMsgWriter_t *w, MDMsg_t *m, bool skip_hdr )
       ((JsonMsgWriter *) w)->convert_msg( *static_cast<MDMsg *>( m ) );
       break;
     case RWF_MSG_TYPE_ID:
+    case RWF_FIELD_LIST_TYPE_ID:
       ((RwfFieldListWriter *) w)->convert_msg( *static_cast<MDMsg *>( m ), skip_hdr );
       break;
     default:
@@ -116,6 +119,7 @@ md_msg_writer_append_sass_hdr( MDMsgWriter_t *w,  MDFormClass_t *form,
                        rec_type, seqno, status, subj, sublen );
       break;
     case RWF_MSG_TYPE_ID:
+    case RWF_FIELD_LIST_TYPE_ID:
       append_sass_hdr( *(RwfFieldListWriter *) w, (MDFormClass *) form, msg_type,
                        rec_type, seqno, status, subj, sublen );
       break;

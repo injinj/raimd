@@ -6,6 +6,8 @@
 #include <string.h>
 /* malloc(), free() */
 #include <stdlib.h>
+/* C bool */
+#include <stdbool.h>
 /* __BYTE_ORDER */
 #include <endian.h>
 
@@ -80,8 +82,8 @@ int md_output_close( MDOutput_t *mout );
 int md_output_flush( MDOutput_t *mout );
 size_t md_output_write( MDOutput_t *mout,  const void *buf,  size_t buflen );
 int md_output_puts( MDOutput_t *mout,  const char *s );
-int md_output_printf( MDOutput_t *mout,  const char *fmt, ... ) __attribute__((format(printf,2,3)));;
-int md_output_printe( MDOutput_t *mout,  const char *fmt, ... ) __attribute__((format(printf,2,3)));;
+int md_output_printf( MDOutput_t *mout,  const char *fmt, ... ) __attribute__((format(printf,2,3)));
+int md_output_printe( MDOutput_t *mout,  const char *fmt, ... ) __attribute__((format(printf,2,3)));
 int md_output_print_hex( MDOutput_t *mout,  const void *buf,  size_t buflen );
 struct MDMsg_s;
 int md_output_print_msg_hex( MDOutput_t *mout,  struct MDMsg_s *msg );

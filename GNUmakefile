@@ -7,8 +7,6 @@ lsb_dist_ver := $(shell if [ -f /etc/os-release ] ; then \
 		  grep '^VERSION=' /etc/os-release | sed 's/.*=[\"]*//' | sed 's/[ \"].*//' ; \
                   elif [ -x /usr/bin/lsb_release ] ; then \
                   lsb_release -rs | sed 's/[.].*//' ; else uname -r | sed 's/[-].*//' ; fi)
-#lsb_dist     := $(shell if [ -x /usr/bin/lsb_release ] ; then lsb_release -is ; else uname -s ; fi)
-#lsb_dist_ver := $(shell if [ -x /usr/bin/lsb_release ] ; then lsb_release -rs | sed 's/[.].*//' ; else uname -r | sed 's/[-].*//' ; fi)
 uname_m      := $(shell uname -m)
 
 short_dist_lc := $(patsubst CentOS,rh,$(patsubst RedHatEnterprise,rh,\
@@ -400,6 +398,17 @@ read_msg_c_lnk   := $(lnk_lib)
 $(bind)/read_msg_c$(exe): $(read_msg_c_objs) $(read_msg_c_libs) $(lnk_dep)
 all_exes += $(bind)/read_msg_c$(exe)
 all_depends +=  $(read_msg_c_deps)
+
+test_msg_c_files := test_msg_c
+test_msg_c_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_msg_c_files)))
+test_msg_c_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_msg_c_files)))
+test_msg_c_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_msg_c_files)))
+test_msg_c_libs  := $(raimd_lib)
+test_msg_c_lnk   := $(lnk_lib)
+
+$(bind)/test_msg_c$(exe): $(test_msg_c_objs) $(test_msg_c_libs) $(lnk_dep)
+all_exes += $(bind)/test_msg_c$(exe)
+all_depends +=  $(test_msg_c_deps)
 
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 

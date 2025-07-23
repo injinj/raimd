@@ -1249,5 +1249,42 @@ md_dict_get_form_class( const MDDict_t *dict, MDLookup_t *fc )
 {
   return (MDFormClass_t *) ((MDDict *) dict)->get_form_class( *(MDLookup *) fc );
 }
+
+bool
+md_lookup_create_by_fid( MDLookup_t **p, MDFid fid )
+{
+  MDLookup_t *x = (MDLookup_t *) ::malloc( sizeof( MDLookup_t ) );
+  if ( x == NULL ) {
+    *p = NULL;
+    return false;
+  }
+  md_lookup_init_by_fid( x, fid );
+  *p = x;
+  return true;
+}
+
+bool
+md_lookup_create_by_name( MDLookup_t **p, const char *fn, size_t fn_len )
+{
+  MDLookup_t *x = (MDLookup_t *) ::malloc( sizeof( MDLookup_t ) + fn_len + 1 );
+  char * s;
+  if ( x == NULL ) {
+    *p = NULL;
+    return false;
+  }
+  s = (char *) &x[ 1 ];
+  ::memcpy( s, fn, fn_len );
+  s[ fn_len ] = '\0';
+  md_lookup_init_by_name( x, s, fn_len );
+  *p = x;
+  return true;
+}
+
+void
+md_lookup_destroy( MDLookup_t *p )
+{
+  ::free( p );
+}
+
 }
 

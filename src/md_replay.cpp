@@ -11,10 +11,14 @@ bool
 MDReplay::open( const char *fname ) noexcept
 {
   this->close();
-  this->input = ::fopen( fname, "rb" );
-  if ( this->input == NULL ) {
-    perror( "fopen" );
-    return false;
+  if ( fname == NULL || ::strcmp( fname, "-" ) == 0 )
+    this->input = NULL;
+  else {
+    this->input = ::fopen( fname, "rb" );
+    if ( this->input == NULL ) {
+      perror( "fopen" );
+      return false;
+    }
   }
   return true;
 }
@@ -26,6 +30,13 @@ MDReplay::close( void ) noexcept
     ::fclose( (FILE *) this->input );
     this->input = NULL;
   }
+}
+
+MDReplay::~MDReplay() noexcept
+{
+  if ( this->input != NULL )
+    this->close();
+  md_msg_mem_release( &this->mem );
 }
 
 bool
@@ -87,7 +98,7 @@ MDReplay::fillbuf( size_t need_bytes ) noexcept
   for (;;) {
     FILE  * fp = (FILE *) this->input;
     ssize_t n;
-    n = ::fread( &this->buf[ this->buflen ], 1, left, fp );
+    n = ::fread( &this->buf[ this->buflen ], 1, left, fp ? fp : stdin );
     if ( n <= 0 ) {
       if ( n < 0 )
         perror( "fread" );
@@ -155,6 +166,20 @@ MDReplay::parse( void ) noexcept
 }
 
 extern "C" {
+bool md_replay_create( MDReplay_t **rr,  void *inp ) {
+  void *p = ::malloc( sizeof( MDReplay ) );
+  if ( ! p ) { *rr = NULL; return false; }
+  MDReplay *r = new ( p ) MDReplay();
+  /*r->init( inp );*/
+  r->input = inp;
+  *rr = r;
+  return true;
+}
+void md_replay_destroy( MDReplay_t *r ) {
+  if ( r->input != NULL )
+    ((MDReplay *) r)->close();
+  delete (MDReplay *) r;
+}
 void md_replay_init( MDReplay_t *r,  void *inp ) { ((MDReplay *) r)->init( inp ); }
 bool md_replay_open( MDReplay_t *r,  const char *fname ) { return ((MDReplay *) r)->open( fname ); }
 void md_replay_close( MDReplay_t *r ) { ((MDReplay *) r)->close(); }

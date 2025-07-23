@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <raimd/md_msg.h>
 
 using namespace rai;
@@ -319,7 +320,15 @@ MDMsgMem::alloc_slow( size_t size ) noexcept
 #pragma GCC diagnostic pop
 #endif
   this->mem_off = (uint32_t) size;
-  return p->mem;
+  void * x = p->mem;
+  int i = 0;
+  for ( p = this->blk_ptr; p != &this->blk; p = p->next )
+    if ( ++i == 100 )
+      break;
+  if ( p != &this->blk ) {
+    fprintf( stderr, "lost blk\n" );
+  }
+  return x;
 }
 
 void
@@ -345,6 +354,14 @@ MDMsgMem::extend( size_t old_size,  size_t new_size,  void *ptr ) noexcept
 void
 MDMsgMem::release( void ) noexcept
 {
+  MDMemBlock_t *p;
+  int i = 0;
+  for ( p = this->blk_ptr; p != &this->blk; p = p->next )
+    if ( ++i == 100 )
+      break;
+  if ( p != &this->blk ) {
+    fprintf( stderr, "lost blk\n" );
+  }
   /* release malloc()ed mem */
   while ( this->blk_ptr != &this->blk ) {
     MDMemBlock_t * next = this->blk_ptr->next;
@@ -371,7 +388,6 @@ MDMsgMem::reset( MDMemBlock_t *sav,  uint32_t off ) noexcept
   this->mem_off = off;
 }
 
-#include <stdio.h>
 void
 MDMsgMem::error( void ) noexcept
 {
@@ -406,6 +422,8 @@ MDMsg::print( MDOutput *out,  int indent_newline,  const char *fname_fmt,
 }
 
 extern "C" {
+bool md_msg_mem_create( MDMsgMem_t **m ) { *m = (MDMsgMem_t *) ::malloc( sizeof( MDMsgMem_t ) ); if ( *m != NULL ) { md_msg_mem_init( *m ); return true; } return false; }
+void md_msg_mem_destroy( MDMsgMem_t *m ) { md_msg_mem_release( m ); ::free( m ); }
 void md_msg_mem_init( MDMsgMem_t *m ) { return ((MDMsgMem *) m)->init(); }
 void md_msg_mem_reuse( MDMsgMem_t *m ) { return ((MDMsgMem *) m)->reuse(); }
 void md_msg_mem_alloc( MDMsgMem_t *m,  size_t size,  void *ptr ) { return ((MDMsgMem *) m)->alloc( size, ptr ); }

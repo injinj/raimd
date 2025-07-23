@@ -951,7 +951,7 @@ RvMsgWriter::append_ref( const char *fname,  size_t fname_len,
   if ( mref.fendian != MD_BIG && fsize > 1 &&
        ( mref.ftype == MD_UINT || mref.ftype == MD_INT ||
          mref.ftype == MD_REAL || mref.ftype == MD_DATETIME ||
-         mref.ftype == MD_IPDATA ) ) {
+         mref.ftype == MD_IPDATA || mref.ftype == MD_BOOLEAN ) ) {
     size_t off = fsize;
     ptr[ 0 ] = mref.fptr[ --off ];
     ptr[ 1 ] = mref.fptr[ --off ];

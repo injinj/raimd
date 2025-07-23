@@ -26,6 +26,9 @@ typedef struct MDLookup_s {
   uint16_t     map_num;
 } MDLookup_t;
 
+bool md_lookup_create_by_fid( MDLookup_t **p, MDFid fid );
+bool md_lookup_create_by_name( MDLookup_t **p, const char *fn, size_t fn_len );
+void md_lookup_destroy( MDLookup_t *p );
 void md_lookup_init_by_fid( MDLookup_t *p, MDFid fid );
 void md_lookup_init_by_name( MDLookup_t *p, const char *fn, size_t fn_len );
 void md_lookup_mf_type( MDLookup_t *p, uint8_t *mf_type, uint32_t *mf_len, uint32_t *enum_len );

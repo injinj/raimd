@@ -20,6 +20,8 @@ typedef struct MDReplay_s {
   void     * input;
 } MDReplay_t;
 
+bool md_replay_create( MDReplay_t **r,  void *inp );
+void md_replay_destroy( MDReplay_t *r );
 void md_replay_init( MDReplay_t *r,  void *inp );
 bool md_replay_open( MDReplay_t *r,  const char *fname );
 void md_replay_close( MDReplay_t *r );
@@ -35,9 +37,12 @@ namespace md {
 
 struct MDReplay : public MDReplay_s {
 
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void *ptr ) { ::free( ptr ); }
   MDReplay( void *inp = NULL ) {
     this->init( inp );
   }
+  ~MDReplay() noexcept;
   void init( void *inp ) {
     md_msg_mem_init( &this->mem );
     this->buf     = NULL;

@@ -25,6 +25,8 @@ typedef struct MDMsgMem_s {
 } MDMsgMem_t;
 
 void md_msg_mem_init( MDMsgMem_t *m );
+bool md_msg_mem_create( MDMsgMem_t **m );
+void md_msg_mem_destroy( MDMsgMem_t *m );
 void md_msg_mem_reuse( MDMsgMem_t *m );
 void md_msg_mem_alloc( MDMsgMem_t *m,  size_t size,  void *ptr );
 void * md_msg_mem_make( MDMsgMem_t *m,  size_t size );
