@@ -27,6 +27,26 @@ md_subject_key_hash( const MDSubjectKey_t *k )
   return ((const rai::md::MDSubjectKey *) k)->hash();
 }
 
+bool
+md_hash_tab_create( MDHashTab_t **tab,  size_t ini_sz,  MDHashTab_key_f key )
+{
+  MDHashTab_t * t = (MDHashTab_t *) ::malloc( sizeof( MDHashTab_t ) );
+  if ( t == NULL ) {
+    *tab = NULL;
+    return false;
+  }
+  md_hash_tab_init( t, ini_sz, key );
+  *tab = t;
+   return true;
+}
+
+void
+md_hash_tab_destroy( MDHashTab_t *tab )
+{
+  md_hash_tab_release( tab );
+  ::free( tab );
+}
+
 void
 md_hash_tab_init( MDHashTab_t *tab,  size_t ini_sz,  MDHashTab_key_f key )
 {

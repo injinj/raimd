@@ -17,12 +17,14 @@ size_t md_subject_key_hash( const MDSubjectKey_t *k );
 typedef void (*MDHashTab_key_f)( void *value,  MDSubjectKey_t *k );
 
 typedef struct MDHashTab_s {
-  void            ** tab;
-  size_t             tab_mask,
-                     elem_count;
-  MDHashTab_key_f    get_key;
+  void         ** tab;
+  size_t          tab_mask,
+                  elem_count;
+  MDHashTab_key_f get_key;
 } MDHashTab_t;
 
+bool md_hash_tab_create( MDHashTab_t **tab,  size_t ini_sz,  MDHashTab_key_f key );
+void md_hash_tab_destroy( MDHashTab_t *tab );
 void md_hash_tab_init( MDHashTab_t *tab,  size_t ini_sz,  MDHashTab_key_f key );
 void md_hash_tab_release( MDHashTab_t *tab );
 bool md_hash_tab_locate( MDHashTab_t *tab,  const MDSubjectKey_t *k,  size_t *pos );

@@ -12,6 +12,8 @@ extern "C" {
 #endif
 
 MDDict_t * md_load_dict_files( const char *path,  bool verbose );
+struct MDMsg_s;
+MDDict_t * md_load_sass_dict( struct MDMsg_s *m );
 
 #ifdef __cplusplus
 }

@@ -13,7 +13,7 @@ MDMsg_t *
 rwf_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
                 MDDict_t *d,  MDMsgMem_t *m )
 {
-  return RwfMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+  return RwfMsg::unpack_message( bb, off, end, h, (MDDict *)d, *(MDMsgMem *) m);
 }
 
 MDMsg_t *
@@ -28,6 +28,12 @@ MDMsg_t *
 md_msg_rwf_get_container_msg( MDMsg_t *m )
 {
   return (MDMsg_t *) static_cast<RwfMsg *>( m )->get_container_msg();
+}
+
+uint32_t
+md_msg_rwf_get_base_type_id( MDMsg_t *m )
+{
+  return static_cast<RwfMsg *>( m )->base.type_id;
 }
 
 bool

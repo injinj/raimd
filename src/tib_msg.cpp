@@ -629,7 +629,7 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
     if ( ! this->has_space( 2 ) )
       return this->error( Err::NO_SPACE );
 
-    ptr = &this->buf[ this->off + this->hdrlen + mref.fsize ];
+    ptr = &this->buf[ this->off + this->hdrlen ];
     ptr[ 0 ] = MD_UINT;
     ptr[ 1 ] = (uint8_t) mref.fentrysz;
     this->off += 2;
@@ -638,7 +638,7 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
     if ( ! this->has_space( 4 ) )
       return this->error( Err::NO_SPACE );
 
-    ptr = &this->buf[ this->off + this->hdrlen + mref.fsize ];
+    ptr = &this->buf[ this->off + this->hdrlen ];
     ptr[ 0 ] = MD_UINT;
     ptr[ 1 ] = 2;
     ptr[ 2 ] = (uint8_t) ( TIB_HINT_MF_ENUM >> 8 );
@@ -649,7 +649,7 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
     if ( ! this->has_space( href.fsize + 2 ) )
       return this->error( Err::NO_SPACE );
 
-    ptr = &this->buf[ this->off + this->hdrlen + mref.fsize ];
+    ptr = &this->buf[ this->off + this->hdrlen ];
     ptr[ 0 ] = href.ftype;
     ptr[ 1 ] = (uint8_t) href.fsize;
     ::memcpy( &ptr[ 2 ], href.fptr, href.fsize );

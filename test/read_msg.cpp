@@ -450,7 +450,7 @@ main( int argc, char **argv )
     }
     if ( cvt_type_id != 0 && m != NULL ) {
       MDFormClass * form  = NULL;
-      size_t   buf_sz     = msg_sz;
+      size_t   buf_sz     = ( msg_sz > 1024 ? msg_sz : 1024 );
       void   * buf_ptr    = mem.make( buf_sz );
       uint16_t flist      = 0,
                msg_type   = MD_UPDATE_TYPE,

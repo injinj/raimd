@@ -1,5 +1,9 @@
 #include <stdio.h>
 #include <raimd/dict_load.h>
+#include <raimd/md_msg.h>
+
+using namespace rai;
+using namespace md;
 
 extern "C" {
 
@@ -9,13 +13,24 @@ md_load_dict_files( const char *path,  bool verbose )
   return (MDDict_t *) rai::md::load_dict_files( path, verbose );
 }
 
+MDDict_t *
+md_load_sass_dict( MDMsg_t *m )
+{
+  MDDictBuild dict_build;
+  MDDict * dict = NULL;
+  if ( CFile::unpack_sass( dict_build, static_cast<MDMsg *>( m ) ) != 0 ) {
+    fprintf( stderr, "Dict index error\n" );
+    return NULL;
+  }
+  dict_build.index_dict( "cfile", dict );
+  dict_build.clear_build();
+  return dict;
 }
 
-namespace rai {
-namespace md {
+}
 
 MDDict *
-load_dict_files( const char *path,  bool verbose ) noexcept
+rai::md::load_dict_files( const char *path,  bool verbose ) noexcept
 {
   MDDictBuild dict_build;
   MDDict * dict = NULL;
@@ -59,5 +74,3 @@ load_dict_files( const char *path,  bool verbose ) noexcept
   return NULL;
 }
 
-}
-}

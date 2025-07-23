@@ -32,6 +32,7 @@ MDMsg_t *rwf_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
 MDMsg_t *rwf_msg_unpack_field_list( void *bb,  size_t off,  size_t end,
                                     uint32_t h,  MDDict_t *d,  MDMsgMem_t *m );
 MDMsg_t *md_msg_rwf_get_container_msg( MDMsg_t *m );
+uint32_t md_msg_rwf_get_base_type_id( MDMsg_t *m );
 bool md_msg_rwf_get_flist( MDMsg_t *m,  uint16_t *flist );
 bool md_msg_rwf_get_msg_flags( MDMsg_t *m, uint64_t *fl );
 bool md_msg_rwf_get_msg_seqnum( MDMsg_t *m,  uint32_t *seqnum );

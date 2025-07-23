@@ -72,7 +72,7 @@ struct RwfMsgWriterBase : public MDMsgWriterBase {
   }
   bool check_prefix( size_t len ) {
     if ( len > this->prefix_len ) {
-      size_t need = this->prefix_len - len;
+      size_t need = len - this->prefix_len;
       if ( ! this->has_space( need ) )
         return false;
       ::memmove( &this->buf[ need ], this->buf, this->off );
@@ -549,6 +549,7 @@ struct RwfFieldListWriter : public RwfMsgWriterBase {
   RwfFieldListWriter( MDMsgMem &m,  MDDict *d,  void *bb,  size_t len )
     : RwfMsgWriterBase( W_FIELD_LIST, m, d, bb, len ), nflds( 0 ),
       flist( 0 ), dict_id( 1 ) {
+    this->wr_type = RWF_FIELD_LIST_TYPE_ID;
     this->reset();
   }
   void reset( void ) {
