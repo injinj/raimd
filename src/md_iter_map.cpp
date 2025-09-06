@@ -133,6 +133,21 @@ static inline bool get_real_size( void *ptr,  size_t sz,  MDReference &mref ) {
     }
     return true;
   }
+  if ( mref.ftype == MD_STRING && mref.fsize > 0 ) {
+    const char *p = (const char *) mref.fptr;
+    const char *e = &p[ mref.fsize ];
+    char *x = NULL;
+    switch ( sz ) {
+      case 4: ((float *) ptr)[ 0 ]  = parse_float<float>( p, &x );  break;
+      case 8: ((double *) ptr)[ 0 ] = parse_float<double>( p, &x ); break;
+      default: return false;
+    }
+    while ( e > p && ( *(e - 1) == '\0' || *(e - 1) == ' ' ) )
+      e--;
+    if ( e != x )
+      return false;
+    return true;
+  }
   int x = 0;
   switch ( sz ) {
     case 4: x = cvt_number<float> ( mref , ((float *) ptr)[ 0 ] ); break;
