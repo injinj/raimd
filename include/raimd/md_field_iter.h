@@ -39,6 +39,7 @@ int md_field_iter_print_fmt( MDFieldIter_t *iter, MDOutput_t *out, int indent_ne
 typedef struct MDFieldReader_s MDFieldReader_t;
 typedef struct MDMsg_s MDMsg_t;
 MDFieldReader_t *md_msg_get_field_reader( MDMsg_t *m );
+MDType md_field_reader_type( MDFieldReader_t *rd );
 bool md_field_reader_find( MDFieldReader_t *rd, const char *fn,  size_t flen );
 bool md_field_reader_first( MDFieldReader_t *rd, MDName_t *n );
 bool md_field_reader_next( MDFieldReader_t *rd, MDName_t *n );
