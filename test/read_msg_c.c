@@ -787,7 +787,8 @@ main(int argc, char** argv)
     fprintf(stderr, "discarded %" PRIu64 "\n", discard_cnt);
   
   if (fn != NULL && filep != NULL)
-    fclose(filep);
+    md_replay_close( &replay );
+    /*fclose(filep);*/
   
   if (md_output_close(bout) != 0) {
     perror(out);

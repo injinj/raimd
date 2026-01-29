@@ -11,6 +11,7 @@ using namespace rai;
 using namespace md;
 
 static void test_lookup( MDDictBuild &dict_build,  MDDict *dict ) noexcept;
+static void test_fields( const char *test,  MDDict *dict ) noexcept;
 static void gen_sass_fields( MDDictBuild &dict_build,  MDDict *dict ) noexcept;
 static void gen_rdm_fields( MDDict *dict ) noexcept;
 static void gen_enum_defs( MDDict *dict ) noexcept;
@@ -29,11 +30,13 @@ main( int argc, char **argv )
 {
   MDDictBuild dict_build;
   MDDict * dict = NULL;
-  const char * path = ::getenv( "cfile_path" );
+  const char * path = ::getenv( "cfile_path" ),
+             * test = NULL;
   bool gen_fields   = ( get_arg( "-g", argc, argv ) > 0 );
   bool gen_app_a    = ( get_arg( "-a", argc, argv ) > 0 );
   bool gen_enumdefs = ( get_arg( "-e", argc, argv ) > 0 );
   int  path_arg     = get_arg( "-p", argc, argv );
+  int  test_arg     = get_arg( "-x", argc, argv );
 
   if ( get_arg( "-h", argc, argv ) > 0 ) {
     fprintf( stderr,
@@ -47,11 +50,13 @@ main( int argc, char **argv )
   }
   if ( path_arg > 0 && path_arg + 1 < argc )
     path = argv[ path_arg + 1 ];
+  if ( test_arg > 0 && test_arg + 1 < argc )
+    test = argv[ test_arg + 1 ];
   /* load RDM dictionary */
   dict_build.debug_flags = MD_DICT_PRINT_FILES;
   if ( FlistMap::parse_path( dict_build, path, "flistmapping" ) == 0 ) {
     dict_build.index_dict( "flist", dict );
-    if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs ) {
+    if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs && ! test ) {
       test_lookup( dict_build, dict );
       printf( "\n" );
     }
@@ -60,7 +65,7 @@ main( int argc, char **argv )
   if ( AppA::parse_path( dict_build, path, "RDMFieldDictionary" ) == 0 ) {
     EnumDef::parse_path( dict_build, path, "enumtype.def" );
     dict_build.index_dict( "app_a", dict );
-    if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs ) {
+    if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs && ! test ) {
       test_lookup( dict_build, dict );
       printf( "\n" );
     }
@@ -84,8 +89,20 @@ main( int argc, char **argv )
     else
       gen_enum_defs( dict );
   }
+  if ( test != NULL ) {
+    if ( dict == NULL )
+      fprintf( stderr, "No RDMFieldDictionary loaded\n" );
+    else {
+      dict_build.clear_build();
+      if ( CFile::parse_path( dict_build, path, "tss_fields.cf" ) == 0 ) {
+        CFile::parse_path( dict_build, path, "tss_records.cf" );
+        dict_build.index_dict( "cfile", dict );
+      }
+      test_fields( test, dict );
+    }
+  }
   /* load Tib cfiles */
-  if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs ) {
+  if ( ! gen_fields && ! gen_app_a && ! gen_enumdefs && ! test ) {
     dict_build.clear_build();
     if ( CFile::parse_path( dict_build, path, "tss_fields.cf" ) == 0 ) {
       CFile::parse_path( dict_build, path, "tss_records.cf" );
@@ -129,6 +146,40 @@ const char *str =
   }
 
   return 0;
+}
+
+static void
+test_fields( const char *test,  MDDict *dict ) noexcept
+{
+  FILE *fp = ::fopen( test, "rb" );
+  if ( fp == NULL ) {
+    perror( test );
+    return;
+  }
+  char field[ 260 ];
+  while ( ::fgets( field, sizeof( field ), fp ) ) {
+    size_t len = ::strlen( field );
+    while ( len > 0 && field[ len - 1 ] <= ' ' )
+      field[ --len ] = '\0';
+    if ( len > 0 ) {
+      MDLookup nm( field, len );
+      const char *a = NULL, *c = NULL;
+      for ( MDDict *d = dict; d != NULL; d = (MDDict *) d->next ) {
+        MDLookup nm( field, len );
+        if ( d->dict_type[ 0 ] == 'a' && d->get( nm ) )
+          a = d->dict_type;
+        else if ( d->dict_type[ 0 ] == 'c' && d->get( nm ) )
+          c = d->dict_type;
+      }
+      if ( a || c ) {
+        printf( "%s found %s %s\n", field, a?a:"", c?c:"" );
+      }
+      else {
+        printf( "%s not found\n", field );
+      }
+    }
+  }
+  ::fclose( fp );
 }
 
 static void

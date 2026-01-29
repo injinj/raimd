@@ -1337,8 +1337,16 @@ RwfFieldListWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
   MDEndian  fendian = mref.fendian;
 
   switch ( ftype ) {
-    case MD_BOOLEAN:
     case MD_ENUM:
+      if ( mref.ftype == MD_STRING ) {
+        val.u64 = 0;
+        if ( this->dict != NULL &&
+             this->dict->get_enum_val( fid, (const char *) mref.fptr,
+                                       mref.fsize, val.u16 ) )
+          return this->pack_uval( fid, val.u64 );
+      }
+      /* FALLTHRU */
+    case MD_BOOLEAN:
     case MD_UINT:
       if ( cvt_number<uint64_t>( mref, val.u64 ) != 0 )
         return this->set_error( Err::BAD_CVT_NUMBER );
@@ -1611,8 +1619,7 @@ RwfFieldListWriter::convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept
     if ( (status = iter->first()) == 0 ) {
       do {
         MDName      n;
-        MDReference mref, href;
-        MDEnum      enu;
+        MDReference mref;
         if ( (status = iter->get_name( n )) == 0 &&
              (status = iter->get_reference( mref )) == 0 ) {
           if ( skip_hdr && is_sass_hdr( n ) )

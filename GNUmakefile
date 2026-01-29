@@ -410,6 +410,17 @@ $(bind)/test_msg_c$(exe): $(test_msg_c_objs) $(test_msg_c_libs) $(lnk_dep)
 all_exes += $(bind)/test_msg_c$(exe)
 all_depends +=  $(test_msg_c_deps)
 
+#rename_msg_files := rename_msg
+#rename_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(rename_msg_files)))
+#rename_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(rename_msg_files)))
+#rename_msg_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(rename_msg_files)))
+#rename_msg_libs  := $(raimd_lib)
+#rename_msg_lnk   := $(lnk_lib)
+#
+#$(bind)/rename_msg$(exe): $(rename_msg_objs) $(rename_msg_libs) $(lnk_dep)
+#all_exes += $(bind)/rename_msg$(exe)
+#all_depends +=  $(rename_msg_deps)
+
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 
 all: $(all_libs) $(all_dlls) $(all_exes) cmake
