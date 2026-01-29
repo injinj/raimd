@@ -301,8 +301,8 @@ struct MDDict : public MDDict_s {
     uint32_t h = dict_hash( fname, fname_len ) & ( this->ht_size - 1 );
 
     uint32_t bits = this->fid_bits, /* size in bits of each hash entry */
-             mask = ( 1U << bits ) - 1, /* mask for bits */
-             val;
+             mask = ( 1U << bits ) - 1; /* mask for bits */
+    uint64_t val;
     /* the hash table */
     const uint8_t * tab = &((const uint8_t *) (void *) this)[ this->ht_off ];
     /* scan the linear hash table until found or zero (not found) */

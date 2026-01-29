@@ -486,6 +486,17 @@ main( int argc, char **argv )
             rd.get_uint( msg_type );
           if ( rd.find( MD_SASS_SEQ_NO, MD_SASS_SEQ_NO_LEN ) )
             rd.get_uint( seqno );
+          if ( rd.find( MD_SASS_REC_TYPE, MD_SASS_REC_TYPE_LEN ) ) {
+            if ( rd.mref.ftype == MD_STRING ) {
+              if ( cfile_dict != NULL ) {
+                MDLookup fc( (const char *) rd.mref.fptr, rd.mref.fsize );
+                if ( cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE )
+                  rec_type = fc.fid;
+              }
+            }
+            else
+              rd.get_uint( rec_type );
+          }
           break;
         }
       }
@@ -513,6 +524,24 @@ main( int argc, char **argv )
                 data->flist    = flist;
                 data->form     = form;
                 seqno          = ++data->seqno;
+              }
+            }
+          }
+        }
+        else if ( rec_type != 0 && cfile_dict != NULL ) {
+          MDLookup by( rec_type );
+          if ( cfile_dict->lookup( by ) ) {
+            MDLookup fc( by.fname, by.fname_len );
+            if ( cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE ) {
+              if ( fc.map_num != 0 )
+                form = cfile_dict->get_form_class( fc );
+              else
+                form = NULL;
+            }
+            if ( flist_dict != NULL ) {
+              MDLookup fc( by.fname, by.fname_len );
+              if ( flist_dict->get( fc ) ) {
+                flist = fc.fid;
               }
             }
           }
@@ -692,7 +721,7 @@ main( int argc, char **argv )
       fprintf( stderr, "discarded %" PRIu64 "\n", discard_cnt );
   }
   if ( fn != NULL && filep != NULL )
-    fclose( filep );
+    replay.close();
   if ( bout.close() != 0 ) {
     perror( out );
     err_cnt++;
