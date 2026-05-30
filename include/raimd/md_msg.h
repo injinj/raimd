@@ -185,7 +185,24 @@ struct MDMsgMem : public MDMsgMem_s {
   void release( void ) noexcept; /* release alloced memory ) */
 };
 
-struct MDMsgWriterBase : public MDMsgWriter_s {
+struct MDFieldIter;
+struct MDMsg;
+struct MDFormClass;
+
+struct MDMsgWriterBase;
+struct MDMsgWriterDispatch {
+  virtual ~MDMsgWriterDispatch() {}
+  virtual size_t update_hdr( void ) noexcept;
+  virtual int    append_iter( MDFieldIter *iter ) noexcept;
+  virtual int    convert_msg( MDMsg &msg, bool skip_hdr ) noexcept;
+  virtual int    append_sass_hdr( MDFormClass *form, uint16_t msg_type,
+                                  uint16_t rec_type, uint16_t seqno,
+                                  uint16_t status, const char *subj,
+                                  size_t sublen ) noexcept;
+  virtual int    append_form_record( void ) noexcept;
+};
+
+struct MDMsgWriterBase : public MDMsgWriter_s, public MDMsgWriterDispatch {
   MDMsgMem &mem( void ) const { return *(MDMsgMem *) this->msg_mem; }
 };
 

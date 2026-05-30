@@ -323,7 +323,7 @@ MDMsgMem::alloc_slow( size_t size ) noexcept
   void * x = p->mem;
   int i = 0;
   for ( p = this->blk_ptr; p != &this->blk; p = p->next )
-    if ( ++i == 100 )
+    if ( ++i == 1000000 )
       break;
   if ( p != &this->blk ) {
     fprintf( stderr, "lost blk\n" );
@@ -357,7 +357,7 @@ MDMsgMem::release( void ) noexcept
   MDMemBlock_t *p;
   int i = 0;
   for ( p = this->blk_ptr; p != &this->blk; p = p->next )
-    if ( ++i == 100 )
+    if ( ++i == 1000000 )
       break;
   if ( p != &this->blk ) {
     fprintf( stderr, "lost blk\n" );

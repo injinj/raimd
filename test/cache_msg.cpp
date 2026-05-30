@@ -134,16 +134,116 @@ CacheData::get_rec_type( MsgDict &dict ) noexcept
   return rec_type;
 }
 
+struct CacheMerge {
+  enum {
+    FIELD_UNKNOWN = 0,
+    FIELD_MISSED  = 1,
+    FIELD_RESIZED = 2,
+    FIELD_UPDATED = 3
+  };
+  struct FieldLoc {
+    size_t  index;
+    uint8_t state;
+  };
+  MDFieldReader delta_reader,
+                cache_reader;
+  size_t        upd_count,
+                rsz_count,
+                mis_count,
+                loc_size,
+                loc_alloc;
+  FieldLoc    * loc;
+  CacheMerge( MDMsg &m,  MDMsg &c )
+    : delta_reader( m ), cache_reader( c ),
+      upd_count( 0 ), rsz_count( 0 ), mis_count( 0 ), loc_size( 0 ),
+      loc_alloc( 0 ), loc( 0 ) {}
+
+  void merge( void ) noexcept;
+
+  void field_state( size_t i,  size_t idx,  uint8_t state ) {
+    if ( i >= this->loc_alloc ) {
+      size_t sz1 = sizeof( this->loc[ 0 ] ) * this->loc_alloc,
+             sz2 = sizeof( this->loc[ 0 ] ) * ( this->loc_alloc + 20 );
+      this->delta_reader.iter->iter_msg().mem->extend( sz1, sz2, &this->loc );
+      ::memset( (void *) &this->loc[ i ], 0, sz2 - sz1 );
+      this->loc_alloc += 20;
+    }
+    this->loc[ i ].index = idx;
+    this->loc[ i ].state = state;
+    this->loc_size = i;
+  }
+  void field_updated( void ) {
+    size_t i = this->delta_reader.iter->field_index;
+    this->upd_count++;
+    this->field_state( i, this->cache_reader.iter->field_index, FIELD_UPDATED );
+  }
+  void field_resized( void ) {
+    size_t i = this->delta_reader.iter->field_index;
+    this->rsz_count++;
+    this->field_state( i, this->cache_reader.iter->field_index, FIELD_RESIZED );
+  }
+  void field_missed( void ) {
+    size_t i = this->delta_reader.iter->field_index;
+    this->mis_count++;
+    this->field_state( i, 0, FIELD_MISSED );
+  }
+};
+
 void
 CacheData::merge( MDMsg &m,  MDMsg &c ) noexcept
 {
-  MDFieldReader delta( m ),
-                cached( c );
+  CacheMerge res( m, c );
+  res.merge();
+}
+
+void
+CacheMerge::merge( void ) noexcept
+{
+  MDFieldReader & delta = this->delta_reader,
+                & cache = this->cache_reader;
   MDName nm;
-  for ( bool b = delta.first( nm ); b; b = delta.next( nm ) ) {
-    if ( cached.find( nm.fname, nm.fnamelen ) && delta.type() == cached.type() )
-      cached.iter->update( delta.mref );
+  size_t i;
+
+  if ( delta.first( nm ) ) {
+    if ( cache.find( nm ) ) {
+      if ( cache.iter->update( delta.get_ref() ) == 0 )
+        this->field_updated();
+      else
+        this->field_resized();
+    }
+    else
+      this->field_missed();
   }
+  while ( delta.next( nm ) ) {
+    if ( cache.find_next( nm ) || cache.find( nm ) ) {
+      if ( cache.iter->update( delta.get_ref() ) == 0 )
+        this->field_updated();
+      else
+        this->field_resized();
+    }
+    else
+      this->field_missed();
+  }
+  if ( this->mis_count != 0 ) {
+    for ( i = 0; i < this->loc_size; i++ ) {
+      if ( this->loc[ i ].state == FIELD_MISSED ) {
+        if ( i > 0 )
+          this->loc[ i ].index = this->loc[ i - 1 ].index;
+      }
+    }
+  }
+#if 0
+  if ( this->mis_count + this->rsz_count != 0 ) {
+    cache.first( nm );
+    for ( i = 0; i < this->loc_size; i++ ) {
+      while ( cache.iter->field_index < this->loc[ i ].index ) {
+        wr->append_ref( nm, cache.get_ref() );
+        if ( ! cache.next( nm ) )
+          break;
+      }
+    }
+  }
+#endif
 }
 
 typedef MDHashTabT<MDSubjectKey, CacheData> SubHT;

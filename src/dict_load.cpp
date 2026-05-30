@@ -53,16 +53,18 @@ rai::md::load_dict_files( const char *path,  bool verbose ) noexcept
   dict_build.clear_build();
   if ( dict != NULL ) { /* print which dictionaries loaded */
     if ( verbose )
-      fprintf( stderr, "%s dict loaded (size: %u)\n", dict->dict_type,
-               dict->dict_size );
+      fprintf( stderr, "%s dict loaded (size: %u id: %x)\n", dict->dict_type,
+               dict->dict_size, dict->dict_hash_id );
     if ( dict->get_next() != NULL ) {
       if ( verbose )
-        fprintf( stderr, "%s dict loaded (size: %u)\n", dict->get_next()->dict_type,
-                 dict->get_next()->dict_size );
+        fprintf( stderr, "%s dict loaded (size: %u id: %x)\n", dict->get_next()->dict_type,
+                 dict->get_next()->dict_size, dict->get_next()->dict_hash_id );
       if ( dict->get_next()->get_next() != NULL ) {
         if ( verbose )
-          fprintf( stderr, "%s dict loaded (size: %u)\n",
-                   dict->get_next()->get_next()->dict_type, dict->get_next()->get_next()->dict_size );
+          fprintf( stderr, "%s dict loaded (size: %u id: %x)\n",
+                   dict->get_next()->get_next()->dict_type,
+                   dict->get_next()->get_next()->dict_size,
+                   dict->get_next()->get_next()->dict_hash_id );
       }
     }
     return dict;

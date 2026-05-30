@@ -192,10 +192,11 @@ typedef enum { /* formats for converting MDDate to string */
   MD_DATE_FMT_SLASH =  0x800,
   MD_DATE_FMT_MMM   = 0x1000,
   MD_DATE_FMT_yyyy  = 0x2000,
+  MD_DATE_FMT_Excel = 0x4000,
 
-  MD_DATE_FMT_dmy   = MD_DATE_FMT_dd1 | MD_DATE_FMT_mm2 | MD_DATE_FMT_yy3,
-  MD_DATE_FMT_mdy   = MD_DATE_FMT_mm1 | MD_DATE_FMT_dd2 | MD_DATE_FMT_yy3,
-  MD_DATE_FMT_ymd   = MD_DATE_FMT_yy1 | MD_DATE_FMT_mm2 | MD_DATE_FMT_dd3,
+  MD_DATE_FMT_dmy = MD_DATE_FMT_dd1 | MD_DATE_FMT_mm2 | MD_DATE_FMT_yy3,
+  MD_DATE_FMT_mdy = MD_DATE_FMT_mm1 | MD_DATE_FMT_dd2 | MD_DATE_FMT_yy3,
+  MD_DATE_FMT_ymd = MD_DATE_FMT_yy1 | MD_DATE_FMT_mm2 | MD_DATE_FMT_dd3,
 
   MD_DATE_FMT_default      /* dd MMM yyyy */
    = MD_DATE_FMT_dmy | MD_DATE_FMT_SPACE | MD_DATE_FMT_MMM | MD_DATE_FMT_yyyy,
@@ -230,10 +231,11 @@ typedef struct MDDate_s {
 // MDDate functions
 void md_date_set(MDDate_t *date, uint16_t y, uint8_t m, uint8_t d);
 void md_date_zero(MDDate_t *date);
-size_t md_date_get_string(MDDate_t *date, char *str, size_t len, MDDateFormat fmt);
+size_t md_date_get_string(MDDate_t *date, char *str, size_t len, uint32_t fmt);
 bool md_date_is_null(MDDate_t *date);
 /*int md_date_parse_format(const char *s, MDDateFormat *fmt);*/
-int md_date_parse(MDDate_t *date, const char *fptr, const size_t flen);
+int md_date_parse(MDDate_t *date, const char *fptr, const size_t flen,
+                  uint32_t *fmt);
 int md_date_get_date(MDDate_t *date, MDReference_t *mref);
 uint64_t md_date_to_utc(MDDate_t *date, bool is_gm_time);
 
@@ -336,6 +338,8 @@ struct MDName : public MDName_s {
     this->fid      = 0;
   }
   bool equals( const MDName &nm ) const {
+    if ( this->fid != 0 && nm.fid != 0 )
+      return this->fid == nm.fid;
     return this->equals( nm.fname, nm.fnamelen );
   }
   bool equals( const char *fname,  size_t len2 ) const {
@@ -510,11 +514,15 @@ struct MDDate : public MDDate_s {
   }
   void zero( void ) { this->set( 0, 0, 0 ); }
   size_t get_string( char *str,  size_t len,
-                     MDDateFormat fmt = MD_DATE_FMT_default ) const noexcept;
+                     uint32_t fmt = MD_DATE_FMT_default ) const noexcept;
   bool is_null( void ) const { return this->year == 0 && this->mon == 0 &&
                                       this->day == 0; }
   /*static int parse_format( const char *s,  MDDateFormat &fmt ) noexcept;*/
-  int parse( const char *fptr,  const size_t flen ) noexcept;
+  int parse_format( const char *fptr,  const size_t flen,  uint32_t &fmt ) noexcept;
+  int parse( const char *fptr,  const size_t flen ) {
+    uint32_t fmt;
+    return this->parse_format( fptr, flen, fmt );
+  }
   int get_date( const MDReference &mref ) noexcept;
   uint64_t to_utc( bool is_gm_time = false ) noexcept;
 };

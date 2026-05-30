@@ -320,8 +320,32 @@ MDFieldReader::find( const char *fname,  size_t fnamelen ) noexcept
     this->err = this->iter->find( fname, fnamelen, this->mref );
   return this->err == 0;
 }
-MDType
-MDFieldReader::type( void ) noexcept
+bool
+MDFieldReader::find_next( const char *fname,  size_t fnamelen ) noexcept
+{
+  this->mref.ftype = MD_NODATA;
+  if ( this->iter != NULL )
+    this->err = this->iter->find_next( fname, fnamelen, this->mref );
+  return this->err == 0;
+}
+bool
+MDFieldReader::find( const MDName &name ) noexcept
+{
+  this->mref.ftype = MD_NODATA;
+  if ( this->iter != NULL )
+    this->err = this->iter->find( name, this->mref );
+  return this->err == 0;
+}
+bool
+MDFieldReader::find_next( const MDName &name ) noexcept
+{
+  this->mref.ftype = MD_NODATA;
+  if ( this->iter != NULL )
+    this->err = this->iter->find_next( name, this->mref );
+  return this->err == 0;
+}
+MDReference &
+MDFieldReader::get_ref( void ) noexcept
 {
   if ( this->err == 0 ) {
     if ( this->mref.ftype == MD_NODATA )
@@ -329,7 +353,12 @@ MDFieldReader::type( void ) noexcept
   }
   if ( this->err != 0 )
     this->mref.ftype = MD_NODATA;
-  return this->mref.ftype;
+  return this->mref;
+}
+MDType
+MDFieldReader::type( void ) noexcept
+{
+  return this->get_ref().ftype;
 }
 
 bool

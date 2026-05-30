@@ -623,9 +623,9 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
   map_off   = sz;      /* enum map offset */
   sz       += dict_idx->map_cnt * sizeof( uint32_t ) +
               dict_idx->map_size; /* enum map size */
-  form_off  = sz;      /* enum map offset */
+  form_off  = sz;      /* form offset */
   sz       += dict_idx->form_cnt * sizeof( uint32_t ) +
-              dict_idx->form_size; /* enum map size */
+              dict_idx->form_size; /* form size */
   if ( ntags > 0 ) {
     tag_off = sz;
     sz     += tagsz;
@@ -761,7 +761,8 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
   ((char *) ptr)[ sz - 3 ] = 'M';
   ((char *) ptr)[ sz - 2 ] = 'D';
   ((char *) ptr)[ sz - 1 ] = '0';
-
+  dict->dict_hash_id = hash32( dict->dict_type,
+                        ( &((char *) ptr)[ sz ] - (char *) dict->dict_type ), 0 );
   return 0;
 }
 

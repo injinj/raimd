@@ -66,14 +66,23 @@ struct MDFieldIter : public MDFieldIter_s { /* generic field iterator */
   void dup_iter( MDFieldIter &i ) noexcept;
   virtual MDFieldIter *copy( void ) noexcept;
   virtual int get_name( MDName &name ) noexcept;
+  virtual int set_name( const char *fname,  size_t fnamelen,
+                        MDName &name ) noexcept;
   virtual int copy_name( char *name,  size_t &name_len,  MDFid &fid ) noexcept;
   virtual int get_reference( MDReference &mref ) noexcept;
   virtual int get_hint_reference( MDReference &mref ) noexcept;
   virtual int get_enum( MDReference &mref, MDEnum &enu ) noexcept;
   virtual int find( const char *name,  size_t name_len,
                     MDReference &mref ) noexcept;
+  virtual int find_next( const char *name,  size_t name_len,
+                         MDReference &mref ) noexcept;
+  virtual int find( const MDName &n,  MDReference &mref ) noexcept;
+  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept;
   int find( const char *name,  MDReference &mref ) {
     return this->find( name, ::strlen( name ), mref );
+  }
+  int find_next( const char *name,  MDReference &mref ) {
+    return this->find_next( name, ::strlen( name ), mref );
   }
   virtual int first( void ) noexcept;
   virtual int next( void ) noexcept;
@@ -97,8 +106,14 @@ struct MDFieldReader { /* iterator but w bool return with err field */
   void * operator new( size_t, void *ptr ) { return ptr; }
   MDFieldReader( MDMsg &m ) noexcept;
   bool find( const char *fname,  size_t fnamelen ) noexcept;
+  bool find_next( const char *fname,  size_t fnamelen ) noexcept;
+  bool find( const MDName &name ) noexcept;
+  bool find_next( const MDName &name ) noexcept;
   bool find( const char *fname ) {
     return this->find( fname, ::strlen( fname ) );
+  }
+  bool find_next( const char *fname ) {
+    return this->find_next( fname, ::strlen( fname ) );
   }
   bool name( MDName &n ) noexcept;
   bool first( void ) noexcept;
@@ -109,6 +124,7 @@ struct MDFieldReader { /* iterator but w bool return with err field */
   bool next( MDName &n ) {
     return this->next() && this->name( n );
   }
+  MDReference &get_ref( void ) noexcept;
   MDType type( void ) noexcept;
   bool get_value( void *val,  size_t len,  MDType t ) noexcept;
   bool get_array_count( size_t &cnt ) noexcept;
