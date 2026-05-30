@@ -344,7 +344,7 @@ RvFieldIter::copy( void ) noexcept
 }
 
 static inline void
-get_rv_name( char *fname,  size_t fnamelen,  MDName &name )
+get_rv_name( const char *fname,  size_t fnamelen,  MDName &name )
 {
   name.fid      = 0;
   name.fnamelen = fnamelen;
@@ -361,11 +361,19 @@ get_rv_name( char *fname,  size_t fnamelen,  MDName &name )
 }
 
 int
+RvFieldIter::set_name( const char *fname,  size_t fnamelen,
+                       MDName &name ) noexcept
+{
+  get_rv_name( fname, fnamelen, name );
+  return 0;
+}
+
+int
 RvFieldIter::get_name( MDName &name ) noexcept
 {
-  get_rv_name( &((char *) this->iter_msg().msg_buf)[ this->field_start + 1 ],
-               this->name_len, name );
-  return 0;
+  return this->RvFieldIter::set_name(
+    &((char *) this->iter_msg().msg_buf)[ this->field_start + 1 ],
+      this->name_len, name );
 }
 
 int
@@ -487,18 +495,44 @@ int
 RvFieldIter::find( const char *name,  size_t name_len,
                    MDReference &mref ) noexcept
 {
-  MDName n, n2;
-  get_rv_name( (char *) name, name_len, n );
+  MDName n;
+  this->RvFieldIter::set_name( name, name_len, n );
+  return this->find( n, mref );
+}
 
-  char * buf = (char *) this->iter_msg().msg_buf;
+int
+RvFieldIter::find_next( const char *name,  size_t name_len,
+                        MDReference &mref ) noexcept
+{
+  MDName n;
+  this->RvFieldIter::set_name( name, name_len, n );
+  return this->find_next( n, mref );
+}
+
+int
+RvFieldIter::find( const MDName &n,  MDReference &mref ) noexcept
+{
+  MDName n2;
   int status;
   if ( (status = this->first()) == 0 ) {
     do {
-      get_rv_name( &buf[ this->field_start + 1 ], this->name_len, n2 );
-      if ( ( n.fid != 0 && n2.fid != 0 && n.fid == n2.fid ) ||
-           MDDict::dict_equals( n.fname, n.fnamelen, n2.fname, n2.fnamelen ) )
+      this->RvFieldIter::get_name( n2 );
+      if ( n.equals( n2 ) )
         return this->get_reference( mref );
     } while ( (status = this->next()) == 0 );
+  }
+  return status;
+}
+
+int
+RvFieldIter::find_next( const MDName &n,  MDReference &mref ) noexcept
+{
+  MDName n2;
+  int status;
+  while ( (status = this->next()) == 0 ) {
+    this->RvFieldIter::get_name( n2 );
+    if ( n.equals( n2 ) )
+      return this->get_reference( mref );
   }
   return status;
 }
@@ -507,10 +541,8 @@ bool
 RvFieldIter::is_named( const char *name,  size_t name_len ) noexcept
 {
   MDName n, n2;
-  get_rv_name( (char *) name, name_len, n );
-
-  char * buf = (char *) this->iter_msg().msg_buf;
-  get_rv_name( &buf[ this->field_start + 1 ], this->name_len, n2 );
+  this->RvFieldIter::set_name( name, name_len, n );
+  this->RvFieldIter::get_name( n2 );
   if ( ( n.fid != 0 && n2.fid != 0 && n.fid == n2.fid ) ||
        MDDict::dict_equals( n.fname, n.fnamelen, n2.fname, n2.fnamelen ) )
     return true;
@@ -1463,18 +1495,31 @@ RvMsgWriter::convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept
   return 0;
 }
 
-RvMsgWriter &
+int
 RvMsgWriter::append_iter( MDFieldIter *iter ) noexcept
 {
   size_t len = iter->field_end - iter->field_start;
 
-  if ( ! this->has_space( len ) )
-    return this->error( Err::NO_SPACE );
+  if ( ! this->has_space( len ) ) {
+    this->error( Err::NO_SPACE );
+    return this->err;
+  }
 
   uint8_t * ptr = &this->buf[ this->off ];
   ::memcpy( ptr, &((uint8_t *) iter->iter_msg().msg_buf)[ iter->field_start ], len );
   this->off += len;
-  return *this;
+  return this->err;
+}
+
+int
+RvMsgWriter::append_sass_hdr( MDFormClass *form, uint16_t msg_type,
+                               uint16_t rec_type, uint16_t seqno,
+                               uint16_t status, const char *subj,
+                               size_t sublen ) noexcept
+{
+  rai::md::append_sass_hdr( *this, form, msg_type, rec_type, seqno, status,
+                            subj, sublen );
+  return this->err;
 }
 
 RvMsgWriter &

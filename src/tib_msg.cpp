@@ -208,17 +208,57 @@ TibFieldIter::get_hint_reference( MDReference &mref ) noexcept
 }
 
 int
+TibFieldIter::set_name( const char *fname,  size_t fnamelen,
+                        MDName &name ) noexcept
+{
+  name.fid      = 0;
+  name.fnamelen = fnamelen;
+  name.fname    = fname;
+  return 0;
+}
+
+int
 TibFieldIter::find( const char *name,  size_t name_len,
                     MDReference &mref ) noexcept
 {
-  uint8_t * buf = (uint8_t *) this->iter_msg().msg_buf;
+  MDName n;
+  this->TibFieldIter::set_name( name, name_len, n );
+  return this->find( n, mref );
+}
+
+int
+TibFieldIter::find_next( const char *name,  size_t name_len,
+                         MDReference &mref ) noexcept
+{
+  MDName n;
+  this->TibFieldIter::set_name( name, name_len, n );
+  return this->find_next( n, mref );
+}
+
+int
+TibFieldIter::find( const MDName &n,  MDReference &mref ) noexcept
+{
+  MDName n2;
   int status;
   if ( (status = this->first()) == 0 ) {
     do {
-      const char * fname = (char *) &buf[ this->field_start + 1 ];
-      if ( MDDict::dict_equals( name, name_len, fname, this->name_len ) )
+      this->TibFieldIter::get_name( n2 );
+      if ( n.equals( n2 ) )
         return this->get_reference( mref );
     } while ( (status = this->next()) == 0 );
+  }
+  return status;
+}
+
+int
+TibFieldIter::find_next( const MDName &n,  MDReference &mref ) noexcept
+{
+  MDName n2;
+  int status;
+  while ( (status = this->next()) == 0 ) {
+    this->TibFieldIter::get_name( n2 );
+    if ( n.equals( n2 ) )
+      return this->get_reference( mref );
   }
   return status;
 }
@@ -450,6 +490,146 @@ TibMsg::set_decimal( MDDecimal &dec,  double val,  uint8_t tib_hint ) noexcept
   }
   dec.zero();
   return false;
+}
+
+static uint8_t
+md_dec_hint_to_tib_hint( int8_t hint )
+{
+  uint8_t h; /* translate md hint into tib hint */
+  switch ( hint ) {
+    default:
+      if ( hint == MD_DEC_INTEGER ) {
+        h = TIB_HINT_NONE;
+        break;
+      }
+      else if ( hint <= MD_DEC_LOGn10_1 ) {
+        h = -( (int8_t) hint - MD_DEC_LOGn10_1 ) + TIB_HINT_PRECISION_1;
+        break;
+      }
+      else if ( hint >= MD_DEC_FRAC_2 &&
+                hint <= MD_DEC_FRAC_512 ) {
+        h = ( (int8_t) hint - MD_DEC_FRAC_2 + TIB_HINT_DENOM_2 );
+        break;
+      }
+      /* FALLTHRU */
+    case MD_DEC_NNAN:
+    case MD_DEC_NAN:
+    case MD_DEC_NINF:
+    case MD_DEC_INF:  h = TIB_HINT_NONE; break;
+    case MD_DEC_NULL: h = TIB_HINT_BLANK_VALUE; break;
+  }
+  return h;
+}
+
+int
+TibFieldIter::update( MDReference &mref ) noexcept
+{
+  MDType ftype = (MDType) this->type;
+
+  if ( mref.ftype == ftype ) {
+    uint8_t * buf  = (uint8_t *) this->iter_msg().msg_buf,
+            * data = &buf[ this->data_off ];
+    uint16_t  hint = 0;
+
+    switch ( ftype ) {
+      case MD_DECIMAL:
+        if ( this->size == 8 && this->hint_size == 1 &&
+             mref.fsize == sizeof( MDDecimal ) ) {
+          MDDecimal dec;
+          ::memcpy( (void *) &dec, mref.fptr, mref.fsize );
+          double    val;
+          dec.get_real( val );
+          if ( md_endian != MD_LITTLE )
+            ::memcpy( data, &val, 8 );
+          else {
+            uint8_t * fptr = (uint8_t *) (void *) &val;
+            for ( size_t i = 0; i < 8; i++ )
+              data[ i ] = fptr[ 7 - i ];
+          }
+          data[ 2 ] = md_dec_hint_to_tib_hint( dec.hint );
+          return 0;
+        }
+        return Err::BAD_DECIMAL;
+
+      case MD_DATE:
+        if ( this->hint_size == 2 ) {
+          uint8_t * p = &buf[ this->field_end - this->hint_size ];
+          hint = ( (uint16_t) p[ 0 ] << 8 ) | (uint16_t) p[ 1 ];
+        }
+        if ( mref.fsize == sizeof( MDDate ) ) {
+          switch ( hint ) {
+            case TIB_HINT_DATE_TYPE:
+            case TIB_HINT_MF_DATE_TYPE: {
+              MDDate   dt;
+              char     tmp[ 32 ];
+              uint32_t fmt;
+              if ( dt.parse_format( (char *) data, this->size, fmt ) != 0 )
+                fmt = MD_DATE_FMT_default;
+              ::memcpy( (void *) &dt, mref.fptr, mref.fsize );
+              size_t sz = dt.get_string( tmp, sizeof( tmp ), fmt );
+              if ( sz > this->size )
+                sz = this->size;
+              else while ( sz < this->size && sz < sizeof( tmp ) )
+                tmp[ sz++ ] = '\0';
+              ::memcpy( data, tmp, sz );
+              return 0;
+            }
+            default:
+              break;
+          }
+        }
+        return Err::BAD_DATE;
+
+      case MD_TIME:
+        if ( this->hint_size == 2 ) {
+          uint8_t * p = &buf[ this->field_end - this->hint_size ];
+          hint = ( (uint16_t) p[ 0 ] << 8 ) | (uint16_t) p[ 1 ];
+        }
+        if ( mref.fsize == sizeof( MDTime ) ) {
+          switch ( hint ) {
+            case TIB_HINT_TIME_TYPE:
+            case TIB_HINT_MF_TIME_TYPE:
+            case TIB_HINT_MF_TIME_SECONDS: {
+              MDTime tm;
+              char   tmp[ 32 ];
+              ::memcpy( (void *) &tm, mref.fptr, mref.fsize );
+              size_t sz = tm.get_string( tmp, sizeof( tmp ) );
+              if ( sz > this->size )
+                sz = this->size;
+              else while ( sz < this->size && sz < sizeof( tmp ) )
+                tmp[ sz++ ] = '\0';
+              ::memcpy( data, tmp, sz );
+              return 0;
+            }
+            default:
+              break;
+          }
+        }
+        return Err::BAD_TIME;
+
+      case MD_ENUM:
+        if ( this->hint_size == 2 ) {
+          uint8_t * p = &buf[ this->field_end - this->hint_size ];
+          hint = ( (uint16_t) p[ 0 ] << 8 ) | (uint16_t) p[ 1 ];
+        }
+        if ( hint == TIB_HINT_MF_ENUM ) {
+          if ( mref.fsize == this->size && mref.fendian == MD_BIG ) {
+            ::memcpy( data, mref.fptr, mref.fsize );
+            return 0;
+          }
+        }
+        break;
+
+      default:
+        if ( mref.fsize == this->size && this->hint_size == 0 &&
+             mref.fendian == MD_BIG ) {
+          ::memcpy( data, mref.fptr, mref.fsize );
+          return 0;
+        }
+        break;
+    }
+  }
+  return Err::BAD_FIELD_TYPE;
 }
 
 bool
@@ -691,31 +871,7 @@ TibMsgWriter::append_decimal( const char *fname,  size_t fname_len,
   ptr = &ptr[ 8 ];
   ptr[ 0 ] = (uint8_t) MD_UINT;
   ptr[ 1 ] = 1;
-
-  uint8_t h; /* translate md hint into tib hint */
-  switch ( dec.hint ) {
-    default:
-      if ( dec.hint == MD_DEC_INTEGER ) {
-        h = TIB_HINT_NONE;
-        break;
-      }
-      else if ( dec.hint <= MD_DEC_LOGn10_1 ) {
-        h = -( (int8_t) dec.hint - MD_DEC_LOGn10_1 ) + TIB_HINT_PRECISION_1;
-        break;
-      }
-      else if ( dec.hint >= MD_DEC_FRAC_2 &&
-                dec.hint <= MD_DEC_FRAC_512 ) {
-        h = ( (int8_t) dec.hint - MD_DEC_FRAC_2 + TIB_HINT_DENOM_2 );
-        break;
-      }
-      /* FALLTHRU */
-    case MD_DEC_NNAN:
-    case MD_DEC_NAN:
-    case MD_DEC_NINF:
-    case MD_DEC_INF:  h = TIB_HINT_NONE; break;
-    case MD_DEC_NULL: h = TIB_HINT_BLANK_VALUE; break;
-  }
-  ptr[ 2 ] = h;
+  ptr[ 2 ] = md_dec_hint_to_tib_hint( dec.hint );
   this->off += len;
 
   return *this;
@@ -819,18 +975,31 @@ TibMsgWriter::append_enum( const char *fname,  size_t fname_len,
   return *this;
 }
 
-TibMsgWriter &
+int
 TibMsgWriter::append_iter( MDFieldIter *iter ) noexcept
 {
   size_t len = iter->field_end - iter->field_start;
 
-  if ( ! this->has_space( len ) )
-    return this->error( Err::NO_SPACE );
+  if ( ! this->has_space( len ) ) {
+    this->error( Err::NO_SPACE );
+    return this->err;
+  }
 
   uint8_t * ptr = &this->buf[ this->off + this->hdrlen ];
   ::memcpy( ptr, &((uint8_t *) iter->iter_msg().msg_buf)[ iter->field_start ], len );
   this->off += len;
-  return *this;
+  return this->err;
+}
+
+int
+TibMsgWriter::append_sass_hdr( MDFormClass *form, uint16_t msg_type,
+                                uint16_t rec_type, uint16_t seqno,
+                                uint16_t status, const char *subj,
+                                size_t sublen ) noexcept
+{
+  rai::md::append_sass_hdr( *this, form, msg_type, rec_type, seqno, status,
+                            subj, sublen );
+  return this->err;
 }
 
 TibMsgWriter &

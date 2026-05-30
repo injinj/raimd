@@ -77,10 +77,16 @@ struct JsonFieldIter : public MDFieldIter {
     me( m ), obj( o ) {}
 
   virtual int get_name( MDName &name ) noexcept final;
+  virtual int set_name( const char *fname,  size_t fnamelen,
+                        MDName &name ) noexcept final;
   virtual int copy_name( char *name,  size_t &name_len,  MDFid &fid ) noexcept;
   virtual int get_reference( MDReference &mref ) noexcept final;
   virtual int find( const char *name, size_t name_len,
                     MDReference &mref ) noexcept final;
+  virtual int find_next( const char *name, size_t name_len,
+                         MDReference &mref ) noexcept final;
+  virtual int find( const MDName &n,  MDReference &mref ) noexcept final;
+  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept final;
   virtual int first( void ) noexcept final;
   virtual int next( void ) noexcept final;
 };
@@ -130,6 +136,15 @@ struct JsonMsgWriter : public MDMsgWriterBase {
   JsonMsgWriter & append_msg( const char *fname,  size_t fname_len,
                               JsonMsgWriter &submsg ) noexcept;
   int convert_msg( MDMsg &msg ) noexcept;
+  /* MDMsgWriterDispatch overrides: JSON does not differentiate by
+   * skip_hdr; the override forwards to the no-bool form. */
+  virtual int convert_msg( MDMsg &msg, bool /*skip_hdr*/ ) noexcept override {
+    return this->convert_msg( msg );
+  }
+  virtual int append_sass_hdr( MDFormClass *form, uint16_t msg_type,
+                               uint16_t rec_type, uint16_t seqno,
+                               uint16_t status, const char *subj,
+                               size_t sublen ) noexcept override;
 
   bool s( const char *str,  size_t len ) {
     bool b = this->has_space( len );
@@ -201,7 +216,7 @@ struct JsonMsgWriter : public MDMsgWriterBase {
                                MDDate &date ) {
     return this->append_type( fname, fname_len, date, MD_DATE );
   }
-  size_t update_hdr( void ) {
+  virtual size_t update_hdr( void ) noexcept override {
     this->finish();
     return this->off;
   }

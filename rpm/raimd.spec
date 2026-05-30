@@ -11,7 +11,7 @@ BuildRoot:	${_tmppath}
 Prefix:	        /usr
 BuildRequires:  gcc-c++
 BuildRequires:  chrpath
-BuildRequires:  libdecnumber
+BuildRequires:  libdecnumber _libdecnumber_dep
 BuildRequires:  git-core
 BuildRequires:  zlib-devel
 Requires:       libdecnumber

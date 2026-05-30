@@ -2,6 +2,7 @@
 #include <raimd/json_msg.h>
 #include <raimd/json.h>
 #include <raimd/md_dict.h>
+#include <raimd/sass.h>
 
 using namespace rai;
 using namespace md;
@@ -325,14 +326,57 @@ JsonMsg::get_array_ref( MDReference &mref,  size_t i,
 }
 
 int
+JsonFieldIter::set_name( const char *fname,  size_t fnamelen,
+                         MDName &name ) noexcept
+{
+  name.fid      = 0;
+  name.fnamelen = fnamelen;
+  name.fname    = fname;
+  return 0;
+}
+
+int
 JsonFieldIter::find( const char *name,  size_t name_len,
                      MDReference &mref ) noexcept
 {
-  if ( name != NULL ) {
+  MDName n;
+  this->JsonFieldIter::set_name( name, name_len, n );
+  return this->find( n, mref );
+}
+
+int
+JsonFieldIter::find_next( const char *name,  size_t name_len,
+                          MDReference &mref ) noexcept
+{
+  MDName n;
+  this->JsonFieldIter::set_name( name, name_len, n );
+  return this->find_next( n, mref );
+}
+
+int
+JsonFieldIter::find( const MDName &n,  MDReference &mref ) noexcept
+{
+  if ( n.fname != NULL ) {
     for ( size_t i = 0; i < this->obj.length; i++ ) {
       JsonObject::Pair &pair = this->obj.val[ i ];
-      if ( MDDict::dict_equals( name, name_len, pair.name.val,
-                                pair.name.length ) ) {
+      if ( n.equals( pair.name.val, pair.name.length ) ) {
+        this->field_start = i;
+        this->field_end   = i + 1;
+        this->field_index = i;
+        return this->get_reference( mref );
+      }
+    }
+  }
+  return Err::NOT_FOUND;
+}
+
+int
+JsonFieldIter::find_next( const MDName &n,  MDReference &mref ) noexcept
+{
+  if ( n.fname != NULL ) {
+    for ( size_t i = this->field_end; i < this->obj.length; i++ ) {
+      JsonObject::Pair &pair = this->obj.val[ i ];
+      if ( n.equals( pair.name.val, pair.name.length ) ) {
         this->field_start = i;
         this->field_end   = i + 1;
         this->field_index = i;
@@ -581,6 +625,17 @@ JsonMsgWriter::append_msg( const char *fname,  size_t fname_len,
   submsg.err    = 0;
   submsg.parent = this;
   return submsg;
+}
+
+int
+JsonMsgWriter::append_sass_hdr( MDFormClass *form, uint16_t msg_type,
+                                 uint16_t rec_type, uint16_t seqno,
+                                 uint16_t status, const char *subj,
+                                 size_t sublen ) noexcept
+{
+  rai::md::append_sass_hdr( *this, form, msg_type, rec_type, seqno, status,
+                            subj, sublen );
+  return this->err;
 }
 
 int

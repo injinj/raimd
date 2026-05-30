@@ -19,80 +19,72 @@
 using namespace rai;
 using namespace md;
 
-extern "C" {
+static inline MDMsgWriterBase &
+no_impl( MDMsgWriterDispatch *self ) noexcept
+{
+  MDMsgWriterBase &b = *static_cast<MDMsgWriterBase *>( self );
+  if ( b.err == 0 )
+    b.err = Err::NO_MSG_IMPL;
+  return b;
+}
+
+size_t
+MDMsgWriterDispatch::update_hdr( void ) noexcept
+{
+  no_impl( this );
+  return 0;
+}
 
 int
-md_msg_writer_append_iter( MDMsgWriter_t *w, MDFieldIter_t *iter )
+MDMsgWriterDispatch::append_iter( MDFieldIter * ) noexcept
 {
-  switch ( w->wr_type ) {
-    case RVMSG_TYPE_ID:
-      ((RvMsgWriter *) w)->append_iter( static_cast<MDFieldIter *>( iter ) );
-      break;
-    case TIBMSG_TYPE_ID:
-      ((TibMsgWriter *) w)->append_iter( static_cast<MDFieldIter *>( iter ) );
-      break;
-    case TIB_SASS_TYPE_ID:
-      ((TibSassMsgWriter *) w)->append_iter( static_cast<MDFieldIter *>( iter ) );
-      break;
-#if 0
-    case JSON_TYPE_ID:
-      ((JsonMsgWriter *) w)->append_iter( static_cast<MDFieldIter *>( iter ) );
-      break;
-    case RWF_MSG_TYPE_ID:
-      ((RwfMsgWriter *) w)->append_iter( static_cast<MDFieldIter *>( iter ) );
-      break;
-#endif
-    default:
-      return -1;
-  }
-  return w->err;
+  return no_impl( this ).err;
 }
+
+int
+MDMsgWriterDispatch::convert_msg( MDMsg &, bool ) noexcept
+{
+  return no_impl( this ).err;
+}
+
+int
+MDMsgWriterDispatch::append_sass_hdr( MDFormClass *, uint16_t, uint16_t,
+                                      uint16_t, uint16_t, const char *,
+                                      size_t ) noexcept
+{
+  return no_impl( this ).err;
+}
+
+int
+MDMsgWriterDispatch::append_form_record( void ) noexcept
+{
+  return no_impl( this ).err;
+}
+
+static inline MDMsgWriterBase *
+to_base( MDMsgWriter_t *w ) noexcept
+{
+  return static_cast<MDMsgWriterBase *>( w );
+}
+
+extern "C" {
 
 size_t
 md_msg_writer_update_hdr( MDMsgWriter_t *w )
 {
-  switch ( w->wr_type ) {
-    case RVMSG_TYPE_ID:
-      return ((RvMsgWriter *) w)->update_hdr();
-    case TIBMSG_TYPE_ID:
-      return ((TibMsgWriter *) w)->update_hdr();
-    case TIB_SASS_TYPE_ID:
-      return ((TibSassMsgWriter *) w)->update_hdr();
-    case JSON_TYPE_ID:
-      return ((JsonMsgWriter *) w)->update_hdr();
-    case RWF_MSG_TYPE_ID:
-      return ((RwfMsgWriter *) w)->update_hdr();
-    case RWF_FIELD_LIST_TYPE_ID:
-      return ((RwfFieldListWriter *) w)->update_hdr();
-    default:
-      return 0;
-  }
+  return to_base( w )->update_hdr();
+}
+
+int
+md_msg_writer_append_iter( MDMsgWriter_t *w, MDFieldIter_t *iter )
+{
+  return to_base( w )->append_iter( static_cast<MDFieldIter *>( iter ) );
 }
 
 int
 md_msg_writer_convert_msg( MDMsgWriter_t *w, MDMsg_t *m, bool skip_hdr )
 {
-  switch ( w->wr_type ) {
-    case RVMSG_TYPE_ID:
-      ((RvMsgWriter *) w)->convert_msg( *static_cast<MDMsg *>( m ), skip_hdr );
-      break;
-    case TIBMSG_TYPE_ID:
-      ((TibMsgWriter *) w)->convert_msg( *static_cast<MDMsg *>( m ), skip_hdr );
-      break;
-    case TIB_SASS_TYPE_ID:
-      ((TibSassMsgWriter *) w)->convert_msg( *static_cast<MDMsg *>( m ), skip_hdr );
-      break;
-    case JSON_TYPE_ID:
-      ((JsonMsgWriter *) w)->convert_msg( *static_cast<MDMsg *>( m ) );
-      break;
-    case RWF_MSG_TYPE_ID:
-    case RWF_FIELD_LIST_TYPE_ID:
-      ((RwfFieldListWriter *) w)->convert_msg( *static_cast<MDMsg *>( m ), skip_hdr );
-      break;
-    default:
-      return -1;
-  }
-  return w->err;
+  return to_base( w )->convert_msg( *static_cast<MDMsg *>( m ), skip_hdr );
 }
 
 int
@@ -101,57 +93,14 @@ md_msg_writer_append_sass_hdr( MDMsgWriter_t *w,  MDFormClass_t *form,
                                uint16_t seqno,  uint16_t status,
                                const char *subj,  size_t sublen )
 {
-  switch ( w->wr_type ) {
-    case RVMSG_TYPE_ID:
-      append_sass_hdr( *(RvMsgWriter *) w, (MDFormClass *) form, msg_type,
-                       rec_type, seqno, status, subj, sublen );
-      break;
-    case TIBMSG_TYPE_ID:
-      append_sass_hdr( *(TibMsgWriter *) w, (MDFormClass *) form, msg_type,
-                       rec_type, seqno, status, subj, sublen );
-      break;
-    case TIB_SASS_TYPE_ID:
-      append_sass_hdr( *(TibSassMsgWriter *) w, (MDFormClass *) form, msg_type,
-                       rec_type, seqno, status, subj, sublen );
-      break;
-    case JSON_TYPE_ID:
-      append_sass_hdr( *(JsonMsgWriter *) w, (MDFormClass *) form, msg_type,
-                       rec_type, seqno, status, subj, sublen );
-      break;
-    case RWF_MSG_TYPE_ID:
-    case RWF_FIELD_LIST_TYPE_ID:
-      append_sass_hdr( *(RwfFieldListWriter *) w, (MDFormClass *) form, msg_type,
-                       rec_type, seqno, status, subj, sublen );
-      break;
-    default:
-      return -1;
-  }
-  return w->err;
+  return to_base( w )->append_sass_hdr( (MDFormClass *) form, msg_type,
+                                        rec_type, seqno, status, subj, sublen );
 }
 
 int
 md_msg_writer_append_form_record( MDMsgWriter_t *w )
 {
-  switch ( w->wr_type ) {
-#if 0
-    case RVMSG_TYPE_ID:
-      return ((RvMsgWriter *) w)->append_form_record();
-    case TIBMSG_TYPE_ID:
-      return ((TibMsgWriter *) w)->append_form_record();
-#endif
-    case TIB_SASS_TYPE_ID:
-      ((TibSassMsgWriter *) w)->append_form_record();
-      break;
-#if 0
-    case JSON_TYPE_ID:
-      return ((JsonMsgWriter *) w)->append_form_record();
-    case RWF_MSG_TYPE_ID:
-      return ((RwfMsgWriter *) w)->append_form_record();
-#endif
-    default:
-      return -1;
-  }
-  return w->err;
+  return to_base( w )->append_form_record();
 }
 
 bool
@@ -180,4 +129,4 @@ md_msg_get_sass_msg_type( MDMsg_t *m,  uint16_t *msg_type )
   return false;
 }
 
-}
+} /* extern "C" */

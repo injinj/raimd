@@ -293,23 +293,80 @@ TibSassFieldIter::get_hint_reference( MDReference &mref ) noexcept
 }
 
 int
+TibSassFieldIter::set_name( const char *fname,  size_t fnamelen,
+                            MDName &name ) noexcept
+{
+  name.fname    = fname;
+  name.fnamelen = fnamelen;
+  name.fid      = 0;
+  if ( fname != NULL && this->iter_msg().dict != NULL ) {
+    MDLookup by( fname, fnamelen );
+    if ( this->iter_msg().dict->get( by ) )
+      name.fid = by.fid;
+  }
+  return 0;
+}
+
+int
 TibSassFieldIter::find( const char *name,  size_t name_len,
                         MDReference &mref ) noexcept
 {
-  if ( this->iter_msg().dict == NULL )
-    return Err::NO_DICTIONARY;
+  MDName n;
+  this->TibSassFieldIter::set_name( name, name_len, n );
+  return this->find( n, mref );
+}
 
-  int status = Err::NOT_FOUND;
-  if ( name != NULL ) {
-    MDLookup by( name, name_len );
-    if ( this->iter_msg().dict->get( by ) ) {
-      if ( (status = this->first()) == 0 ) {
-        do {
-          if ( this->fid == by.fid )
-            return this->get_reference( mref );
-        } while ( (status = this->next()) == 0 );
-      }
+int
+TibSassFieldIter::find_next( const char *name,  size_t name_len,
+                             MDReference &mref ) noexcept
+{
+  MDName n;
+  this->TibSassFieldIter::set_name( name, name_len, n );
+  return this->find_next( n, mref );
+}
+
+int
+TibSassFieldIter::find( const MDName &n,  MDReference &mref ) noexcept
+{
+  int status;
+  if ( n.fid != 0 ) {
+    if ( (status = this->first()) == 0 ) {
+      do {
+        if ( this->fid == n.fid )
+          return this->get_reference( mref );
+      } while ( (status = this->next()) == 0 );
     }
+    return status;
+  }
+  if ( n.fname == NULL )
+    return Err::NOT_FOUND;
+  if ( (status = this->first()) == 0 ) {
+    do {
+      MDName n2;
+      this->TibSassFieldIter::get_name( n2 );
+      if ( n.equals( n2 ) )
+        return this->get_reference( mref );
+    } while ( (status = this->next()) == 0 );
+  }
+  return status;
+}
+
+int
+TibSassFieldIter::find_next( const MDName &n,  MDReference &mref ) noexcept
+{
+  int status;
+  if ( n.fid != 0 ) {
+    while ( (status = this->next()) == 0 ) {
+      if ( this->fid == n.fid )
+        return this->get_reference( mref );
+    }
+    return status;
+  }
+  while ( (status = this->next()) == 0 ) {
+    MDName n2;
+    this->TibSassFieldIter::get_name( n2 );
+    if ( n.equals( n2 ) )
+      return this->get_reference( mref );
   }
   return status;
 }
@@ -390,6 +447,152 @@ TibSassFieldIter::unpack( void ) noexcept
   return 0;
 }
 
+int
+TibSassFieldIter::update( MDReference &mref ) noexcept
+{
+  if ( mref.ftype != this->ftype )
+    return Err::BAD_FIELD_TYPE;
+
+  uint8_t * buf  = (uint8_t *) this->iter_msg().msg_buf,
+          * data = &buf[ this->field_start + 2 ];
+
+  if ( ( this->flags & MD_FIXED ) != 0 ) {
+    switch ( this->ftype ) {
+      case MD_DECIMAL:
+        if ( mref.fsize == sizeof( MDDecimal ) ) {
+          MDDecimal dec;
+          ::memcpy( (void *) &dec, mref.fptr, mref.fsize );
+          double   fval;
+          dec.get_real( fval );
+          size_t n = ( this->fsize >= 8 ? 8 : 4 );
+          uint8_t h;
+          /* translate md hint into tss hint */
+          switch ( dec.hint ) {
+            default:
+              if ( dec.hint == MD_DEC_INTEGER ) {
+                h = TSS_HINT_NONE; break;
+              }
+              else if ( dec.hint <= MD_DEC_LOGn10_1 ) {
+                h = -( (int8_t) dec.hint - MD_DEC_LOGn10_1 ) +
+                    TSS_HINT_PRECISION_1;
+                break;
+              }
+              else if ( dec.hint >= MD_DEC_FRAC_2 &&
+                        dec.hint <= MD_DEC_FRAC_512 ) {
+                h = (int8_t) dec.hint - MD_DEC_FRAC_2 + TSS_HINT_DENOM_2;
+                break;
+              }
+              /* FALLTHRU */
+            case MD_DEC_NNAN:
+            case MD_DEC_NAN:
+            case MD_DEC_NINF:
+            case MD_DEC_INF:  h = TSS_HINT_NONE; break;
+            case MD_DEC_NULL: h = TSS_HINT_BLANK_VALUE; break;
+          }
+          if ( n == 4 ) {
+            float f32val = (float) fval;
+            uint8_t * fptr = (uint8_t *) (void *) &f32val;
+            if ( md_endian != MD_BIG ) {
+              data[ 0 ] = fptr[ 3 ]; data[ 1 ] = fptr[ 2 ];
+              data[ 2 ] = fptr[ 1 ]; data[ 3 ] = fptr[ 0 ];
+            }
+            else {
+              ::memcpy( data, fptr, 4 );
+            }
+          }
+          else {
+            uint8_t * fptr = (uint8_t *) (void *) &fval;
+            if ( md_endian != MD_BIG ) {
+              for ( size_t i = 0; i < 8; i++ )
+                data[ i ] = fptr[ 7 - i ];
+            }
+            else {
+              ::memcpy( data, fptr, 8 );
+            }
+          }
+          data[ n ] = h;
+          return 0;
+        }
+        return Err::BAD_DECIMAL;
+
+      case MD_TIME:
+        if ( mref.fsize == sizeof( MDTime ) ) {
+          MDTime tm;
+          ::memcpy( (void *) &tm, mref.fptr, mref.fsize );
+          char   tmp[ 32 ];
+          if ( this->fsize <= 6 ) {
+            MDTime t2( tm );
+            t2.resolution = MD_RES_MINUTES |
+                            ( tm.is_null() ? MD_RES_NULL : 0 );
+            size_t sz = t2.get_string( tmp, sizeof( tmp ) );
+            if ( sz > this->fsize ) sz = this->fsize;
+            else while ( sz < this->fsize ) tmp[ sz++ ] = '\0';
+            ::memcpy( data, tmp, this->fsize );
+          }
+          else if ( this->fsize <= 10 ) {
+            MDTime t2( tm );
+            t2.resolution = MD_RES_SECONDS |
+                            ( tm.is_null() ? MD_RES_NULL : 0 );
+            size_t sz = t2.get_string( tmp, sizeof( tmp ) );
+            if ( sz > this->fsize ) sz = this->fsize;
+            else while ( sz < this->fsize ) tmp[ sz++ ] = '\0';
+            ::memcpy( data, tmp, this->fsize );
+          }
+          else {
+            size_t sz = tm.get_string( tmp, sizeof( tmp ) );
+            if ( sz > this->fsize ) sz = this->fsize;
+            else while ( sz < this->fsize ) tmp[ sz++ ] = '\0';
+            ::memcpy( data, tmp, this->fsize );
+          }
+          return 0;
+        }
+        return Err::BAD_TIME;
+
+      case MD_DATE:
+        if ( mref.fsize == sizeof( MDDate ) ) {
+          MDDate dt;
+          ::memcpy( (void *) &dt, mref.fptr, mref.fsize );
+          char     tmp[ 32 ];
+          uint32_t fmt;
+          if ( dt.parse_format( (char *) data, this->fsize, fmt ) != 0 )
+            fmt = MD_DATE_FMT_default;
+          size_t sz = dt.get_string( tmp, sizeof( tmp ), fmt );
+          if ( sz > this->fsize ) sz = this->fsize;
+          else while ( sz < this->fsize && sz < sizeof( tmp ) )
+            tmp[ sz++ ] = '\0';
+          ::memcpy( data, tmp, sz );
+          return 0;
+        }
+        return Err::BAD_DATE;
+
+      default:
+        if ( mref.fsize == this->fsize && mref.fendian == MD_BIG ) {
+          ::memcpy( data, mref.fptr, mref.fsize );
+          return 0;
+        }
+        break;
+    }
+  }
+  else {
+    /* variable length: only update if size matches */
+    uint8_t * vdata;
+    uint32_t  vlen;
+    if ( this->fsize <= 0xffffU ) {
+      vlen  = get_u16<MD_BIG>( &buf[ this->field_start + 2 ] );
+      vdata = &buf[ this->field_start + 4 ];
+    }
+    else {
+      vlen  = get_u32<MD_BIG>( &buf[ this->field_start + 2 ] );
+      vdata = &buf[ this->field_start + 6 ];
+    }
+    if ( mref.fsize == vlen ) {
+      ::memcpy( vdata, mref.fptr, mref.fsize );
+      return 0;
+    }
+  }
+  return Err::BAD_FIELD_TYPE;
+}
+
 TibSassMsgWriter::TibSassMsgWriter( MDMsgMem &m,  MDDict *d,  void *bb,
                                     size_t len ) noexcept
 {
@@ -450,14 +653,18 @@ TibSassMsgWriter::resize( size_t len ) noexcept
   return this->off + 8 + len <= this->buflen;
 }
 
-TibSassMsgWriter &
+int
 TibSassMsgWriter::append_form_record( void ) noexcept
 {
-  if ( this->form == NULL )
-    return this->error( Err::NO_FORM );
+  if ( this->form == NULL ) {
+    this->error( Err::NO_FORM );
+    return this->err;
+  }
   if ( this->off < this->form->form_size &&
-       ! this->has_space( this->form->form_size - this->off ) )
-    return this->error( Err::NO_SPACE );
+       ! this->has_space( this->form->form_size - this->off ) ) {
+    this->error( Err::NO_SPACE );
+    return this->err;
+  }
 
   uint8_t * ptr = &this->buf[ 8 ];
   for ( uint32_t i = 0; i < this->form->nentries; i++ ) {
@@ -479,7 +686,7 @@ TibSassMsgWriter::append_form_record( void ) noexcept
     this->off = this->form->form_size;
   }
   this->use_form = true;
-  return *this;
+  return this->err;
 }
 
 bool
@@ -1025,17 +1232,30 @@ TibSassMsgWriter::append_enum( const char *fname,  size_t fname_len,
   return this->append_enum( by.fid, by.ftype, by.fsize, enu, entry );
 }
 
-TibSassMsgWriter &
+int
 TibSassMsgWriter::append_iter( MDFieldIter *iter ) noexcept
 {
   size_t len = iter->field_end - iter->field_start;
-  if ( ! this->has_space( len ) )
-    return this->error( Err::NO_SPACE );
+  if ( ! this->has_space( len ) ) {
+    this->error( Err::NO_SPACE );
+    return this->err;
+  }
   uint8_t * ptr  = &this->buf[ this->off + 8 ],
           * iptr = &((uint8_t *) iter->iter_msg().msg_buf)[ iter->field_start ];
   ::memcpy( ptr, iptr, len );
   this->off += len;
-  return *this;
+  return this->err;
+}
+
+int
+TibSassMsgWriter::append_sass_hdr( MDFormClass *form, uint16_t msg_type,
+                                    uint16_t rec_type, uint16_t seqno,
+                                    uint16_t status, const char *subj,
+                                    size_t sublen ) noexcept
+{
+  rai::md::append_sass_hdr( *this, form, msg_type, rec_type, seqno, status,
+                            subj, sublen );
+  return this->err;
 }
 
 int

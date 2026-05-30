@@ -377,7 +377,7 @@ struct RwfMsgWriter : RwfMsgWriterBase {
   RwfMsgWriter & set( RwfMsgSerial s,  RwfMsgSerial t,  RwfMsgSerial u,  RwfMsgSerial v ) { this->set( s, t, u ); return this->set( v ); }
 
   void reset( void ) noexcept;
-  size_t update_hdr( void ) noexcept;
+  virtual size_t update_hdr( void ) noexcept override;
   /* update_type */
   RwfMsgWriter & add_update( RdmUpdateType type ) {
     this->update_type = type; /* always included in UPDATE */
@@ -517,7 +517,7 @@ struct RwfMsgKeyWriter : public RwfMsgWriterBase {
   }
   void reset( void ) { this->RwfMsgWriterBase::reset( 1 );
                        this->key_flags = 0; }
-  size_t update_hdr( void ) noexcept;
+  virtual size_t update_hdr( void ) noexcept override;
   RwfMsgKeyWriter & set_error( int e ) {
     this->error( e );
     return *this;
@@ -563,7 +563,12 @@ struct RwfFieldListWriter : public RwfMsgWriterBase {
     this->set       = NULL;
     this->unk_fid   = 0;
   }
-  size_t update_hdr( void ) noexcept;
+  virtual size_t update_hdr( void ) noexcept override;
+  virtual int convert_msg( MDMsg &msg, bool skip_hdr ) noexcept override;
+  virtual int append_sass_hdr( MDFormClass *form, uint16_t msg_type,
+                               uint16_t rec_type, uint16_t seqno,
+                               uint16_t status, const char *subj,
+                               size_t sublen ) noexcept override;
   RwfFieldListWriter & set_error( int e ) {
     this->error( e );
     return *this;
@@ -738,7 +743,6 @@ struct RwfFieldListWriter : public RwfMsgWriterBase {
        Ts... args ) {
     return (writer.*cb)( *this, args... );
   }
-  int convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept;
 };
 
 enum RwfFieldSetKind {
@@ -798,7 +802,7 @@ struct RwfElementListWriter : public RwfMsgWriterBase {
     this->set_size   = 0;
     this->set        = NULL;
   }
-  size_t update_hdr( void ) noexcept;
+  virtual size_t update_hdr( void ) noexcept override;
   RwfElementListWriter & set_error( int e ) {
     this->error( e );
     return *this;
@@ -970,7 +974,7 @@ struct RwfMapWriter : RwfMsgWriterBase {
   }
   RwfMapWriter &set_key_type( MDType t ) { this->key_ftype = t; return *this; }
   RwfMapWriter &set_key_fid( MDFid f ) { this->key_fid = f; return *this; }
-  size_t update_hdr( void ) noexcept;
+  virtual size_t update_hdr( void ) noexcept override;
   RwfFieldDefnWriter   & add_field_defn( void ) noexcept;
   bool check_container( RwfMsgWriterBase &base,  bool is_summary ) noexcept;
   void add_action_entry( RwfMapAction action,  MDReference &key,
@@ -1073,7 +1077,7 @@ struct RwfFilterListWriter : RwfMsgWriterBase {
     this->RwfMsgWriterBase::reset( 3 + ( this->hint_cnt != 0 ? 1 : 0 ) );
     this->nitems = 0;
   }
-  size_t update_hdr( void ) noexcept;
+  virtual size_t update_hdr( void ) noexcept override;
   uint8_t check_container( RwfMsgWriterBase &base ) noexcept;
   void add_action_entry( RwfFilterAction action,  uint8_t id,
                          RwfMsgWriterBase &base ) noexcept;
@@ -1117,7 +1121,7 @@ struct RwfSeriesWriter : RwfMsgWriterBase {
     this->summary_size    = 0;
     this->field_defn      = NULL;
   }
-  size_t update_hdr( void ) noexcept;
+  virtual size_t update_hdr( void ) noexcept override;
   RwfSeriesWriter & set_error( int e ) {
     this->error( e );
     return *this;
@@ -1179,7 +1183,7 @@ struct RwfVectorWriter : RwfMsgWriterBase {
     this->summary_size    = 0;
     this->field_defn      = NULL;
   }
-  size_t update_hdr( void ) noexcept;
+  virtual size_t update_hdr( void ) noexcept override;
   bool check_container( RwfMsgWriterBase &base,  bool is_summary ) noexcept;
   void add_action_entry( RwfVectorAction action,  uint32_t index,
                          RwfMsgWriterBase &base ) noexcept;

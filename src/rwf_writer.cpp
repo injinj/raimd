@@ -202,18 +202,11 @@ size_t
 RwfMsgWriterBase::complete( void ) noexcept
 {
   size_t sz = this->off;
-  switch ( this->type ) {
-    default:
-    case W_NONE:         break;
-    case W_MSG_KEY:      sz = ((RwfMsgKeyWriter *) this)->update_hdr(); break;
-    case W_FIELD_LIST:   sz = ((RwfFieldListWriter *) this)->update_hdr(); break;
-    case W_ELEMENT_LIST: sz = ((RwfElementListWriter *) this)->update_hdr(); break;
-    case W_FILTER_LIST:  sz = ((RwfFilterListWriter *) this)->update_hdr(); break;
-    case W_VECTOR:       sz = ((RwfVectorWriter *) this)->update_hdr(); break;
-    case W_MAP:          sz = ((RwfMapWriter *) this)->update_hdr(); break;
-    case W_SERIES:       sz = ((RwfSeriesWriter *) this)->update_hdr(); break;
-    case W_MSG:          sz = ((RwfMsgWriter *) this)->update_hdr(); break;
-  }
+  /* Rwf containers each override MDMsgWriterDispatch::update_hdr in
+   * their concrete classes; W_NONE is the only kind that doesn't
+   * have a header to write back. */
+  if ( this->type != W_NONE )
+    sz = this->update_hdr();
   this->is_complete = true;
   return sz;
 }
@@ -1608,6 +1601,17 @@ RwfFieldListWriter::append_set_ref( MDReference &mref ) noexcept
     this->nflds++;
   }
   return *this;
+}
+
+int
+RwfFieldListWriter::append_sass_hdr( MDFormClass *form, uint16_t msg_type,
+                                      uint16_t rec_type, uint16_t seqno,
+                                      uint16_t status, const char *subj,
+                                      size_t sublen ) noexcept
+{
+  rai::md::append_sass_hdr( *this, form, msg_type, rec_type, seqno, status,
+                            subj, sublen );
+  return this->err;
 }
 
 int

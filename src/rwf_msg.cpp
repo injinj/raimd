@@ -2338,33 +2338,80 @@ RwfFieldIter::decode_ref( MDReference &mref ) noexcept
 }
 
 int
+RwfFieldIter::set_name( const char *fname,  size_t fnamelen,
+                        MDName &name ) noexcept
+{
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
+  name.fname    = fname;
+  name.fnamelen = fnamelen;
+  name.fid      = 0;
+  if ( fname != NULL && msg.base.type_id == RWF_FIELD_LIST &&
+       msg.dict != NULL ) {
+    MDLookup by( fname, fnamelen );
+    if ( msg.dict->get( by ) )
+      name.fid = by.fid;
+  }
+  return 0;
+}
+
+int
 RwfFieldIter::find( const char *name,  size_t name_len,
                     MDReference &mref ) noexcept
 {
+  MDName n;
+  this->RwfFieldIter::set_name( name, name_len, n );
+  return this->find( n, mref );
+}
+
+int
+RwfFieldIter::find_next( const char *name,  size_t name_len,
+                         MDReference &mref ) noexcept
+{
+  MDName n;
+  this->RwfFieldIter::set_name( name, name_len, n );
+  return this->find_next( n, mref );
+}
+
+int
+RwfFieldIter::find( const MDName &n,  MDReference &mref ) noexcept
+{
   RwfMsg & msg = (RwfMsg &) this->iter_msg();
-  MDLookup by( name, name_len );
-  int status = Err::NOT_FOUND;
-  bool is_field_list = ( msg.base.type_id == RWF_FIELD_LIST );
-  by.fid = 0;
-  if ( is_field_list ) {
-    if ( msg.dict == NULL || ! msg.dict->get( by ) )
-      return Err::NOT_FOUND;
+  int status;
+  if ( msg.base.type_id == RWF_FIELD_LIST && n.fid != 0 ) {
     if ( (status = this->first()) == 0 ) {
       do {
-        if ( this->u.field.fid == by.fid )
+        if ( this->u.field.fid == n.fid )
           return this->get_reference( mref );
       } while ( (status = this->next()) == 0 );
     }
+    return status;
   }
-  else {
-    if ( (status = this->first()) == 0 ) {
-      do {
-        MDName nm;
-        if ( this->get_name( nm ) == 0 &&
-             MDDict::dict_equals( name, name_len, nm.fname, nm.fnamelen ) )
-          return this->get_reference( mref );
-      } while ( (status = this->next()) == 0 );
+  if ( (status = this->first()) == 0 ) {
+    do {
+      MDName n2;
+      if ( this->get_name( n2 ) == 0 && n.equals( n2 ) )
+        return this->get_reference( mref );
+    } while ( (status = this->next()) == 0 );
+  }
+  return status;
+}
+
+int
+RwfFieldIter::find_next( const MDName &n,  MDReference &mref ) noexcept
+{
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
+  int status;
+  if ( msg.base.type_id == RWF_FIELD_LIST && n.fid != 0 ) {
+    while ( (status = this->next()) == 0 ) {
+      if ( this->u.field.fid == n.fid )
+        return this->get_reference( mref );
     }
+    return status;
+  }
+  while ( (status = this->next()) == 0 ) {
+    MDName n2;
+    if ( this->get_name( n2 ) == 0 && n.equals( n2 ) )
+      return this->get_reference( mref );
   }
   return status;
 }
@@ -2499,3 +2546,151 @@ RwfFieldIter::next( void ) noexcept
 
   return Err::NOT_FOUND;
 }
+
+int
+RwfFieldIter::update( MDReference &mref ) noexcept
+{
+  RwfMsg & msg = (RwfMsg &) this->iter_msg();
+  if ( msg.base.type_id != RWF_FIELD_LIST )
+    return Err::BAD_FIELD_TYPE;
+  if ( this->ftype == MD_NODATA )
+    this->lookup_fid();
+  if ( mref.ftype != this->ftype )
+    return Err::BAD_FIELD_TYPE;
+
+  uint8_t * buf  = (uint8_t *) msg.msg_buf,
+          * data = &buf[ this->data_start ];
+  size_t    dlen = this->field_end - this->data_start;
+
+  switch ( this->ftype ) {
+    case MD_DECIMAL:
+      if ( mref.fsize == sizeof( MDDecimal ) ) {
+        MDDecimal dec;
+        ::memcpy( (void *) &dec, mref.fptr, mref.fsize );
+        size_t ilen = 1; /* hint byte */
+        if ( dec.hint > MD_DEC_NULL || dec.hint < MD_DEC_NNAN )
+          ilen += RwfMsgWriterBase::int_size( dec.ival );
+        if ( ilen != dlen )
+          return Err::BAD_FIELD_SIZE;
+        data[ 0 ] = md_to_rwf_decimal_hint( dec.hint );
+        if ( ilen > 1 ) {
+          /* write mantissa big-endian */
+          uint64_t x = (uint64_t) dec.ival;
+          size_t   n = ilen - 1;
+          size_t   j = n;
+          do {
+            data[ j ] = (uint8_t) ( x & 0xffU );
+            x >>= 8;
+          } while ( --j != 0 );
+        }
+        return 0;
+      }
+      return Err::BAD_DECIMAL;
+
+    case MD_TIME:
+      if ( mref.fsize == sizeof( MDTime ) ) {
+        MDTime tm;
+        ::memcpy( (void *) &tm, mref.fptr, mref.fsize );
+        size_t sz = RwfMsgWriterBase::time_size( tm );
+        if ( sz != dlen )
+          return Err::BAD_FIELD_SIZE;
+        /* data[0] is the size prefix byte */
+        uint8_t  hr   = tm.hour,
+                 min  = tm.minute,
+                 sec  = tm.sec;
+        uint32_t frac = tm.fraction;
+        sz--; /* payload size after prefix */
+        if ( ( tm.resolution & MD_RES_NULL ) != 0 ) {
+          hr = min = sec = 0;
+          frac = 0;
+        }
+        data[ 0 ] = (uint8_t) sz;
+        if ( sz == 0 )
+          return 0;
+        data[ 1 ] = hr;
+        data[ 2 ] = min;
+        switch ( sz ) {
+          case 3:
+            data[ 3 ] = sec;
+            break;
+          case 5:
+            data[ 3 ] = sec;
+            data[ 4 ] = (uint8_t) ( frac >> 8 );
+            data[ 5 ] = (uint8_t) ( frac & 0xff );
+            break;
+          case 7: {
+            data[ 3 ] = sec;
+            uint16_t ms = (uint16_t) ( frac / 1000 ),
+                     us = (uint16_t) ( frac % 1000 );
+            data[ 4 ] = (uint8_t) ( ms >> 8 );
+            data[ 5 ] = (uint8_t) ( ms & 0xff );
+            data[ 6 ] = (uint8_t) ( us >> 8 );
+            data[ 7 ] = (uint8_t) ( us & 0xff );
+            break;
+          }
+          case 8: {
+            data[ 3 ] = sec;
+            uint16_t milli = (uint16_t) ( frac / 1000000 ),
+                     nano  = (uint16_t) ( frac % 1000 ),
+                     micro = (uint16_t) ( ( frac % 1000000 ) / 1000 );
+            micro |= ( nano & 0xff00 ) << 3;
+            nano  &= 0xff;
+            data[ 4 ] = (uint8_t) ( milli >> 8 );
+            data[ 5 ] = (uint8_t) ( milli & 0xff );
+            data[ 6 ] = (uint8_t) ( micro >> 8 );
+            data[ 7 ] = (uint8_t) ( micro & 0xff );
+            data[ 8 ] = (uint8_t) nano;
+            break;
+          }
+          default: break; /* minutes: h:m only */
+        }
+        return 0;
+      }
+      return Err::BAD_TIME;
+
+    case MD_DATE:
+      if ( mref.fsize == sizeof( MDDate ) && dlen == 4 ) {
+        MDDate dt;
+        ::memcpy( (void *) &dt, mref.fptr, mref.fsize );
+        data[ 0 ] = dt.day;
+        data[ 1 ] = dt.mon;
+        data[ 2 ] = (uint8_t) ( dt.year >> 8 );
+        data[ 3 ] = (uint8_t) ( dt.year & 0xff );
+        return 0;
+      }
+      return Err::BAD_DATE;
+
+    case MD_INT:
+    case MD_UINT:
+    case MD_ENUM:
+    case MD_BOOLEAN:
+      if ( mref.fsize <= dlen && mref.fendian == MD_BIG ) {
+        /* zero-fill then copy at the end for big-endian alignment */
+        if ( mref.fsize < dlen )
+          ::memset( data, 0, dlen - mref.fsize );
+        ::memcpy( &data[ dlen - mref.fsize ], mref.fptr, mref.fsize );
+        return 0;
+      }
+      /* native endian int — encode big-endian into dlen bytes */
+      if ( mref.fsize <= 8 ) {
+        uint64_t x = 0;
+        ::memcpy( (void *) &x, mref.fptr, mref.fsize );
+        for ( size_t j = dlen; j > 0; ) {
+          data[ --j ] = (uint8_t) ( x & 0xffU );
+          x >>= 8;
+        }
+        return 0;
+      }
+      break;
+
+    default:
+      /* strings, opaque, etc — size must match for in-place update */
+      if ( mref.fsize == dlen ) {
+        ::memcpy( data, mref.fptr, dlen );
+        return 0;
+      }
+      break;
+  }
+  return Err::BAD_FIELD_TYPE;
+}
+

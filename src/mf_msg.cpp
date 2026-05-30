@@ -579,23 +579,80 @@ MktfdFieldIter::get_reference( MDReference &mref ) noexcept
 }
 
 int
+MktfdFieldIter::set_name( const char *fname,  size_t fnamelen,
+                          MDName &name ) noexcept
+{
+  name.fname    = fname;
+  name.fnamelen = fnamelen;
+  name.fid      = 0;
+  if ( fname != NULL && this->iter_msg().dict != NULL ) {
+    MDLookup by( fname, fnamelen );
+    if ( this->iter_msg().dict->get( by ) )
+      name.fid = by.fid;
+  }
+  return 0;
+}
+
+int
 MktfdFieldIter::find( const char *name,  size_t name_len,
                       MDReference &mref ) noexcept
 {
-  if ( this->iter_msg().dict == NULL )
-    return Err::NO_DICTIONARY;
+  MDName n;
+  this->MktfdFieldIter::set_name( name, name_len, n );
+  return this->find( n, mref );
+}
 
-  int status = Err::NOT_FOUND;
-  if ( name_len > 0 ) {
-    MDLookup by( name, name_len );
-    if ( this->iter_msg().dict->get( by ) ) {
-      if ( (status = this->first()) == 0 ) {
-        do {
-          if ( this->fid == by.fid )
-            return this->get_reference( mref );
-        } while ( (status = this->next()) == 0 );
-      }
+int
+MktfdFieldIter::find_next( const char *name,  size_t name_len,
+                           MDReference &mref ) noexcept
+{
+  MDName n;
+  this->MktfdFieldIter::set_name( name, name_len, n );
+  return this->find_next( n, mref );
+}
+
+int
+MktfdFieldIter::find( const MDName &n,  MDReference &mref ) noexcept
+{
+  int status;
+  if ( n.fid != 0 ) {
+    if ( (status = this->first()) == 0 ) {
+      do {
+        if ( this->fid == n.fid )
+          return this->get_reference( mref );
+      } while ( (status = this->next()) == 0 );
     }
+    return status;
+  }
+  if ( n.fname == NULL )
+    return Err::NOT_FOUND;
+  if ( (status = this->first()) == 0 ) {
+    do {
+      MDName n2;
+      this->MktfdFieldIter::get_name( n2 );
+      if ( n.equals( n2 ) )
+        return this->get_reference( mref );
+    } while ( (status = this->next()) == 0 );
+  }
+  return status;
+}
+
+int
+MktfdFieldIter::find_next( const MDName &n,  MDReference &mref ) noexcept
+{
+  int status;
+  if ( n.fid != 0 ) {
+    while ( (status = this->next()) == 0 ) {
+      if ( this->fid == n.fid )
+        return this->get_reference( mref );
+    }
+    return status;
+  }
+  while ( (status = this->next()) == 0 ) {
+    MDName n2;
+    this->MktfdFieldIter::get_name( n2 );
+    if ( n.equals( n2 ) )
+      return this->get_reference( mref );
   }
   return status;
 }

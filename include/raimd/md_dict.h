@@ -41,8 +41,9 @@ typedef struct MDFormEntry_s {
 } MDFormEntry_t;
 
 typedef struct MDDict_s {
-  struct MDDict_s * next;  /* list of multiple dictionaries)*/
-  char   dict_type[ 8 ];   /* cfile or RDM(app_a) */
+  struct   MDDict_s * next;   /* list of multiple dictionaries)*/
+  uint32_t dict_hash_id;      /* hash of dict contents */
+  char     dict_type[ 12 ];   /* cfile or RDM(app_a) */
 } MDDict_t;
 
 typedef struct MDFormClass_s MDFormClass_t;

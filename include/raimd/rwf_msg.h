@@ -444,6 +444,8 @@ struct RwfFieldIter : public MDFieldIter {
 
   void lookup_fid( void ) noexcept;
   virtual int get_name( MDName &name ) noexcept final;
+  virtual int set_name( const char *fname,  size_t fnamelen,
+                        MDName &name ) noexcept final;
   virtual int get_enum( MDReference &mref,  MDEnum &enu ) noexcept final;
   virtual int get_reference( MDReference &mref ) noexcept final;
   int get_real_ref( MDReference &mref ) noexcept;
@@ -451,8 +453,13 @@ struct RwfFieldIter : public MDFieldIter {
   virtual int get_hint_reference( MDReference &mref ) noexcept final;
   virtual int find( const char *name, size_t name_len,
                     MDReference &mref ) noexcept final;
+  virtual int find_next( const char *name, size_t name_len,
+                         MDReference &mref ) noexcept final;
+  virtual int find( const MDName &n,  MDReference &mref ) noexcept final;
+  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept final;
   virtual int first( void ) noexcept final;
   virtual int next( void ) noexcept final;
+  virtual int update( MDReference &mref ) noexcept;
   int unpack_field_list_entry( void ) noexcept;
   int unpack_field_list_defn( void ) noexcept;
   int unpack_map_entry( void ) noexcept;

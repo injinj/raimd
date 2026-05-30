@@ -99,11 +99,17 @@ struct MktfdFieldIter : public MDFieldIter {
 
   void lookup_fid( void ) noexcept;
   virtual int get_name( MDName &name ) noexcept final;
+  virtual int set_name( const char *fname,  size_t fnamelen,
+                        MDName &name ) noexcept final;
   virtual int get_enum( MDReference &mref,  MDEnum &enu ) noexcept final;
   virtual int get_reference( MDReference &mref ) noexcept final;
   virtual int get_hint_reference( MDReference &mref ) noexcept final;
   virtual int find( const char *name, size_t name_len,
                     MDReference &mref ) noexcept final;
+  virtual int find_next( const char *name, size_t name_len,
+                         MDReference &mref ) noexcept final;
+  virtual int find( const MDName &n,  MDReference &mref ) noexcept final;
+  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept final;
   virtual int first( void ) noexcept final;
   virtual int next( void ) noexcept final;
   int unpack( void ) noexcept;

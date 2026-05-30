@@ -71,9 +71,15 @@ struct RvFieldIter : public MDFieldIter {
   bool is_named( const char *name,  size_t name_len ) noexcept;
   virtual MDFieldIter *copy( void ) noexcept final;
   virtual int get_name( MDName &name ) noexcept final;
+  virtual int set_name( const char *fname,  size_t fnamelen,
+                        MDName &name ) noexcept final;
   virtual int get_reference( MDReference &mref ) noexcept final;
   virtual int find( const char *name, size_t name_len,
                     MDReference &mref ) noexcept final;
+  virtual int find_next( const char *name, size_t name_len,
+                         MDReference &mref ) noexcept final;
+  virtual int find( const MDName &n,  MDReference &mref ) noexcept final;
+  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept final;
   virtual int first( void ) noexcept final;
   virtual int next( void ) noexcept final;
   virtual int update( MDReference &mref ) noexcept final;
@@ -191,7 +197,7 @@ struct RvMsgWriter : public MDMsgWriterBase {
     return b;
   }
   bool resize( size_t len ) noexcept;
-  size_t update_hdr( void ) {
+  virtual size_t update_hdr( void ) noexcept override {
     if ( this->buflen == 0 )
       this->resize( 8 );
     this->buf[ 0 ] = ( this->off >> 24 ) & 0xffU;
@@ -324,11 +330,15 @@ struct RvMsgWriter : public MDMsgWriterBase {
   RvMsgWriter & append_string_array( const char *fname,  size_t fname_len,
                                      char **ar,  size_t array_size,
                                      size_t fsize ) noexcept;
-  RvMsgWriter & append_iter( MDFieldIter *iter ) noexcept;
+  virtual int append_iter( MDFieldIter *iter ) noexcept override;
   RvMsgWriter & append_writer( const RvMsgWriter &wr ) noexcept;
   RvMsgWriter & append_rvmsg( const RvMsg &msg ) noexcept;
   RvMsgWriter & append_buffer( const void *buffer,  size_t len ) noexcept;
-  int convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept;
+  virtual int convert_msg( MDMsg &jmsg,  bool skip_hdr ) noexcept override;
+  virtual int append_sass_hdr( MDFormClass *form, uint16_t msg_type,
+                               uint16_t rec_type, uint16_t seqno,
+                               uint16_t status, const char *subj,
+                               size_t sublen ) noexcept override;
 };
 
 }

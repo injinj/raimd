@@ -18,7 +18,7 @@ static void
 short_string( unsigned short x,  char *buf ) noexcept
 {
   for ( unsigned short i = 10000; i >= 10; i /= 10 ) {
-    if ( i < x )
+    if ( i <= x )
       *buf++ = ( ( x / i ) % 10 ) + '0';
   }
   *buf++ = ( x % 10 ) + '0';
@@ -110,7 +110,15 @@ int MDFieldIter::get_reference( MDReference &mref ) noexcept
 { mref.zero(); return Err::NOT_FOUND; }
 int MDFieldIter::get_hint_reference( MDReference &mref ) noexcept
 { mref.zero(); return Err::NOT_FOUND; }
+int MDFieldIter::set_name( const char *,  size_t,  MDName &name ) noexcept
+{ name.zero(); return 0; }
 int MDFieldIter::find( const char *,  size_t,  MDReference & ) noexcept
+{ return Err::NOT_FOUND; }
+int MDFieldIter::find_next( const char *,  size_t,  MDReference & ) noexcept
+{ return Err::NOT_FOUND; }
+int MDFieldIter::find( const MDName &,  MDReference & ) noexcept
+{ return Err::NOT_FOUND; }
+int MDFieldIter::find_next( const MDName &,  MDReference & ) noexcept
 { return Err::NOT_FOUND; }
 int MDFieldIter::first( void ) noexcept
 { return Err::NOT_FOUND; }
@@ -2653,7 +2661,8 @@ static bool parse_excel_date( const char *p,  uint32_t n,  uint32_t &m,
 }
 
 int
-MDDate::parse( const char *fptr,  const size_t fsize ) noexcept
+MDDate::parse_format( const char *fptr,  const size_t fsize,
+                      uint32_t &fmt ) noexcept
 {
   uint32_t m, d, yr;
   uint32_t sz, sz2;
@@ -2673,6 +2682,7 @@ MDDate::parse( const char *fptr,  const size_t fsize ) noexcept
 
 try_again:;
   m = d = yr = 0;
+  fmt = MD_DATE_FMT_default;
   switch ( sz ) {
     case 5: /* Feb14, 12345 (excel date) */
       /* Feb14 */
@@ -2680,141 +2690,263 @@ try_again:;
                   parse_year( &fptr[ 3 ], 2, yr ) &&
                   day_is_one( m, yr, d ) );
       /* 12345 */
-      if ( ! success )
+      if ( success )
+        fmt = ( MD_DATE_FMT_MMM | MD_DATE_FMT_dd2 );
+      if ( ! success ) {
         success = parse_excel_date( fptr, 5, m, d, yr );
+        if ( success )
+          fmt = MD_DATE_FMT_Excel;
+      }
       break;
     case 6: /* May 15 */
       success = ( fptr[ 3 ] == ' ' &&
                   parse_month( fptr, 3, m ) &&
                   parse_year( &fptr[ 4 ], 2, yr ) );
-      if ( success )
+      if ( success ) {
         d = 1;
+        fmt = ( MD_DATE_FMT_MMM | MD_DATE_FMT_dd2 | MD_DATE_FMT_SPACE );
+      }
       break;
     case 7: /* 02APR13 */
       /* 02APR13 */
       success = ( parse_day( fptr, 2, d ) &&
                   parse_month( &fptr[ 2 ], 3, m ) &&
                   parse_year( &fptr[ 5 ], 2, yr ) );
+      if ( success )
+        fmt = ( MD_DATE_FMT_dmy | MD_DATE_FMT_MMM );
       break;
     case 8: /* 01/01/95, JAN 2000, 20190601, 3 Jun 21, Jun 3 21 */
       /* 01/01/95 */
-      if ( fptr[ 2 ] == '/' && fptr[ 5 ] == '/' )
+      if ( fptr[ 2 ] == '/' && fptr[ 5 ] == '/' ) {
         success = ( parse_month( fptr, 2, m ) &&
                     parse_day( &fptr[ 3 ], 2, d ) &&
                     parse_year( &fptr[ 6 ], 2, yr ) );
+        if ( success )
+          fmt = ( MD_DATE_FMT_mdy | MD_DATE_FMT_SLASH );
+      }
       /* JAN 2000 */
-      if ( ! success && fptr[ 3 ] == ' ' )
+      if ( ! success && fptr[ 3 ] == ' ' ) {
         success = ( parse_month( fptr, 3, m ) &&
                     parse_year( &fptr[ 4 ], 4, yr ) &&
                     day_is_one( m, yr, d ) );
+        if ( success )
+          fmt = ( MD_DATE_FMT_MMM | MD_DATE_FMT_yyyy | MD_DATE_FMT_SPACE );
+      }
       /* 3 Jun 21 */
       if ( ! success && test_date_sep( fptr[ 1 ], '-', ' ' ) &&
-                        test_date_sep( fptr[ 5 ], '-', ' ' ) )
+                        test_date_sep( fptr[ 5 ], '-', ' ' ) ) {
         success = ( parse_day( fptr, 1, d ) &&
                     parse_month( &fptr[ 2 ], 3, m ) &&
                     parse_year( &fptr[ 6 ], 2, yr ) );
+        if ( success ) {
+          fmt = ( MD_DATE_FMT_dmy | MD_DATE_FMT_MMM );
+          if ( fptr[ 1 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SPACE;
+        }
+      }
       /* Jun 3 21 */
       if ( ! success && test_date_sep( fptr[ 3 ], '-', ' ' ) &&
-                        test_date_sep( fptr[ 5 ], '-', ' ' ) )
+                        test_date_sep( fptr[ 5 ], '-', ' ' ) ) {
         success = ( parse_month( fptr, 3, m ) &&
                     parse_day( &fptr[ 4 ], 1, d ) &&
                     parse_year( &fptr[ 6 ], 2, yr ) );
+        if ( success ) {
+          fmt = ( MD_DATE_FMT_mdy | MD_DATE_FMT_MMM );
+          if ( fptr[ 3 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SPACE;
+        }
+      }
       /* 20190601 */
-      if ( ! success )
+      if ( ! success ) {
         success = ( parse_year( fptr, 4, yr ) &&
                     parse_month( &fptr[ 4 ], 2, m ) &&
                     parse_day( &fptr[ 6 ], 2, d ) );
+        if ( success )
+          fmt = ( MD_DATE_FMT_ymd | MD_DATE_FMT_yyyy );
+      }
       break;
     case 9: /* 13-Jul-12, 13 Jul 12, 18Apr2014, Jul 13 12 */
       /* 13-Jul-12, 13 Jul 12 */
       if ( test_date_sep( fptr[ 2 ], '-', ' ' ) &&
-           test_date_sep( fptr[ 6 ], '-', ' ' ) )
+           test_date_sep( fptr[ 6 ], '-', ' ' ) ) {
         success = ( parse_day( fptr, 2, d ) &&
                     parse_month( &fptr[ 3 ], 3, m ) &&
                     parse_year( &fptr[ 7 ], 2, yr ) );
+        if ( success ) {
+          fmt = ( MD_DATE_FMT_dmy | MD_DATE_FMT_MMM );
+          if ( fptr[ 2 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SPACE;
+        }
+      }
       /* 18Apr2014 */
-      if ( ! success )
+      if ( ! success ) {
         success = ( parse_day( fptr, 2, d ) &&
                     parse_month( &fptr[ 2 ], 3, m ) &&
                     parse_year( &fptr[ 5 ], 4, yr ) );
+        if ( success )
+          fmt = MD_DATE_FMT_dmy | MD_DATE_FMT_yyyy | MD_DATE_FMT_MMM;
+      }
       /* Jul 13 12 */
       if ( ! success &&
            test_date_sep( fptr[ 3 ], '-', ' ' ) &&
-           test_date_sep( fptr[ 6 ], '-', ' ' ) )
+           test_date_sep( fptr[ 6 ], '-', ' ' ) ) {
         success = ( parse_month( fptr, 3, m ) &&
                     parse_day( &fptr[ 4 ], 2, d ) &&
                     parse_year( &fptr[ 7 ], 2, yr ) );
+        if ( success ) {
+          fmt = MD_DATE_FMT_mdy | MD_DATE_FMT_MMM;
+          if ( fptr[ 3 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SPACE;
+        }
+      }
       break;
     case 10: /* 04/23/2014, 2014/04/08, 2014-09-04, 21 08 2014, Mon Jun 08 */
       /* 04/23/2014, 04-23-2014 */
       if ( test_date_sep( fptr[ 2 ], '/', '-' ) &&
-           test_date_sep( fptr[ 5 ], '/', '-' ) )
+           test_date_sep( fptr[ 5 ], '/', '-' ) ) {
         success = ( parse_month( fptr, 2, m ) &&
                     parse_day( &fptr[ 3 ], 2, d ) &&
                     parse_year( &fptr[ 6 ], 4, yr ) );
+        if ( success ) {
+          fmt = MD_DATE_FMT_mdy | MD_DATE_FMT_yyyy;
+          if ( fptr[ 2 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SLASH;
+        }
+      }
       /* 2014-09-04, 2014/09/04 */
       if ( ! success && test_date_sep( fptr[ 4 ], '-', '/' ) &&
-                        test_date_sep( fptr[ 7 ], '-', '/' ) )
+                        test_date_sep( fptr[ 7 ], '-', '/' ) ) {
         success = ( parse_year( fptr, 4, yr ) &&
                     parse_month( &fptr[ 5 ], 2, m ) &&
                     parse_day( &fptr[ 8 ], 2, d ) );
+        if ( success ) {
+          fmt = MD_DATE_FMT_ymd | MD_DATE_FMT_yyyy;
+          if ( fptr[ 4 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SLASH;
+        }
+      }
       /* 21 08 2014 */
       if ( ! success && fptr[ 2 ] == ' ' &&
-                        fptr[ 5 ] == ' ' )
+                        fptr[ 5 ] == ' ' ) {
         success = ( parse_day( fptr, 2, d ) &&
                     parse_month( &fptr[ 3 ], 2, m ) &&
                     parse_year( &fptr[ 6 ], 4, yr ) );
+        if ( success )
+          fmt = MD_DATE_FMT_dmy | MD_DATE_FMT_yyyy | MD_DATE_FMT_SPACE;
+      }
       /* Mon Jun 08 */
       if ( ! success && fptr[ 3 ] == ' ' &&
-                        fptr[ 7 ] == ' ' )
+                        fptr[ 7 ] == ' ' ) {
         success = ( parse_month( &fptr[ 4 ], 3, m ) &&
                     parse_day( &fptr[ 8 ], 2, d ) &&
                     get_current_year( m, d, yr ) );
+        if ( success )
+          fmt = MD_DATE_FMT_mm1 | MD_DATE_FMT_dd2 | MD_DATE_FMT_MMM | MD_DATE_FMT_SPACE;
+      }
       /* 2013 Jul 2 */
       if ( ! success && test_date_sep( fptr[ 4 ], ' ', '-' ) &&
-                        test_date_sep( fptr[ 8 ], ' ', '-' ) )
+                        test_date_sep( fptr[ 8 ], ' ', '-' ) ) {
         success = ( parse_year( fptr, 4, yr ) &&
                     parse_month( &fptr[ 5 ], 3, m ) &&
                     parse_day( &fptr[ 9 ], 1, d ) );
+        if ( success ) {
+          fmt = MD_DATE_FMT_ymd | MD_DATE_FMT_MMM;
+          if ( fptr[ 4 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SPACE;
+        }
+      }
       break;
     case 11: /* 08 JUL 2013, 31-Aug-2014, JUL 08 2013, Aug-31-2013,
                 06/01 05:36 */
       /* 08 JUL 2013, 31-Aug-2014 */
       if ( test_date_sep( fptr[ 2 ], ' ', '-' ) &&
-           test_date_sep( fptr[ 6 ], ' ', '-' ) )
+           test_date_sep( fptr[ 6 ], ' ', '-' ) ) {
         success = ( parse_day( fptr, 2, d ) &&
                     parse_month( &fptr[ 3 ], 3, m ) &&
                     parse_year( &fptr[ 7 ], 4, yr ) );
+        if ( success ) {
+          fmt = MD_DATE_FMT_dmy | MD_DATE_FMT_MMM | MD_DATE_FMT_yyyy;
+          if ( fptr[ 2 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SPACE;
+        }
+      }
       /* JUL 08 2013, Aug-31-2013 */
       if ( ! success && test_date_sep( fptr[ 3 ], ' ', '-' ) &&
-                        test_date_sep( fptr[ 6 ], ' ', '-' ) )
+                        test_date_sep( fptr[ 6 ], ' ', '-' ) ) {
         success = ( parse_month( fptr, 3, m ) &&
                     parse_day( &fptr[ 4 ], 2, d ) &&
                     parse_year( &fptr[ 7 ], 4, yr ) );
+        if ( success ) {
+          fmt = MD_DATE_FMT_mdy | MD_DATE_FMT_yyyy;
+          if ( fptr[ 3 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SPACE;
+        }
+      }
       /* 06/01 05:36 */
       if ( ! success && test_date_sep( fptr[ 2 ], '/', '-' ) &&
-                        fptr[ 5 ] == ' ' && fptr[ 8 ] == ':' )
+                        fptr[ 5 ] == ' ' && fptr[ 8 ] == ':' ) {
         success = ( parse_month( fptr, 2, m ) &&
                     parse_day( &fptr[ 3 ], 2, d ) &&
                     get_current_year( m, d, yr ) );
+        if ( success ) {
+          fmt = MD_DATE_FMT_mm1 | MD_DATE_FMT_dd2;
+          if ( fptr[ 2 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SLASH;
+        }
+      }
       /* Jul 1, 2013 */
       if ( ! success && fptr[ 3 ] == ' ' &&
-                        fptr[ 5 ] == ',' && fptr[ 6 ] == ' ' )
+                        fptr[ 5 ] == ',' && fptr[ 6 ] == ' ' ) {
         success = ( parse_month( fptr, 3, m ) &&
                     parse_day( &fptr[ 4 ], 1, d ) &&
                     parse_year( &fptr[ 7 ], 4, yr ) );
+        if ( success )
+          fmt = MD_DATE_FMT_mdy | MD_DATE_FMT_yyyy | MD_DATE_FMT_SPACE;
+      }
       /* 2013 Jul 28 */
       if ( ! success && test_date_sep( fptr[ 4 ], ' ', '-' ) &&
-                        test_date_sep( fptr[ 8 ], ' ', '-' ) )
+                        test_date_sep( fptr[ 8 ], ' ', '-' ) ) {
         success = ( parse_year( fptr, 4, yr ) &&
                     parse_month( &fptr[ 5 ], 3, m ) &&
                     parse_day( &fptr[ 9 ], 2, d ) );
+        if ( success ) {
+          fmt = MD_DATE_FMT_ymd | MD_DATE_FMT_yyyy | MD_DATE_FMT_MMM;
+          if ( fptr[ 4 ] == '-' )
+            fmt |= MD_DATE_FMT_DASH;
+          else
+            fmt |= MD_DATE_FMT_SPACE;
+        }
+      }
       break;
     case 12: /* Jul 11, 2013 */
-      if ( fptr[ 3 ] == ' ' && fptr[ 6 ] == ',' && fptr[ 7 ] == ' ' )
+      if ( fptr[ 3 ] == ' ' && fptr[ 6 ] == ',' && fptr[ 7 ] == ' ' ) {
         success = ( parse_month( fptr, 3, m ) &&
                     parse_day( &fptr[ 4 ], 2, d ) &&
                     parse_year( &fptr[ 8 ], 4, yr ) );
+        if ( success )
+          fmt = MD_DATE_FMT_mdy | MD_DATE_FMT_yyyy | MD_DATE_FMT_MMM |
+                MD_DATE_FMT_SPACE;
+      }
       break;
     case 0: /* null */
       return 0;
@@ -2972,7 +3104,7 @@ MDTime::get_string( char *str,  size_t len ) const noexcept
 
 
 size_t
-MDDate::get_string( char *str,  size_t len,  MDDateFormat fmt ) const noexcept
+MDDate::get_string( char *str,  size_t len,  uint32_t fmt ) const noexcept
 {
   static const char *MONTH_STR[] = {
    0, "JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC" };
@@ -3174,10 +3306,10 @@ uint64_t md_time_to_utc(MDTime_t *time, MDDate_t *dt, bool is_gm_time) { return 
 // MDDate functions
 void md_date_set(MDDate_t *date, uint16_t y, uint8_t m, uint8_t d) { ((rai::md::MDDate *)date)->set(y, m, d); }
 void md_date_zero(MDDate_t *date) { ((rai::md::MDDate *)date)->zero(); }
-size_t md_date_get_string(MDDate_t *date, char *str, size_t len, MDDateFormat fmt) { return ((rai::md::MDDate *)date)->get_string(str, len, fmt); }
+size_t md_date_get_string(MDDate_t *date, char *str, size_t len, uint32_t fmt) { return ((rai::md::MDDate *)date)->get_string(str, len, fmt); }
 bool md_date_is_null(MDDate_t *date) { return ((rai::md::MDDate *)date)->is_null(); }
 /*int md_date_parse_format(const char *s, MDDateFormat *fmt) { return rai::md::MDDate::parse_format(s, *fmt); }*/
-int md_date_parse(MDDate_t *date, const char *fptr, const size_t flen) { return ((rai::md::MDDate *)date)->parse(fptr, flen); }
+int md_date_parse(MDDate_t *date, const char *fptr, const size_t flen, uint32_t *fmt) { return fmt ? ((rai::md::MDDate *)date)->parse_format(fptr, flen, *fmt) : ((rai::md::MDDate *)date)->parse(fptr, flen); }
 int md_date_get_date(MDDate_t *date, MDReference_t *mref) { return ((rai::md::MDDate *)date)->get_date(*(rai::md::MDReference *)mref); }
 uint64_t md_date_to_utc(MDDate_t *date, bool is_gm_time) { return ((rai::md::MDDate *)date)->to_utc(is_gm_time); }
 // MDReference functions
