@@ -277,6 +277,8 @@ struct TibSassMsgWriter : public MDMsgWriterBase {
     return this->append_ref( fname, fname_len, mref );
   }
 
+  TibSassMsgWriter & append_partial( MDFid fid,  uint32_t fsize,
+                           MDReference &mref, const MDFormEntry *entry ) noexcept;
   TibSassMsgWriter & append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
                            MDDecimal &dec, const MDFormEntry *entry ) noexcept;
   TibSassMsgWriter & append_time( MDFid fid,  MDType ftype,  uint32_t fsize,
