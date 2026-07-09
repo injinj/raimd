@@ -200,13 +200,15 @@ struct WildIndex {
 struct MetaData : public MDSubjectKey {
   uint16_t rec_type,
            flist;
-  uint32_t seqno;
+  uint32_t seqno,
+           count;
   MDFormClass * form;
 
   void * operator new( size_t, void *ptr ) { return ptr; }
   MetaData( const char *s,  size_t len,  uint16_t t,  uint16_t f,
             MDFormClass *fm,  uint32_t n )
-  : MDSubjectKey( s, len ), rec_type( t ), flist( f ), seqno( n ), form( fm ) {}
+  : MDSubjectKey( s, len ), rec_type( t ), flist( f ), seqno( n ), count( 1 ),
+    form( fm ) {}
 
   static MetaData * make( const char *subj,  size_t len,  uint16_t rec_type,
                           uint16_t flist,  MDFormClass *form, uint32_t seqno ) {
@@ -245,9 +247,11 @@ main( int argc, char **argv )
              * rmfld  = get_arg( argc, argv, 1, "-r", NULL ),
              * kpfld  = get_arg( argc, argv, 1, "-k", NULL ),
              * fmt    = get_arg( argc, argv, 1, "-t", NULL ),
-             * sub    = get_arg( argc, argv, 1, "-s", NULL );
+             * sub    = get_arg( argc, argv, 1, "-s", NULL ),
+             * cnt    = get_arg( argc, argv, 0, "-c", NULL );
   bool         quiet  = get_arg( argc, argv, 0, "-q", NULL ) != NULL,
-               binout = false;
+               binout = false,
+               use_count_for_seqno = ( cnt != NULL );
   uint32_t cvt_type_id = 0;
 
   if ( get_arg( argc, argv, 0, "-h", NULL ) != NULL ) {
@@ -262,6 +266,7 @@ main( int argc, char **argv )
       "  -k fields         = keep fields in message\n"
       "  -t format         = convert message to (eg TIBMSG,RVMSG,RWFMSG)\n"
       "  -s wildcard       = filter subjects using wildcard\n"
+      "  -c                = use count instead of seqno\n"
       "  -q                = quiet, no printing of messages\n"
       "A file is a binary dump of messages, each with these lines:\n"
       "<subject>\n"
@@ -455,7 +460,8 @@ main( int argc, char **argv )
       uint16_t flist      = 0,
                msg_type   = MD_UPDATE_TYPE,
                rec_type   = 0;
-      uint32_t seqno      = 0;
+      uint32_t seqno      = 0,
+               count      = 0;
 
       switch ( m->get_type_id() ) {
         case MARKETFEED_TYPE_ID: {
@@ -517,13 +523,15 @@ main( int argc, char **argv )
               size_t pos;
               if ( (data = sub_ht.find( k, pos )) == NULL ) {
                 sub_ht.insert( pos, MetaData::make( subj, slen, rec_type, flist,
-                                                    form, ++seqno ) );
+                                                    form, seqno ) );
+                count = 1;
               }
               else {
                 data->rec_type = rec_type;
                 data->flist    = flist;
                 data->form     = form;
                 seqno          = ++data->seqno;
+                count          = ++data->count;
               }
             }
           }
@@ -554,6 +562,7 @@ main( int argc, char **argv )
             flist    = data->flist;
             form     = data->form;
             seqno    = ++data->seqno;
+            count    = ++data->count;
           }
         }
       }
@@ -563,15 +572,19 @@ main( int argc, char **argv )
         size_t pos;
         if ( (data = sub_ht.find( k, pos )) == NULL ) {
           sub_ht.insert( pos, MetaData::make( subj, slen, rec_type, flist,
-                                              form, ++seqno ) );
+                                              form, seqno ) );
+          count = 1;
         }
         else {
           rec_type = data->rec_type;
           flist    = data->flist;
           form     = data->form;
           seqno    = ++data->seqno;
+          count    = ++data->count;
         }
       }
+      if ( use_count_for_seqno )
+        seqno = count;
       switch ( cvt_type_id ) {
         case JSON_TYPE_ID: {
           JsonMsgWriter w( mem, buf_ptr, buf_sz );

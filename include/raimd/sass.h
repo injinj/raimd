@@ -179,6 +179,26 @@ static inline bool is_sass_hdr( const MDName &n ) {
   return false;
 }
 
+static inline size_t
+to_ric( const char *sub,  size_t sublen,  char *tmp,  size_t tmplen )
+{
+  size_t i, j;
+  for ( i = sublen; i > 0 && sub[ i - 1 ] != '.'; i-- )
+    ;
+  if ( i == 0 ) return 0;
+  for ( j = i - 1; j > 0 && sub[ j - 1 ] != '.'; j-- )
+    ;
+  if ( j == 0 || j == i - 1 || tmplen < ( sublen - j ) ) return 0;
+  tmplen = sublen - j;
+  if ( tmplen > 4 && ::memcmp( &sub[ sublen - 4 ], ".NaE", 4 ) == 0 )
+    tmplen -= 4;
+  ::memcpy( tmp, &sub[ j ], tmplen );
+  if ( tmp[ 0 ] == '^' )
+    tmp[ 0 ] = '.';
+  tmp[ tmplen ] = '\0';
+  return tmplen;
+}
+
 template<class Writer>
 void append_sass_hdr( Writer &w,  MDFormClass *form,  uint16_t msg_type,
                       uint16_t rec_type,  uint16_t seqno,  uint16_t status,
@@ -202,8 +222,14 @@ void append_sass_hdr( Writer &w,  MDFormClass *form,  uint16_t msg_type,
       w.append_uint( by.fname, by.fname_len, seqno );
     if ( form->get( by.nm( MD_SASS_REC_STATUS, MD_SASS_REC_STATUS_LEN ) ) == &e[ 3 ] )
       w.append_uint( by.fname, by.fname_len, status );
-    if ( form->get( by.nm( MD_SASS_SYMBOL, MD_SASS_SYMBOL_LEN ) ) == &e[ 4 ] )
+    if ( form->get( by.nm( MD_SASS_SYMBOL, MD_SASS_SYMBOL_LEN ) ) == &e[ 4 ] ) {
+      char tmp[ 256 ];
+      size_t tmplen = sizeof( tmp );
+      if ( (tmplen = to_ric( subj, sublen, tmp, tmplen )) != 0 ) {
+        subj = tmp; sublen = tmplen;
+      }
       w.append_string( by.fname, by.fname_len, subj, sublen );
+    }
   }
 }
 

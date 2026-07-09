@@ -675,10 +675,17 @@ TibSassMsgWriter::append_form_record( void ) noexcept
         this->off = entry.foffset;
       }
       uint16_t fid = entry.fid;
+      MDLookup by( fid );
       fid |= ( (uint16_t) (MD_FIXED | MD_PRIMITIVE) << 14 );
       ptr[ entry.foffset ]     = (uint8_t) ( ( fid >> 8 ) & 0xffU );
       ptr[ entry.foffset + 1 ] = (uint8_t) ( fid & 0xffU );
       this->off = entry.foffset + 2;
+      if ( this->dict->lookup( by ) ) {
+        if ( by.ftype == MD_PARTIAL ) {
+          ptr[ entry.foffset + 4 ] = (uint8_t) ( ( by.fsize >> 8 ) & 0xffU );
+          ptr[ entry.foffset + 5 ] = (uint8_t) ( by.fsize & 0xffU );
+        }
+      }
     }
   }
   if ( this->form->form_size > this->off ) {
@@ -758,10 +765,13 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
   MDValue   val;
   MDEndian  fendian = mref.fendian;
   int       status;
+  bool      is_form = false;
 
   len = tib_sass_pack_size( fsize );
-  if ( entry != NULL && this->use_form )
+  if ( entry != NULL && this->use_form ) {
     ptr = &this->buf[ entry->foffset + 8 ];
+    is_form = true;
+  }
   else {
     if ( ftype != MD_PARTIAL ) {
       if ( ! this->has_space( len ) )
@@ -796,6 +806,9 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       }
       break;
     }
+    case MD_PARTIAL:
+      return this->append_partial( fid, fsize, mref, entry );
+    break;
     default:
       break;
   }
@@ -867,8 +880,7 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
       case MD_OPAQUE:
       case MD_STRING:
       case MD_TIME:
-      case MD_DATE:
-      case MD_PARTIAL: {
+      case MD_DATE: {
         char * sbuf = str_buf;
         size_t sz;
         switch ( mref.ftype ) {
@@ -879,10 +891,9 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
           case MD_REAL:    slen = float_str( get_float<double>( mref ), sbuf );
                            break;
           case MD_STRING:
-          case MD_OPAQUE:  sbuf = (char *) fptr; slen = mref.fsize;
+          case MD_OPAQUE:
+          case MD_PARTIAL: sbuf = (char *) fptr; slen = mref.fsize;
                            break;
-          case MD_PARTIAL: sbuf = (char *) fptr; fsize = (uint32_t) mref.fsize;
-                           goto skip_zpad;
           default:         sz = 0;
                            status = to_string( mref, sbuf, sz );
                            if ( status != 0 ) return this->error( status );
@@ -894,7 +905,6 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
           zpad  = fsize - slen;
           fsize = (uint32_t) slen;
         }
-      skip_zpad:;
         break;
       }
       case MD_BOOLEAN:
@@ -913,45 +923,28 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
     }
   }
 
-  if ( ftype == MD_PARTIAL || ( flags & MD_FIXED ) == 0 ) {
-    if ( ftype == MD_PARTIAL )
-      len = tib_sass_partial_pack_size( fsize );
-    else
-      len = tib_sass_variable_pack_size( fsize, fsize + zpad );
+  if ( ( flags & MD_FIXED ) == 0 ) {
+    len = tib_sass_variable_pack_size( fsize, fsize + zpad );
     if ( ! this->has_space( len ) )
       return this->error( Err::NO_SPACE );
-    ptr = &this->buf[ this->off + 8 ];
     fid |= ( (uint16_t) flags << 14 ); /* FIXED = 2, PRIMITIVE = 1 */
     ptr[ 0 ] = (uint8_t) ( ( fid >> 8 ) & 0xffU );
     ptr[ 1 ] = (uint8_t) ( fid & 0xffU );
-    if ( ftype == MD_PARTIAL ) {
-      if ( fsize > 0xffffU )
-        return this->error( Err::BAD_FIELD_SIZE );
-      ptr[ 2 ] = 0; /* ( uint8_t )( ( mref.fentrysz >> 8 ) & 0xffU );*/
-      ptr[ 3 ] = (uint8_t) ( mref.fentrysz & 0xffU );
-      ptr[ 4 ] = (uint8_t) ( ( fsize >> 8 ) & 0xffU );
-      ptr[ 5 ] = (uint8_t) ( fsize & 0xffU );
+    if ( fsize + zpad < 0xffffU ) {
+      ptr[ 2 ] = ( fsize >> 8 ) & 0xffU;
+      ptr[ 3 ] = fsize & 0xffU;
+      ::memcpy( &ptr[ 4 ], fptr, fsize );
+      if ( fsize + 4 < len )
+        ptr[ fsize + 5 ] = 0;
+    }
+    else {
+      ptr[ 2 ] = ( fsize >> 24 ) & 0xffU;
+      ptr[ 3 ] = ( fsize >> 16 ) & 0xffU;
+      ptr[ 4 ] = ( fsize >> 8 ) & 0xffU;
+      ptr[ 5 ] = fsize & 0xffU;
       ::memcpy( &ptr[ 6 ], fptr, fsize );
       if ( fsize + 6 < len )
         ptr[ fsize + 7 ] = 0;
-    }
-    else {
-      if ( fsize + zpad < 0xffffU ) {
-        ptr[ 2 ] = ( fsize >> 8 ) & 0xffU;
-        ptr[ 3 ] = fsize & 0xffU;
-        ::memcpy( &ptr[ 4 ], fptr, fsize );
-        if ( fsize + 4 < len )
-          ptr[ fsize + 5 ] = 0;
-      }
-      else {
-        ptr[ 2 ] = ( fsize >> 24 ) & 0xffU;
-        ptr[ 3 ] = ( fsize >> 16 ) & 0xffU;
-        ptr[ 4 ] = ( fsize >> 8 ) & 0xffU;
-        ptr[ 5 ] = fsize & 0xffU;
-        ::memcpy( &ptr[ 6 ], fptr, fsize );
-        if ( fsize + 6 < len )
-          ptr[ fsize + 7 ] = 0;
-      }
     }
   }
   else {
@@ -984,7 +977,138 @@ TibSassMsgWriter::append_ref( MDFid fid,  MDType ftype,  uint32_t fsize,
     if ( zpad > 0 )
       ::memset( &ptr[ 2 + fsize ], 0, zpad );
   }
-  this->off += len;
+  if ( ! is_form )
+    this->off += len;
+  return *this;
+}
+
+static uint8_t
+next_b( const char *ptr,  size_t off,  size_t len ) noexcept
+{
+  if ( off <= len )
+    return (uint8_t) ptr[ off ];
+  return 0;
+}
+
+static bool
+is_digit( uint8_t c,  uint8_t &d ) noexcept
+{
+  d = ( c - '0' );
+  return c >= '0' && c <= '9';
+}
+
+static bool
+is_esc_sequence( char *ptr,  char *&ptr2,  size_t &foff,  size_t z ) noexcept
+{
+  size_t  i = 0;
+  uint8_t d;
+  /* ESC + [ + digits + ` */
+  if ( next_b( ptr, 0, z ) == 0x1b && next_b( ptr, 1, z ) == '[' )
+    i = 2;
+  else if ( next_b( ptr, 0, z ) == ( 0x80 | 0x1b ) )
+    i = 1;
+  if ( i != 0 && is_digit( next_b( ptr, i, z ), d ) ) {
+    foff = d;
+    for ( i++; is_digit( next_b( ptr, i, z ), d ); i++ )
+      foff = ( foff * 10 ) + d;
+    if ( next_b( ptr, i, z ) == '`' ) {
+      ptr2 = &ptr[ i + 1 ];
+      return true;
+    }
+  }
+  return false;
+}
+
+TibSassMsgWriter &
+TibSassMsgWriter::append_partial( MDFid fid,  uint32_t fsize,
+                                  MDReference &mref,
+                                  const MDFormEntry *entry ) noexcept
+{
+  char      str_buf[ 64 ];
+  uint8_t * ptr,
+          * fptr = mref.fptr;
+  size_t    slen,
+            foff = 0;
+  char    * sbuf = str_buf;
+  size_t    sz;
+  int       status;
+
+  switch ( mref.ftype ) {
+    case MD_UINT:    slen = uint_str( get_uint<uint64_t>( mref ), sbuf );
+                     break;
+    case MD_INT:     slen = int_str( get_int<int64_t>( mref ), sbuf );
+                     break;
+    case MD_REAL:    slen = float_str( get_float<double>( mref ), sbuf );
+                     break;
+    case MD_STRING:
+    case MD_OPAQUE: {
+                     char * p2   = NULL;
+                     size_t xoff = 0;
+                     sbuf = (char *) fptr;
+                     slen = mref.fsize;
+                     if ( is_esc_sequence( sbuf, p2, xoff, slen ) ) {
+                       foff  = xoff;
+                       slen -= ( p2 - sbuf );
+                       sbuf  = p2;
+                     }
+                     break;
+    }
+    case MD_PARTIAL: sbuf = (char *) fptr;
+                     slen = mref.fsize;
+                     foff = mref.fentrysz;
+                     break;
+    default:         sz = 0;
+                     status = to_string( mref, sbuf, sz );
+                     if ( status != 0 )
+                       return this->error( status );
+                     slen = sz;
+                     break;
+  }
+  if ( entry != NULL && this->use_form ) {
+    ptr = &this->buf[ entry->foffset + 8 ];
+  }
+  else {
+    size_t len = tib_sass_partial_pack_size( slen );
+    if ( ! this->has_space( len ) )
+      return this->error( Err::NO_SPACE );
+    ptr = &this->buf[ this->off + 8 ];
+    this->off += len;
+  }
+  fid |= (uint16_t) ( MD_FIXED | MD_PRIMITIVE ) << 14;
+  ptr[ 0 ] = ( fid >> 8 ) & 0xffU;
+  ptr[ 1 ] = fid & 0xffU;
+
+  if ( ! this->use_form ) {
+    ptr[ 2 ] = ( foff >> 8 ) & 0xffU;
+    ptr[ 3 ] = foff & 0xffU;
+    ptr[ 4 ] = ( slen >> 8 ) & 0xffU;
+    ptr[ 5 ] = slen & 0xffU;
+    ::memcpy( &ptr[ 6 ], sbuf, slen );
+    if ( ( slen & 1 ) != 0 )
+      ptr[ 6 + slen ] = 0;
+  }
+  else {
+    ptr[ 2 ] = 0;
+    ptr[ 3 ] = 0;
+    ptr[ 4 ] = ( fsize >> 8 ) & 0xffU;
+    ptr[ 5 ] = fsize & 0xffU;
+
+    if ( foff + slen > fsize ) {
+      if ( foff >= fsize )
+        slen = 0;
+      else
+        slen = fsize - foff;
+    }
+    if ( foff > 0 )
+      ::memset( &ptr[ 6 ], ' ', foff );
+    if ( slen > 0 )
+      ::memcpy( &ptr[ 6 + foff ], sbuf, slen );
+    if ( foff + slen < fsize )
+      ::memset( &ptr[ 6 + foff + slen ], 0, fsize - ( foff + slen ) );
+    if ( ( fsize & 1 ) != 0 )
+      ptr[ 6 + fsize ] = 0;
+  }
+
   return *this;
 }
 
@@ -1020,6 +1144,7 @@ TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
         if ( ! this->has_space( len ) )
           return this->error( Err::NO_SPACE );
         ptr = &this->buf[ this->off + 8 ];
+        this->off += len;
       }
       switch ( dec.hint ) {
         default:
@@ -1076,7 +1201,6 @@ TibSassMsgWriter::append_decimal( MDFid fid,  MDType ftype,  uint32_t fsize,
       }
       ptr[ 2 + n ] = h;
       ptr[ 2 + n+1 ] = 0;
-      this->off += len;
       return *this;
     }
     mref.fsize    = sizeof( double );
