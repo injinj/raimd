@@ -198,8 +198,8 @@ struct RvMsgWriter : public MDMsgWriterBase {
   }
   bool resize( size_t len ) noexcept;
   virtual size_t update_hdr( void ) noexcept override {
-    if ( this->buflen == 0 )
-      this->resize( 8 );
+    if ( this->buflen == 0 && ! this->resize( 8 ) )
+      return 0; /* resize failed (err set), don't write through NULL buf */
     this->buf[ 0 ] = ( this->off >> 24 ) & 0xffU;
     this->buf[ 1 ] = ( this->off >> 16 ) & 0xffU;
     this->buf[ 2 ] = ( this->off >> 8 ) & 0xffU;

@@ -87,9 +87,16 @@ struct MDHashTabT {
     ::memset( this->tab, 0, sizeof( Value * ) * ini_sz );
     this->tab_mask = ini_sz - 1;
   }
-  ~MDHashTabT() {
-    if ( this->tab != NULL )
+  void release( void ) {
+    if ( this->tab != NULL ) {
       ::free( this->tab );
+      this->tab = NULL;
+    }
+    this->tab_mask = 0;
+    this->elem_count = 0;
+  }
+  ~MDHashTabT() {
+    this->release();
   }
 
   size_t min_size( void ) const {
@@ -146,14 +153,17 @@ struct MDHashTabT {
 
   Value *remove( Key &h ) {
     size_t pos;
-    if ( this->find( h, pos ) ) {
-      Value *old = this->swap( pos, NULL );
-      this->fill_empty_hole( pos );
-      if ( --this->elem_count < this->min_size() )
-        this->shrink();
-      return old;
-    }
+    if ( this->find( h, pos ) )
+      return this->remove_slot( pos );
     return NULL;
+  }
+
+  Value *remove_slot( size_t pos ) {
+    Value *old = this->swap( pos, NULL );
+    this->fill_empty_hole( pos );
+    if ( --this->elem_count < this->min_size() )
+      this->shrink();
+    return old;
   }
 
   void fill_empty_hole( size_t pos ) {
