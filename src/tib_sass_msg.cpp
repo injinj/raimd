@@ -637,7 +637,7 @@ TibSassMsgWriter::resize( size_t len ) noexcept
   if ( this->err != 0 )
     return false;
   size_t old_len = this->buflen,
-         new_len = this->buflen + ( len - this->off ) + 8;
+         new_len = old_len + ( this->off + len + 8 - old_len );
   if ( new_len > max_size )
     return false;
   if ( new_len < old_len * 2 )

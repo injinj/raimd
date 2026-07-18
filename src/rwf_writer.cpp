@@ -161,7 +161,7 @@ RwfMsgWriterBase::resize( size_t len ) noexcept
   if ( len > max_size )
     return false;
   size_t old_len = p->prefix_len + p->buflen,
-         new_len = old_len + ( len - this->off );
+         new_len = old_len + ( this->off + len - this->buflen );
   if ( new_len > max_size )
     return false;
   if ( new_len < old_len * 2 )

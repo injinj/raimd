@@ -199,6 +199,8 @@ struct TibSassMsgWriter : public MDMsgWriterBase {
   }
   bool resize( size_t len ) noexcept;
   virtual size_t update_hdr( void ) noexcept override {
+    if ( this->buflen == 0 && ! this->resize( 0 ) )
+      return 0; /* resize failed (err set), don't write through NULL buf */
     this->buf[ 0 ] = 0x11;
     this->buf[ 1 ] = 0x11;
     this->buf[ 2 ] = 0x11;
