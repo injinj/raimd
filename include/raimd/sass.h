@@ -1,6 +1,8 @@
 #ifndef __rai_raimd__sass_h__
 #define __rai_raimd__sass_h__
 
+#include <raimd/md_dict.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -128,6 +130,30 @@ static const size_t MD_SASS_MSG_TYPE_LEN   = sizeof( "MSG_TYPE" ),
                     MD_SASS_SEQ_NO_LEN     = sizeof( "SEQ_NO" ),
                     MD_SASS_REC_STATUS_LEN = sizeof( "REC_STATUS" ),
                     MD_SASS_SYMBOL_LEN     = sizeof( "SYMBOL" );
+
+static const uint16_t SASS3_SUB_MAGIC = 23176;
+static const uint16_t SASS3_PUB_MAGIC = 23177;
+
+/* SASS3 QueryFlags 'T' field of query, parsed from _SNAP flags field of rv7 client */
+enum SassQueryFlags {
+  QF_SNAPSHOT       = 0x01,
+  QF_SUBSCRIBE      = 0x02,
+  QF_INITIAL_VALUES = 0x04,
+  QF_UNSUBSCRIBE    = 0x08,
+  QF_REFRESH        = 0x10,
+  QF_RESUBSCRIBE    = 0x80
+};
+/* SASS3 Indicator, 'I' field of publish */
+enum SassIndicator {
+  IND_NONE     = 0,
+  IND_UPDATE   = 0x01,
+  IND_INITIAL  = 0x02,
+  IND_OOB      = 0x04,
+  IND_RESET    = 0x08,
+  IND_SNAPSHOT = 0x10,
+  IND_ACK      = 0x20
+};
+
 #if 0
 const char * md_sass_msg_type_string( unsigned short msg_type, char *buf );
 const char * md_sass_rec_status_string( unsigned short rec_status, char *buf );
