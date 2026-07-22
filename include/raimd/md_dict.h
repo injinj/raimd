@@ -1,6 +1,7 @@
 #ifndef __rai_raimd__md_dict_h__
 #define __rai_raimd__md_dict_h__
 
+#include <stdio.h>
 #include <raimd/md_types.h>
 #include <raimd/md_hash_tab.h>
 

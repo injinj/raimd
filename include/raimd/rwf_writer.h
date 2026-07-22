@@ -67,7 +67,7 @@ struct RwfMsgWriterBase : public MDMsgWriterBase {
   }
   bool check_offset( void ) {
     bool b = ( this->off <= this->buflen );
-    if ( ! b ) b = this->resize( this->buflen - this->off );
+    if ( ! b ) b = this->resize( 0 ); /* shortfall = off - buflen */
     return b;
   }
   bool check_prefix( size_t len ) {
