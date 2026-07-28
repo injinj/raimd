@@ -76,3 +76,20 @@ rai::md::load_dict_files( const char *path,  bool verbose ) noexcept
   return NULL;
 }
 
+bool
+MDMsgDict::load( const char *path,  bool verbose ) noexcept
+{
+  if ( path != NULL )
+    this->dict = load_dict_files( path, verbose );
+  if ( this->dict != NULL ) {
+    for ( MDDict *d = this->dict; d != NULL; d = d->get_next() ) {
+      if ( d->dict_type[ 0 ] == 'c' )
+        this->cfile_dict = d;
+      else if ( d->dict_type[ 0 ] == 'a' )
+        this->rdm_dict = d;
+      else if ( d->dict_type[ 0 ] == 'f' )
+        this->flist_dict = d;
+    }
+  }
+  return this->dict != NULL;
+}

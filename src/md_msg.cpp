@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <raimd/md_msg.h>
+#include <raimd/md_dict.h>
 
 using namespace rai;
 using namespace md;
@@ -15,7 +16,8 @@ MDMatch_t * md_msg_next_match( uint32_t *i ) { return (MDMatch_t *) MDMsg::next_
 MDMsg_t * md_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
                          MDDict_t *d,  MDMsgMem_t *m )
 {
-  return MDMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+  return MDMsg::unpack( bb, off, end, h, static_cast<MDDict *>( d ),
+                        *static_cast<MDMsgMem *>( m ) );
 }
 int
 md_msg_get_field_iter( MDMsg_t *m,  MDFieldIter_t **iter )
@@ -39,6 +41,17 @@ void
 md_msg_print( MDMsg_t *m, MDOutput_t *mout )
 {
   return static_cast<MDMsg *>( m )->print( (MDOutput *) mout );
+}
+MDMsgWriter_t *
+md_msg_writer_create( MDMsg_t *m, MDMsgMem_t *mem, MDDict_t *d,
+                      void *bb, size_t len )
+{
+  MDMsgWriterBase *w;
+  if ( static_cast<MDMsg *>( m )->create_writer( w,
+                                  *static_cast<MDMsgMem *>( mem ),
+                                  static_cast<MDDict *>( d ), bb, len ) == 0 )
+    return (MDMsgWriter_t *) w;
+  return NULL;
 }
 }
 
@@ -293,6 +306,42 @@ found_msg_type:;
   if ( ma->hint[ 0 ] != 0 )
     return ma->hint[ 0 ];
   return ma->ftype;
+}
+
+MDMsgWriterBase *
+MDMsg::get_writer( uint32_t h,  MDMsgMem &m,  MDDict *d,
+                   void *bb,  size_t len ) noexcept
+{
+  MDMsgWriterBase * wr;
+  uint32_t          i, j;
+  /* if nothing init, use auto unpack */
+  if ( md_add_cnt == 0 )
+    md_init_auto_unpack();
+  /* find decoder by md_match_hash[ h ] */
+  if ( h != 0 ) {
+    if ( h < MATCH_HASH_SIZE ) {
+      if ( (i = md_match_ftype[ h ]) != 0 ) {
+        MDMatch &ma = *md_match_arr[ i - 1 ];
+        if ( ma.create_writer != NULL )
+          if ( (wr = ma.create_writer( &m, d, bb, len )) != NULL )
+            return wr;
+      }
+    }
+    j = h % MATCH_HASH_SIZE;
+    for (;;) {
+      if ( md_match_hash[ j ].hint == h ) {
+        i = md_match_hash[ j ].idx;
+        MDMatch &ma = *md_match_arr[ i ];
+        if ( ma.create_writer != NULL )
+          if ( (wr = ma.create_writer( &m, d, bb, len )) != NULL )
+            return wr;
+      }
+      else if ( md_match_hash[ j ].hint == 0 )
+        break;
+      j = ( j + 1 ) % MATCH_HASH_SIZE;
+    }
+  }
+  return NULL;
 }
 
 void *

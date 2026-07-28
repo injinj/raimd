@@ -286,15 +286,17 @@ struct RwfMsg : public MDMsg {
   RwfMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem &m )
     : MDMsg( bb, off, end, d, m ), parent( 0 ) {}
 
-  virtual const char *get_proto_string( void ) noexcept final;
-  virtual uint32_t get_type_id( void ) noexcept final;
-  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
+  virtual const char *get_proto_string( void ) noexcept override final;
+  virtual uint32_t get_type_id( void ) noexcept override final;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept override final;
   RwfMsg * unpack_sub_msg( uint8_t type,  size_t start,  size_t end ) noexcept;
   RwfMsg * get_msg_key_attributes( void ) noexcept;
   RwfMsg * get_container_msg( void ) noexcept;
   RwfMsg * get_summary_msg( void ) noexcept;
   virtual int get_sub_msg( MDReference &mref,  MDMsg *&msg,
-                           MDFieldIter *iter ) noexcept final;
+                           MDFieldIter *iter ) noexcept override final;
+  virtual int create_writer( MDMsgWriterBase *&wr,  MDMsgMem &mem,  MDDict *d,
+                             void *bb,  size_t len ) noexcept override final;
   bool get_field_defn_db( void ) noexcept;
   virtual int get_array_ref( MDReference &mref, size_t i,
                              MDReference &aref ) noexcept;
@@ -443,22 +445,22 @@ struct RwfFieldIter : public MDFieldIter {
   }
 
   void lookup_fid( void ) noexcept;
-  virtual int get_name( MDName &name ) noexcept final;
+  virtual int get_name( MDName &name ) noexcept override final;
   virtual int set_name( const char *fname,  size_t fnamelen,
-                        MDName &name ) noexcept final;
-  virtual int get_enum( MDReference &mref,  MDEnum &enu ) noexcept final;
-  virtual int get_reference( MDReference &mref ) noexcept final;
+                        MDName &name ) noexcept override final;
+  virtual int get_enum( MDReference &mref,  MDEnum &enu ) noexcept override final;
+  virtual int get_reference( MDReference &mref ) noexcept override final;
   int get_real_ref( MDReference &mref ) noexcept;
   int decode_ref( MDReference &mref ) noexcept;
-  virtual int get_hint_reference( MDReference &mref ) noexcept final;
+  virtual int get_hint_reference( MDReference &mref ) noexcept override final;
   virtual int find( const char *name, size_t name_len,
-                    MDReference &mref ) noexcept final;
+                    MDReference &mref ) noexcept override final;
   virtual int find_next( const char *name, size_t name_len,
-                         MDReference &mref ) noexcept final;
-  virtual int find( const MDName &n,  MDReference &mref ) noexcept final;
-  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept final;
-  virtual int first( void ) noexcept final;
-  virtual int next( void ) noexcept final;
+                         MDReference &mref ) noexcept override final;
+  virtual int find( const MDName &n,  MDReference &mref ) noexcept override final;
+  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept override final;
+  virtual int first( void ) noexcept override final;
+  virtual int next( void ) noexcept override final;
   virtual int update( MDReference &mref ) noexcept;
   int unpack_field_list_entry( void ) noexcept;
   int unpack_field_list_defn( void ) noexcept;

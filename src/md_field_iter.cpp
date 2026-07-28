@@ -103,6 +103,9 @@ int MDMsg::get_reference( MDReference &mref ) noexcept
 { mref.zero(); return Err::INVALID_MSG; }
 int MDMsg::get_array_ref( MDReference &,  size_t,  MDReference &aref ) noexcept
 { aref.zero(); return Err::INVALID_MSG; }
+int MDMsg::create_writer( MDMsgWriterBase *&wr,  MDMsgMem &,  MDDict *,  void *,
+                          size_t ) noexcept
+{ wr = NULL; return Err::NO_MSG_IMPL; }
 
 int MDFieldIter::get_name( MDName &name ) noexcept
 { name.zero(); return 0; }

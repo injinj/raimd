@@ -22,6 +22,16 @@ namespace md {
 
 MDDict * load_dict_files( const char *path,  bool verbose = true ) noexcept;
 
+struct MDMsgDict {
+  MDDict * dict,
+         * cfile_dict,
+         * rdm_dict,
+         * flist_dict;
+  MDMsgDict() : dict( 0 ), cfile_dict( 0 ), rdm_dict( 0 ), flist_dict( 0 ) {}
+
+  bool load( const char *path,  bool verbose = true ) noexcept;
+};
+
 }
 }
 

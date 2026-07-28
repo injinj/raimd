@@ -18,15 +18,16 @@ ZSetMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch zsetmsg_match = {
-  .name        = ZSetMsg_proto_string,
-  .off         = 0,
-  .len         = 1, /* cnt of buf[] */
-  .hint_size   = 0, /* cnt of hint[] */
-  .ftype       = MD_ZSET,
-  .buf         = { ZSetData::zst8_sig & 0xffU },
-  .hint        = { 0 },
-  .is_msg_type = ZSetMsg::is_zsetmsg,
-  .unpack      = ZSetMsg::unpack
+  .name          = ZSetMsg_proto_string,
+  .off           = 0,
+  .len           = 1, /* cnt of buf[] */
+  .hint_size     = 0, /* cnt of hint[] */
+  .ftype         = MD_ZSET,
+  .buf           = { ZSetData::zst8_sig & 0xffU },
+  .hint          = { 0 },
+  .is_msg_type   = ZSetMsg::is_zsetmsg,
+  .unpack        = ZSetMsg::unpack,
+  .create_writer = 0
 };
 
 static bool

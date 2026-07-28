@@ -17,14 +17,6 @@
 using namespace rai;
 using namespace md;
 
-struct MsgDict {
-  MDDict * dict,
-         * cfile_dict,
-         * rdm_dict,
-         * flist_dict;
-  MsgDict() : dict( 0 ), cfile_dict( 0 ), rdm_dict( 0 ), flist_dict( 0 ) {}
-};
-
 struct CacheData : public MDSubjectKey {
   uint32_t type_id;
   void   * data;
@@ -34,7 +26,7 @@ struct CacheData : public MDSubjectKey {
   CacheData( char *s,  size_t len )
     : MDSubjectKey( s, len ), type_id( 0 ), data( NULL ), datalen( 0 ) {}
 
-  static CacheData * make( const MDSubjectKey &k,  MDMsg &m,  MsgDict &dict ) {
+  static CacheData * make( const MDSubjectKey &k,  MDMsg &m,  MDMsgDict &dict ) {
     void * d = ::malloc( sizeof( CacheData ) + k.len + 1 );
     char * p = &((char *) d)[ sizeof( CacheData ) ];
     ::memcpy( p, k.subj, k.len );
@@ -43,7 +35,7 @@ struct CacheData : public MDSubjectKey {
     data->update( m, dict );
     return data;
   }
-  void update( MDMsg &m,  MsgDict &dict ) {
+  void update( MDMsg &m,  MDMsgDict &dict ) {
     if ( this->datalen != 0 ) {
       MDMsg * c = MDMsg::unpack( this->data, 0, this->datalen, this->type_id,
                                  dict.dict, *m.mem );
@@ -57,13 +49,13 @@ struct CacheData : public MDSubjectKey {
     this->data = ::realloc( this->data, this->datalen );
     ::memcpy( this->data, &((char *) m.msg_buf)[ m.msg_off ], this->datalen );
   }
-  uint16_t get_msg_type( MsgDict &dict ) noexcept;
-  uint16_t get_rec_type( MsgDict &dict ) noexcept;
+  uint16_t get_msg_type( MDMsgDict &dict ) noexcept;
+  uint16_t get_rec_type( MDMsgDict &dict ) noexcept;
   void merge( MDMsg &m,  MDMsg &c ) noexcept;
 };
 
 uint16_t
-CacheData::get_msg_type( MsgDict &dict ) noexcept
+CacheData::get_msg_type( MDMsgDict &dict ) noexcept
 {
   MDMsgMem mem;
   MDMsg * m = MDMsg::unpack( this->data, 0, this->datalen, this->type_id,
@@ -91,7 +83,7 @@ CacheData::get_msg_type( MsgDict &dict ) noexcept
 }
 
 uint16_t
-CacheData::get_rec_type( MsgDict &dict ) noexcept
+CacheData::get_rec_type( MDMsgDict &dict ) noexcept
 {
   MDMsgMem mem;
   MDMsg * m = MDMsg::unpack( this->data, 0, this->datalen, this->type_id,
@@ -261,7 +253,7 @@ get_arg( int argc, char *argv[], int b, const char *f,
 int
 main( int argc, char *argv[] )
 {
-  MsgDict dict; /* dictinonaries, cfile and RDM/appendix_a */
+  MDMsgDict dict; /* dictinonaries, cfile and RDM/appendix_a */
   const char * fn     = get_arg( argc, argv, 1, "-f", NULL ),
              * path   = get_arg( argc, argv, 1, "-p", ::getenv( "cfile_path" ));
 
@@ -283,18 +275,7 @@ main( int argc, char *argv[] )
       "{ \"ten\" : 10 }\n", argv[ 0 ] );
     return 1;
   }
-  if ( path != NULL )
-    dict.dict = load_dict_files( path );
-  if ( dict.dict != NULL ) {
-    for ( MDDict *d = dict.dict; d != NULL; d = d->get_next() ) {
-      if ( d->dict_type[ 0 ] == 'c' )
-        dict.cfile_dict = d;
-      else if ( d->dict_type[ 0 ] == 'a' )
-        dict.rdm_dict = d;
-      else if ( d->dict_type[ 0 ] == 'f' )
-        dict.flist_dict = d;
-    }
-  }
+  dict.load( path );
   FILE *filep = ( fn == NULL ? stdin : fopen( fn, "rb" ) );
   if ( filep == NULL ) {
     perror( fn );

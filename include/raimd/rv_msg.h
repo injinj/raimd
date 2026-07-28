@@ -29,16 +29,19 @@ struct RvMsg : public MDMsg {
   RvMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem &m )
     : MDMsg( bb, off, end, d, m ) {}
 
-  virtual const char *get_proto_string( void ) noexcept final;
-  virtual uint32_t get_type_id( void ) noexcept final;
+  virtual const char *get_proto_string( void ) noexcept override final;
+  virtual uint32_t get_type_id( void ) noexcept override final;
   virtual int get_sub_msg( MDReference &mref, MDMsg *&msg,
-                           MDFieldIter *iter ) noexcept final;
-  virtual int get_field_iter( MDFieldIter *&iter ) noexcept final;
+                           MDFieldIter *iter ) noexcept override final;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept override final;
   virtual int get_array_ref( MDReference &mref,  size_t i,
-                             MDReference &aref ) noexcept;
+                             MDReference &aref ) noexcept override final;
   virtual int time_to_string( MDReference &mref,  char *&buf,
                               size_t &len ) noexcept final;
-  virtual int xml_to_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
+  virtual int xml_to_string( MDReference &mref,  char *&buf,
+                             size_t &len ) noexcept override final;
+  virtual int create_writer( MDMsgWriterBase *&wr,  MDMsgMem &mem,  MDDict *d,
+                             void *bb,  size_t len ) noexcept override final;
   /* may return tibmsg, sass qform or rv */
   static bool is_rvmsg( void *bb,  size_t off,  size_t end,
                         uint32_t h ) noexcept;
@@ -69,20 +72,22 @@ struct RvFieldIter : public MDFieldIter {
     this->MDFieldIter::dup_iter( i );
   }
   bool is_named( const char *name,  size_t name_len ) noexcept;
-  virtual MDFieldIter *copy( void ) noexcept final;
-  virtual int get_name( MDName &name ) noexcept final;
+  virtual MDFieldIter *copy( void ) noexcept override final;
+  virtual int get_name( MDName &name ) noexcept override final;
   virtual int set_name( const char *fname,  size_t fnamelen,
-                        MDName &name ) noexcept final;
-  virtual int get_reference( MDReference &mref ) noexcept final;
+                        MDName &name ) noexcept override final;
+  virtual int get_reference( MDReference &mref ) noexcept override final;
   virtual int find( const char *name, size_t name_len,
-                    MDReference &mref ) noexcept final;
+                    MDReference &mref ) noexcept override final;
   virtual int find_next( const char *name, size_t name_len,
-                         MDReference &mref ) noexcept final;
-  virtual int find( const MDName &n,  MDReference &mref ) noexcept final;
-  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept final;
-  virtual int first( void ) noexcept final;
-  virtual int next( void ) noexcept final;
-  virtual int update( MDReference &mref ) noexcept final;
+                         MDReference &mref ) noexcept override final;
+  virtual int find( const MDName &n,
+                    MDReference &mref ) noexcept override final;
+  virtual int find_next( const MDName &n,
+                         MDReference &mref ) noexcept override final;
+  virtual int first( void ) noexcept override final;
+  virtual int next( void ) noexcept override final;
+  virtual int update( MDReference &mref ) noexcept override final;
   int unpack( void ) noexcept;
 };
 

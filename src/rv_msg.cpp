@@ -17,15 +17,23 @@ extern "C" {
 MDMsg_t * rv_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h, 
                         MDDict_t *d,  MDMsgMem_t *m ) 
 {   
-  return RvMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+  return RvMsg::unpack( bb, off, end, h, static_cast<MDDict *>( d ),
+                        *static_cast<MDMsgMem *>( m ) );
 }
 MDMsgWriter_t *
-rv_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *,
-                      void *buf_ptr, size_t buf_sz )
+rv_msg_writer_create( MDMsgMem_t *mem, MDDict_t *, void *buf_ptr, size_t buf_sz )
 {
-  void * p = ((MDMsgMem *) mem)->make( sizeof( RvMsgWriter ) );
-  return new ( p ) RvMsgWriter( *(MDMsgMem *) mem, buf_ptr, buf_sz );
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( RvMsgWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) RvMsgWriter( *static_cast<MDMsgMem *>( mem ), buf_ptr, buf_sz );
 }
+}
+int
+RvMsg::create_writer( MDMsgWriterBase *&wr,  MDMsgMem &mem,  MDDict *d,
+                      void *bb,  size_t len ) noexcept
+{
+  wr = static_cast<MDMsgWriterBase *>( rv_msg_writer_create( &mem, d, bb, len ) );
+  return wr ? 0 : Err::ALLOC_FAIL;
 }
 
 static const char RvMsg_proto_string[] = "RVMSG";
@@ -42,15 +50,16 @@ RvMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch rvmsg_match = {
-  .name        = RvMsg_proto_string,
-  .off         = 4,
-  .len         = 4, /* cnt of buf[] */
-  .hint_size   = 1, /* cnt of hint[] */
-  .ftype       = (uint8_t) RVMSG_TYPE_ID,
-  .buf         = { 0x99, 0x55, 0xee, 0xaa },
-  .hint        = { RVMSG_TYPE_ID, 0 },
-  .is_msg_type = RvMsg::is_rvmsg,
-  .unpack      = RvMsg::unpack
+  .name          = RvMsg_proto_string,
+  .off           = 4,
+  .len           = 4, /* cnt of buf[] */
+  .hint_size     = 1, /* cnt of hint[] */
+  .ftype         = (uint8_t) RVMSG_TYPE_ID,
+  .buf           = { 0x99, 0x55, 0xee, 0xaa },
+  .hint          = { RVMSG_TYPE_ID, 0 },
+  .is_msg_type   = RvMsg::is_rvmsg,
+  .unpack        = RvMsg::unpack,
+  .create_writer = (md_create_writer_f) rv_msg_writer_create
 };
 
 bool

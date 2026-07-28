@@ -10,15 +10,24 @@ extern "C" {
 MDMsg_t * tib_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
                           MDDict_t *d,  MDMsgMem_t *m )
 {
-  return TibMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+  return TibMsg::unpack( bb, off, end, h, static_cast<MDDict *>( d ),
+                         *static_cast<MDMsgMem *>( m ) );
 }
 MDMsgWriter_t *
 tib_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *,
                        void *buf_ptr, size_t buf_sz )
 {
-  void * p = ((MDMsgMem *) mem)->make( sizeof( TibMsgWriter ) );
-  return new ( p ) TibMsgWriter( *(MDMsgMem *) mem, buf_ptr, buf_sz );
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( TibMsgWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) TibMsgWriter( *static_cast<MDMsgMem *>( mem ), buf_ptr, buf_sz );
 }
+}
+int
+TibMsg::create_writer( MDMsgWriterBase *&wr,  MDMsgMem &mem,  MDDict *d,
+                       void *bb,  size_t len ) noexcept
+{
+  wr = static_cast<MDMsgWriterBase *>( tib_msg_writer_create( &mem, d, bb, len ) );
+  return wr ? 0 : Err::ALLOC_FAIL;
 }
 
 static const char TibMsg_proto_string[] = "TIBMSG";
@@ -35,15 +44,16 @@ TibMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch tibmsg_match = {
-  .name        = TibMsg_proto_string,
-  .off         = 0,
-  .len         = 4, /* cnt of buf[] */
-  .hint_size   = 2, /* cnt of hint[] */
-  .ftype       = (uint8_t) RAIMSG_TYPE_ID,
-  .buf         = { 0xce, 0x13, 0xaa, 0x1f },
-  .hint        = { RAIMSG_TYPE_ID, 0x3f4c369e },
-  .is_msg_type = TibMsg::is_tibmsg,
-  .unpack      = (md_msg_unpack_f) TibMsg::unpack
+  .name          = TibMsg_proto_string,
+  .off           = 0,
+  .len           = 4, /* cnt of buf[] */
+  .hint_size     = 2, /* cnt of hint[] */
+  .ftype         = (uint8_t) RAIMSG_TYPE_ID,
+  .buf           = { 0xce, 0x13, 0xaa, 0x1f },
+  .hint          = { RAIMSG_TYPE_ID, 0x3f4c369e },
+  .is_msg_type   = TibMsg::is_tibmsg,
+  .unpack        = (md_msg_unpack_f) TibMsg::unpack,
+  .create_writer = (md_create_writer_f) tib_msg_writer_create
 };
 
 bool

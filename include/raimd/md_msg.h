@@ -66,6 +66,8 @@ typedef struct MDMsgWriter_s {
 typedef struct MDDict_s MDDict_t;
 typedef struct MDFormClass_s MDFormClass_t;
 
+MDMsgWriter_t * md_msg_writer_create( MDMsg_t *m, MDMsgMem_t *mem, MDDict_t *d,
+                                      void *bb, size_t len );
 size_t md_msg_writer_update_hdr( MDMsgWriter_t *w );
 int md_msg_writer_append_iter( MDMsgWriter_t *w, MDFieldIter_t *iter );
 int md_msg_writer_convert_msg( MDMsgWriter_t *w, MDMsg_t *m, bool skip_hdr );
@@ -225,7 +227,8 @@ typedef bool (*md_is_msg_type_f)( void *bb,  size_t off,  size_t end,
                                   uint32_t h );
 typedef MDMsg *(*md_msg_unpack_f)( void *bb,  size_t off,  size_t end,
                                    uint32_t h,  MDDict *d,  MDMsgMem &m );
-
+typedef MDMsgWriterBase *(*md_create_writer_f)( MDMsgMem *m,  MDDict *d,
+                                                void *bb,  size_t len );
 struct MDMatch { /* match msg features in the header */
   const char * name;
   uint8_t      off,       /* offset of feature */
@@ -234,8 +237,9 @@ struct MDMatch { /* match msg features in the header */
                ftype;
   uint8_t      buf[ 4 ];  /* the values to match against the offset */
   uint32_t     hint[ 2 ]; /* external hints */
-  md_is_msg_type_f is_msg_type; /* test whether msg matches */
-  md_msg_unpack_f  unpack;      /* wrap the msg in a decoder */
+  md_is_msg_type_f   is_msg_type; /* test whether msg matches */
+  md_msg_unpack_f    unpack;      /* wrap the msg in a decoder */
+  md_create_writer_f create_writer;
 };
 
 struct MDMatchGroup {
@@ -315,6 +319,8 @@ struct MDMsg : public MDMsg_s {
                         MDDict *d,  MDMsgMem &m ) noexcept;
   static uint32_t is_msg_type( void *b,  size_t off,  size_t end,
                                uint32_t h ) noexcept;
+  static MDMsgWriterBase *get_writer( uint32_t h,  MDMsgMem &mem,  MDDict *d,
+                                      void *bb,  size_t len ) noexcept;
   /* dereference msg mem */
   void release( void ) {
 #ifdef MD_REF_COUNT
@@ -360,7 +366,8 @@ struct MDMsg : public MDMsg_s {
   virtual int time_to_string( MDReference &mref,  char *&buf, size_t &len ) noexcept;
   virtual int array_to_string( MDReference &mref,  char *&buf, size_t &len ) noexcept;
   virtual int list_to_string( MDReference &mref,  char *&buf, size_t &len ) noexcept;
-
+  virtual int create_writer( MDMsgWriterBase *&wr,  MDMsgMem &mem,  MDDict *d,
+                             void *bb,  size_t len ) noexcept;
   int get_quoted_string( MDReference &mref,  char *&buf,  size_t &len ) noexcept;
   static size_t get_escaped_string_len( MDReference &mref,  const char *quotes ) noexcept;
   static size_t get_escaped_string_output( MDReference &mref,  const char *quotes,

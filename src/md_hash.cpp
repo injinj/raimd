@@ -18,15 +18,16 @@ HashMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch hashmsg_match = {
-  .name        = HashMsg_proto_string,
-  .off         = 0,
-  .len         = 1, /* cnt of buf[] */
-  .hint_size   = 0, /* cnt of hint[] */
-  .ftype       = MD_HASH,
-  .buf         = { HashData::hsh8_sig & 0xffU },
-  .hint        = { 0 },
-  .is_msg_type = HashMsg::is_hashmsg,
-  .unpack      = HashMsg::unpack
+  .name          = HashMsg_proto_string,
+  .off           = 0,
+  .len           = 1, /* cnt of buf[] */
+  .hint_size     = 0, /* cnt of hint[] */
+  .ftype         = MD_HASH,
+  .buf           = { HashData::hsh8_sig & 0xffU },
+  .hint          = { 0 },
+  .is_msg_type   = HashMsg::is_hashmsg,
+  .unpack        = HashMsg::unpack,
+  .create_writer = 0
 };
 
 static bool

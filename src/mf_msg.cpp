@@ -51,15 +51,16 @@ MktfdMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch mktfd_match = {
-  .name        = MktfdMsg_proto_string,
-  .off         = 0,
-  .len         = 1, /* cnt of buf[] */
-  .hint_size   = 1, /* cnt of hint[] */
-  .ftype       = (uint8_t) MARKETFEED_TYPE_ID,
-  .buf         = { 0x1c },
-  .hint        = { MARKETFEED_TYPE_ID },
-  .is_msg_type = MktfdMsg::is_marketfeed,
-  .unpack      = (md_msg_unpack_f) MktfdMsg::unpack
+  .name          = MktfdMsg_proto_string,
+  .off           = 0,
+  .len           = 1, /* cnt of buf[] */
+  .hint_size     = 1, /* cnt of hint[] */
+  .ftype         = (uint8_t) MARKETFEED_TYPE_ID,
+  .buf           = { 0x1c },
+  .hint          = { MARKETFEED_TYPE_ID },
+  .is_msg_type   = MktfdMsg::is_marketfeed,
+  .unpack        = (md_msg_unpack_f) MktfdMsg::unpack,
+  .create_writer = 0
 };
 
 namespace rai {

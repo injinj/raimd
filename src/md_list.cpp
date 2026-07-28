@@ -18,15 +18,16 @@ ListMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch listmsg_match = {
-  .name        = ListMsg_proto_string,
-  .off         = 0,
-  .len         = 1, /* cnt of buf[] */
-  .hint_size   = 0, /* cnt of hint[] */
-  .ftype       = MD_LIST,
-  .buf         = { ListData::lst8_sig & 0xffU },
-  .hint        = { 0 },
-  .is_msg_type = ListMsg::is_listmsg,
-  .unpack      = ListMsg::unpack
+  .name          = ListMsg_proto_string,
+  .off           = 0,
+  .len           = 1, /* cnt of buf[] */
+  .hint_size     = 0, /* cnt of hint[] */
+  .ftype         = MD_LIST,
+  .buf           = { ListData::lst8_sig & 0xffU },
+  .hint          = { 0 },
+  .is_msg_type   = ListMsg::is_listmsg,
+  .unpack        = ListMsg::unpack,
+  .create_writer = 0
 };
 
 static bool
