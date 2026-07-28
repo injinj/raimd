@@ -12,15 +12,24 @@ MDMsg_t *
 json_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
                  MDDict_t *d,  MDMsgMem_t *m )
 {
-  return JsonMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+  return JsonMsg::unpack( bb, off, end, h, static_cast<MDDict *>( d ),
+                          *static_cast<MDMsgMem *>( m ) );
 }
 MDMsgWriter_t *
 json_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *,
                         void *buf_ptr, size_t buf_sz )
 {
-  void * p = ((MDMsgMem *) mem)->make( sizeof( JsonMsgWriter ) );
-  return new ( p ) JsonMsgWriter( *(MDMsgMem *) mem, buf_ptr, buf_sz );
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( JsonMsgWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) JsonMsgWriter( *static_cast<MDMsgMem *>( mem ), buf_ptr, buf_sz );
 }
+}
+int
+JsonMsg::create_writer( MDMsgWriterBase *&wr,  MDMsgMem &mem,  MDDict *d,
+                        void *bb,  size_t len ) noexcept
+{
+  wr = static_cast<MDMsgWriterBase *>( json_msg_writer_create( &mem, d, bb, len ) );
+  return wr ? 0 : Err::ALLOC_FAIL;
 }
 
 static const char JsonMsg_proto_string[] = "JSON";
@@ -37,15 +46,16 @@ JsonMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch json_match = {
-  .name        = JsonMsg_proto_string,
-  .off         = 0,
-  .len         = 1, /* cnt of buf[] */
-  .hint_size   = 1, /* cnt of hint[] */
-  .ftype       = (uint8_t) JSON_TYPE_ID,
-  .buf         = { '{', 0, 0, 0 },
-  .hint        = { JSON_TYPE_ID, 0 },
-  .is_msg_type = JsonMsg::is_jsonmsg,
-  .unpack      = (md_msg_unpack_f) JsonMsg::unpack
+  .name          = JsonMsg_proto_string,
+  .off           = 0,
+  .len           = 1, /* cnt of buf[] */
+  .hint_size     = 1, /* cnt of hint[] */
+  .ftype         = (uint8_t) JSON_TYPE_ID,
+  .buf           = { '{', 0, 0, 0 },
+  .hint          = { JSON_TYPE_ID, 0 },
+  .is_msg_type   = JsonMsg::is_jsonmsg,
+  .unpack        = (md_msg_unpack_f) JsonMsg::unpack,
+  .create_writer = (md_create_writer_f) json_msg_writer_create
 };
 
 bool

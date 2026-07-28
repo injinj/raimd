@@ -9,8 +9,22 @@ MDMsgWriter_t * rwf_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *d,
                                        void *buf_ptr, size_t buf_sz,
                                        RwfMsgClass cl, RdmDomainType dom,
                                        uint32_t id );
+MDMsgWriter_t * rwf_msg_writer_create2( MDMsgMem_t *mem,  MDDict_t *d,
+                                        void *buf_ptr, size_t buf_sz );
 MDMsgWriter_t * rwf_msg_writer_field_list_create( MDMsgMem_t *mem,  MDDict_t *d,
                                                   void *buf_ptr, size_t buf_sz );
+MDMsgWriter_t * rwf_msg_writer_msg_key_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                               void *buf_ptr, size_t buf_sz );
+MDMsgWriter_t * rwf_msg_writer_element_list_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                                    void *buf_ptr, size_t buf_sz );
+MDMsgWriter_t * rwf_msg_writer_map_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                           void *buf_ptr, size_t buf_sz );
+MDMsgWriter_t * rwf_msg_writer_filter_list_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                                   void *buf_ptr, size_t buf_sz );
+MDMsgWriter_t * rwf_msg_writer_series_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                              void *buf_ptr, size_t buf_sz );
+MDMsgWriter_t * rwf_msg_writer_vector_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                              void *buf_ptr, size_t buf_sz );
 int md_msg_writer_rwf_add_seq_num( MDMsgWriter_t *w, uint32_t seqno );
 int md_msg_writer_rwf_add_msg_key( MDMsgWriter_t *w, const char *subj, size_t slen );
 

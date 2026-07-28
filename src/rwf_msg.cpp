@@ -4,6 +4,7 @@
 #include <raimd/md_dict.h>
 #include <raimd/app_a.h>
 #include <raimd/sass.h>
+#include <raimd/rwf_writer.h>
 
 using namespace rai;
 using namespace md;
@@ -13,15 +14,16 @@ MDMsg_t *
 rwf_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
                 MDDict_t *d,  MDMsgMem_t *m )
 {
-  return RwfMsg::unpack_message( bb, off, end, h, (MDDict *)d, *(MDMsgMem *) m);
+  return RwfMsg::unpack_message( bb, off, end, h, static_cast<MDDict *>( d ),
+                                 *static_cast<MDMsgMem *>( m ) );
 }
 
 MDMsg_t *
 rwf_msg_unpack_field_list( void *bb,  size_t off,  size_t end,
                            uint32_t h,  MDDict_t *d,  MDMsgMem_t *m )
 {
-  return RwfMsg::unpack_field_list( bb, off, end, h, (MDDict *)d,
-                                    *(MDMsgMem *) m );
+  return RwfMsg::unpack_field_list( bb, off, end, h, static_cast<MDDict *>( d ),
+                                    *static_cast<MDMsgMem *>( m ) );
 }
 
 MDMsg_t *
@@ -67,6 +69,51 @@ md_msg_rwf_get_msg_seqnum( MDMsg_t *m, uint32_t *seqnum )
 }
 }
 
+int
+RwfMsg::create_writer( MDMsgWriterBase *&wr,  MDMsgMem &mem,  MDDict *d,
+                       void *bb,  size_t len ) noexcept
+{
+  switch ( this->base.type_id ) {
+    default:
+    case RWF_MSG:
+      wr = static_cast<MDMsgWriterBase *>(
+        rwf_msg_writer_create( &mem, d, bb, len,
+          (RwfMsgClass) this->msg.msg_class,
+          (RdmDomainType) this->msg.domain_type,
+                          this->msg.stream_id ) );
+      break;
+    case RWF_FIELD_LIST:
+      wr = static_cast<MDMsgWriterBase *>(
+        rwf_msg_writer_field_list_create( &mem, d, bb, len ) );
+      break;
+    case RWF_MAP:
+      wr = static_cast<MDMsgWriterBase *>(
+        rwf_msg_writer_map_create( &mem, d, bb, len ) );
+      break;
+    case RWF_ELEMENT_LIST:
+      wr = static_cast<MDMsgWriterBase *>(
+        rwf_msg_writer_element_list_create( &mem, d, bb, len ) );
+      break;
+    case RWF_FILTER_LIST:
+      wr = static_cast<MDMsgWriterBase *>(
+        rwf_msg_writer_filter_list_create( &mem, d, bb, len ) );
+      break;
+    case RWF_SERIES:
+      wr = static_cast<MDMsgWriterBase *>(
+        rwf_msg_writer_series_create( &mem, d, bb, len ) );
+      break;
+    case RWF_VECTOR:
+      wr = static_cast<MDMsgWriterBase *>(
+        rwf_msg_writer_vector_create( &mem, d, bb, len ) );
+      break;
+    case RWF_MSG_KEY:
+      wr = static_cast<MDMsgWriterBase *>(
+        rwf_msg_writer_msg_key_create( &mem, d, bb, len ) );
+      break;
+  }
+  return wr ? 0 : Err::ALLOC_FAIL;
+}
+
 static const char RwfMsg_proto_string[]         = "RWF_MSG",
                   RwfFieldList_proto_string[]   = "RWF_FIELD_LIST",
                   RwfMap_proto_string[]         = "RWF_MAP",
@@ -106,15 +153,16 @@ RwfMsg::get_type_id( void ) noexcept
   }
 }
 
+#define LSTID { 0x25, 0xcd, 0xab, 0xca }
 static MDMatch rwf_match[] = {
-  {RwfFieldList_proto_string, 0,4,1,0, { 0x25, 0xcd, 0xab, 0xca }, { RWF_FIELD_LIST_TYPE_ID }, RwfMsg::is_rwf_field_list,   (md_msg_unpack_f) RwfMsg::unpack_field_list },
-  {RwfMap_proto_string,0,0xff,1,0,         { 0 }, { RWF_MAP_TYPE_ID },          RwfMsg::is_rwf_map,          (md_msg_unpack_f) RwfMsg::unpack_map },
-  {RwfElementList_proto_string,0,0xff,1,0, { 0 }, { RWF_ELEMENT_LIST_TYPE_ID }, RwfMsg::is_rwf_element_list, (md_msg_unpack_f) RwfMsg::unpack_element_list },
-  {RwfFilterList_proto_string,0,0xff,1,0,  { 0 }, { RWF_FILTER_LIST_TYPE_ID },  RwfMsg::is_rwf_filter_list,  (md_msg_unpack_f) RwfMsg::unpack_filter_list },
-  {RwfSeries_proto_string,0,0xff,1,0,      { 0 }, { RWF_SERIES_TYPE_ID },       RwfMsg::is_rwf_series,       (md_msg_unpack_f) RwfMsg::unpack_series },
-  {RwfVector_proto_string,0,0xff,1,0,      { 0 }, { RWF_VECTOR_TYPE_ID },       RwfMsg::is_rwf_vector,       (md_msg_unpack_f) RwfMsg::unpack_vector },
-  {RwfMsg_proto_string,0,0xff,1,0,         { 0 }, { RWF_MSG_TYPE_ID },          RwfMsg::is_rwf_message,      (md_msg_unpack_f) RwfMsg::unpack_message },
-  {RwfMsgKey_proto_string,0,0xff,1,0,      { 0 }, { RWF_MSG_KEY_TYPE_ID },      RwfMsg::is_rwf_msg_key,      (md_msg_unpack_f) RwfMsg::unpack_msg_key }
+  {RwfFieldList_proto_string, 0,4,1,    (uint8_t) RWF_FIELD_LIST_TYPE_ID,   LSTID, { RWF_FIELD_LIST_TYPE_ID },   RwfMsg::is_rwf_field_list,   (md_msg_unpack_f) RwfMsg::unpack_field_list,   (md_create_writer_f) rwf_msg_writer_field_list_create },
+  {RwfMap_proto_string,0,0xff,1,        (uint8_t) RWF_MAP_TYPE_ID,          { 0 }, { RWF_MAP_TYPE_ID },          RwfMsg::is_rwf_map,          (md_msg_unpack_f) RwfMsg::unpack_map,          (md_create_writer_f) rwf_msg_writer_map_create },
+  {RwfElementList_proto_string,0,0xff,1,(uint8_t) RWF_ELEMENT_LIST_TYPE_ID, { 0 }, { RWF_ELEMENT_LIST_TYPE_ID }, RwfMsg::is_rwf_element_list, (md_msg_unpack_f) RwfMsg::unpack_element_list, (md_create_writer_f) rwf_msg_writer_element_list_create },
+  {RwfFilterList_proto_string,0,0xff,1, (uint8_t) RWF_FILTER_LIST_TYPE_ID,  { 0 }, { RWF_FILTER_LIST_TYPE_ID },  RwfMsg::is_rwf_filter_list,  (md_msg_unpack_f) RwfMsg::unpack_filter_list,  (md_create_writer_f) rwf_msg_writer_filter_list_create },
+  {RwfSeries_proto_string,0,0xff,1,     (uint8_t) RWF_SERIES_TYPE_ID,       { 0 }, { RWF_SERIES_TYPE_ID },       RwfMsg::is_rwf_series,       (md_msg_unpack_f) RwfMsg::unpack_series,       (md_create_writer_f) rwf_msg_writer_series_create },
+  {RwfVector_proto_string,0,0xff,1,     (uint8_t) RWF_VECTOR_TYPE_ID,       { 0 }, { RWF_VECTOR_TYPE_ID },       RwfMsg::is_rwf_vector,       (md_msg_unpack_f) RwfMsg::unpack_vector,       (md_create_writer_f) rwf_msg_writer_vector_create },
+  {RwfMsg_proto_string,0,0xff,1,        (uint8_t) RWF_MSG_TYPE_ID,          { 0 }, { RWF_MSG_TYPE_ID },          RwfMsg::is_rwf_message,      (md_msg_unpack_f) RwfMsg::unpack_message,      (md_create_writer_f) rwf_msg_writer_create2 },
+  {RwfMsgKey_proto_string,0,0xff,1,     (uint8_t) RWF_MSG_KEY_TYPE_ID,      { 0 }, { RWF_MSG_KEY_TYPE_ID },      RwfMsg::is_rwf_msg_key,      (md_msg_unpack_f) RwfMsg::unpack_msg_key,      (md_create_writer_f) rwf_msg_writer_msg_key_create }
 };
 
 void

@@ -36,10 +36,11 @@ struct TibSassMsg : public MDMsg {
   TibSassMsg( void *bb,  size_t off,  size_t end,  MDDict *d,  MDMsgMem &m )
     : MDMsg( bb, off, end, d, m ) {}
 
-  virtual const char *get_proto_string( void ) noexcept;
-  virtual uint32_t get_type_id( void ) noexcept;
-  virtual int get_field_iter( MDFieldIter *&iter ) noexcept;
-
+  virtual const char *get_proto_string( void ) noexcept override;
+  virtual uint32_t get_type_id( void ) noexcept override;
+  virtual int get_field_iter( MDFieldIter *&iter ) noexcept override final;
+  virtual int create_writer( MDMsgWriterBase *&wr,  MDMsgMem &mem,  MDDict *d,
+                             void *bb,  size_t len ) noexcept override final;
   /* may return tibmsg, sass qform or rv */
   static bool is_tibsassmsg( void *bb,  size_t off,  size_t end,
                              uint32_t h ) noexcept;
@@ -89,21 +90,21 @@ struct TibSassFieldIter : public MDFieldIter {
     i.date = this->date;
     this->MDFieldIter::dup_iter( i );
   }
-  virtual MDFieldIter *copy( void ) noexcept final;
-  virtual int get_name( MDName &name ) noexcept final;
+  virtual MDFieldIter *copy( void ) noexcept override final;
+  virtual int get_name( MDName &name ) noexcept override final;
   virtual int set_name( const char *fname,  size_t fnamelen,
-                        MDName &name ) noexcept final;
-  virtual int get_reference( MDReference &mref ) noexcept final;
-  virtual int get_hint_reference( MDReference &mref ) noexcept final;
+                        MDName &name ) noexcept override final;
+  virtual int get_reference( MDReference &mref ) noexcept override final;
+  virtual int get_hint_reference( MDReference &mref ) noexcept override final;
   virtual int find( const char *name, size_t name_len,
-                    MDReference &mref ) noexcept final;
+                    MDReference &mref ) noexcept override final;
   virtual int find_next( const char *name, size_t name_len,
-                         MDReference &mref ) noexcept final;
-  virtual int find( const MDName &n,  MDReference &mref ) noexcept final;
-  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept final;
-  virtual int first( void ) noexcept final;
-  virtual int next( void ) noexcept final;
-  virtual int update( MDReference &mref ) noexcept final;
+                         MDReference &mref ) noexcept override final;
+  virtual int find( const MDName &n,  MDReference &mref ) noexcept override final;
+  virtual int find_next( const MDName &n,  MDReference &mref ) noexcept override final;
+  virtual int first( void ) noexcept override final;
+  virtual int next( void ) noexcept override final;
+  virtual int update( MDReference &mref ) noexcept override final;
   int unpack( void ) noexcept;
 
   size_t pack_size( void ) const {
@@ -177,7 +178,7 @@ struct TibSassMsgWriter : public MDMsgWriterBase {
     this->unk_fid  = 0;
     this->use_form = false;
   }
-  virtual int append_form_record( void ) noexcept override;
+  virtual int append_form_record( void ) noexcept override final;
 
   bool lookup( MDLookup &by,  const MDFormEntry *&entry ) noexcept;
   bool get( MDLookup &by,  const MDFormEntry *&entry ) noexcept;
@@ -198,7 +199,7 @@ struct TibSassMsgWriter : public MDMsgWriterBase {
     return b;
   }
   bool resize( size_t len ) noexcept;
-  virtual size_t update_hdr( void ) noexcept override {
+  virtual size_t update_hdr( void ) noexcept override final {
     if ( this->buflen == 0 && ! this->resize( 0 ) )
       return 0; /* resize failed (err set), don't write through NULL buf */
     this->buf[ 0 ] = 0x11;
@@ -302,12 +303,12 @@ struct TibSassMsgWriter : public MDMsgWriterBase {
                                   MDDate &date ) noexcept;
   TibSassMsgWriter & append_enum( const char *fname,  size_t fname_len,
                                   MDEnum &enu ) noexcept;
-  virtual int append_iter( MDFieldIter *iter ) noexcept override;
-  virtual int convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept override;
+  virtual int append_iter( MDFieldIter *iter ) noexcept override final;
+  virtual int convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept override final;
   virtual int append_sass_hdr( MDFormClass *form, uint16_t msg_type,
                                uint16_t rec_type, uint16_t seqno,
                                uint16_t status, const char *subj,
-                               size_t sublen ) noexcept override;
+                               size_t sublen ) noexcept override final;
 };
 
 }

@@ -18,15 +18,16 @@ StreamMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch streammsg_match = {
-  .name        = StreamMsg_proto_string,
-  .off         = 0,
-  .len         = 1, /* cnt of buf[] */
-  .hint_size   = 0, /* cnt of hint[] */
-  .ftype       = MD_STREAM,
-  .buf         = { StreamData::str8_sig & 0xffU },
-  .hint        = { 0 },
-  .is_msg_type = StreamMsg::is_streammsg,
-  .unpack      = StreamMsg::unpack
+  .name          = StreamMsg_proto_string,
+  .off           = 0,
+  .len           = 1, /* cnt of buf[] */
+  .hint_size     = 0, /* cnt of hint[] */
+  .ftype         = MD_STREAM,
+  .buf           = { StreamData::str8_sig & 0xffU },
+  .hint          = { 0 },
+  .is_msg_type   = StreamMsg::is_streammsg,
+  .unpack        = StreamMsg::unpack,
+  .create_writer = 0
 };
 
 bool

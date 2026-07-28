@@ -474,38 +474,15 @@ main(int argc, char** argv)
     if (rm.fld_cnt != 0 || kp.fld_cnt != 0) {
       size_t buf_sz = msg_sz * 2;
       void* buf_ptr = md_msg_mem_make(&mem, buf_sz);
+      MDMsgWriter_t *w = md_msg_writer_create(m, &mem, cfile_dict, buf_ptr, buf_sz);
       
-      if (md_msg_get_type_id(m) == TIBMSG_TYPE_ID) {
-        MDMsgWriter_t* w = tib_msg_writer_create(&mem, cfile_dict, buf_ptr, buf_sz);
+      if ( w != NULL ) {
         status = filter(w, m, &rm, &kp, &msg_sz, &fldcnt);
-        m = NULL;
-        
-        if (status == 0 && fldcnt > 0) {
+        if ( status == 0 ) {
           msg = w->buf;
-          m = tib_msg_unpack(msg, 0, msg_sz, 0, cfile_dict, &mem);
+          m   = md_msg_unpack(msg, 0, msg_sz, md_msg_get_type_id(m), cfile_dict, &mem);
         }
       }
-      else if (md_msg_get_type_id(m) == RVMSG_TYPE_ID) {
-        MDMsgWriter_t* w = rv_msg_writer_create(&mem, cfile_dict, buf_ptr, buf_sz);
-        status = filter(w, m, &rm, &kp, &msg_sz, &fldcnt);
-        m = NULL;
-        
-        if (status == 0 && fldcnt > 0) {
-          msg = w->buf;
-          m = rv_msg_unpack(msg, 0, msg_sz, 0, cfile_dict, &mem);
-        }
-      }
-      else if (md_msg_get_type_id(m) == TIB_SASS_TYPE_ID) {
-        MDMsgWriter_t* w = tib_sass_msg_writer_create(&mem, cfile_dict, buf_ptr, buf_sz);
-        status = filter(w, m, &rm, &kp, &msg_sz, &fldcnt);
-        m = NULL;
-        
-        if (status == 0 && fldcnt > 0) {
-          msg = w->buf;
-          m = tib_sass_msg_unpack(msg, 0, msg_sz, 0, cfile_dict, &mem);
-        }
-      }
-      
       if (status != 0) {
         err_cnt++;
         continue;

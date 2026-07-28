@@ -237,10 +237,7 @@ main( int argc, char **argv )
 {
   MDOutput mout, bout; /* message output, uses printf to stdout */
   MDMsgMem mem;  /* memory for printing (converting numbers to strings) */
-  MDDict * dict       = NULL, /* dictinonaries, cfile and RDM/appendix_a */
-         * cfile_dict = NULL,
-         * rdm_dict   = NULL,
-         * flist_dict = NULL;
+  MDMsgDict dict;
   const char * fn     = get_arg( argc, argv, 1, "-f", NULL ),
              * out    = get_arg( argc, argv, 1, "-o", NULL ),
              * path   = get_arg( argc, argv, 1, "-p", ::getenv( "cfile_path" ) ),
@@ -279,18 +276,7 @@ main( int argc, char **argv )
       "{ \"ten\" : 10 }\n", argv[ 0 ] );
     return 1;
   }
-  if ( path != NULL )
-    dict = load_dict_files( path );
-  if ( dict != NULL ) {
-    for ( MDDict *d = dict; d != NULL; d = d->get_next() ) {
-      if ( d->dict_type[ 0 ] == 'c' )
-        cfile_dict = d;
-      else if ( d->dict_type[ 0 ] == 'a' )
-        rdm_dict = d;
-      else if ( d->dict_type[ 0 ] == 'f' )
-        flist_dict = d;
-    }
-  }
+  dict.load( path );
   if ( out != NULL ) {
     if ( ::strcmp( out, "-" ) == 0 )
       quiet = true;
@@ -408,7 +394,7 @@ main( int argc, char **argv )
     /* try to unpack it */
     mem.reuse(); /* reset mem for next msg */
     MDMsg  * m      = MDMsg::unpack( replay.msgbuf, 0, replay.msglen, 0,
-                                     dict, mem );
+                                     dict.dict, mem );
     void   * msg    = replay.msgbuf;
     size_t   msg_sz = replay.msglen;
     uint32_t fldcnt = 0;
@@ -427,7 +413,7 @@ main( int argc, char **argv )
         m = NULL;
         if ( status == 0 && fldcnt > 0 ) {
           msg = w.buf;
-          m = TibMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+          m = TibMsg::unpack( msg, 0, msg_sz, 0, dict.cfile_dict, mem );
         }
       }
       else if ( m->get_type_id() == RVMSG_TYPE_ID ) {
@@ -436,16 +422,16 @@ main( int argc, char **argv )
         m = NULL;
         if ( status == 0 && fldcnt > 0 ) {
           msg = w.buf;
-          m = RvMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+          m = RvMsg::unpack( msg, 0, msg_sz, 0, dict.cfile_dict, mem );
         }
       }
       else if ( m->get_type_id() == TIB_SASS_TYPE_ID ) {
-        TibSassMsgWriter w( mem, cfile_dict, buf_ptr, buf_sz );
+        TibSassMsgWriter w( mem, dict.cfile_dict, buf_ptr, buf_sz );
         status = filter<TibSassMsgWriter>( w, m, rm, kp, msg_sz, fldcnt );
         m = NULL;
         if ( status == 0 && fldcnt > 0 ) {
           msg = w.buf;
-          m = TibSassMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+          m = TibSassMsg::unpack( msg, 0, msg_sz, 0, dict.cfile_dict, mem );
         }
       }
       if ( status != 0 ) {
@@ -494,9 +480,9 @@ main( int argc, char **argv )
             rd.get_uint( seqno );
           if ( rd.find( MD_SASS_REC_TYPE, MD_SASS_REC_TYPE_LEN ) ) {
             if ( rd.mref.ftype == MD_STRING ) {
-              if ( cfile_dict != NULL ) {
+              if ( dict.cfile_dict != NULL ) {
                 MDLookup fc( (const char *) rd.mref.fptr, rd.mref.fsize );
-                if ( cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE )
+                if ( dict.cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE )
                   rec_type = fc.fid;
               }
             }
@@ -508,14 +494,14 @@ main( int argc, char **argv )
       }
       status = -1;
       if ( cvt_type_id == TIBMSG_TYPE_ID || cvt_type_id == TIB_SASS_TYPE_ID ) {
-        if ( flist != 0 && flist_dict != NULL && cfile_dict != NULL ) {
+        if ( flist != 0 && dict.flist_dict != NULL && dict.cfile_dict != NULL ) {
           MDLookup by( flist );
-          if ( flist_dict->lookup( by ) ) {
+          if ( dict.flist_dict->lookup( by ) ) {
             MDLookup fc( by.fname, by.fname_len );
-            if ( cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE ) {
+            if ( dict.cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE ) {
               rec_type = fc.fid;
               if ( fc.map_num != 0 )
-                form = cfile_dict->get_form_class( fc );
+                form = dict.cfile_dict->get_form_class( fc );
               else
                 form = NULL;
               MDSubjectKey k( subj, slen );
@@ -536,19 +522,19 @@ main( int argc, char **argv )
             }
           }
         }
-        else if ( rec_type != 0 && cfile_dict != NULL ) {
+        else if ( rec_type != 0 && dict.cfile_dict != NULL ) {
           MDLookup by( rec_type );
-          if ( cfile_dict->lookup( by ) ) {
+          if ( dict.cfile_dict->lookup( by ) ) {
             MDLookup fc( by.fname, by.fname_len );
-            if ( cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE ) {
+            if ( dict.cfile_dict->get( fc ) && fc.ftype == MD_MESSAGE ) {
               if ( fc.map_num != 0 )
-                form = cfile_dict->get_form_class( fc );
+                form = dict.cfile_dict->get_form_class( fc );
               else
                 form = NULL;
             }
-            if ( flist_dict != NULL ) {
+            if ( dict.flist_dict != NULL ) {
               MDLookup fc( by.fname, by.fname_len );
-              if ( flist_dict->get( fc ) ) {
+              if ( dict.flist_dict->get( fc ) ) {
                 flist = fc.fid;
               }
             }
@@ -591,7 +577,7 @@ main( int argc, char **argv )
           if ( (status = w.convert_msg( *m )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
-            m = JsonMsg::unpack( msg, 0, msg_sz, 0, dict, mem );
+            m = JsonMsg::unpack( msg, 0, msg_sz, 0, dict.dict, mem );
           }
           break;
         }
@@ -605,7 +591,7 @@ main( int argc, char **argv )
           if ( (status = w.convert_msg( *m, true )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
-            m = RvMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+            m = RvMsg::unpack( msg, 0, msg_sz, 0, dict.cfile_dict, mem );
           }
           break;
         }
@@ -613,7 +599,7 @@ main( int argc, char **argv )
           RwfMsgClass msg_class = ( msg_type == MD_INITIAL_TYPE ?
                                     REFRESH_MSG_CLASS : UPDATE_MSG_CLASS );
           uint32_t stream_id = MDDict::dict_hash( subj, slen );
-          RwfMsgWriter w( mem, rdm_dict, buf_ptr, buf_sz,
+          RwfMsgWriter w( mem, dict.rdm_dict, buf_ptr, buf_sz,
                           msg_class, MARKET_PRICE_DOMAIN, stream_id );
           if ( msg_class == REFRESH_MSG_CLASS )
             w.set( X_CLEAR_CACHE, X_REFRESH_COMPLETE );
@@ -633,18 +619,18 @@ main( int argc, char **argv )
           if ( (status = w.err) == 0 ) {
             msg    = w.buf;
             msg_sz = w.off;
-            m = RwfMsg::unpack_message( msg, 0, msg_sz, 0, rdm_dict, mem );
+            m = RwfMsg::unpack_message( msg, 0, msg_sz, 0, dict.rdm_dict, mem );
           }
           break;
         }
         case RWF_FIELD_LIST_TYPE_ID: {
-          RwfFieldListWriter w( mem, rdm_dict, buf_ptr, buf_sz );
+          RwfFieldListWriter w( mem, dict.rdm_dict, buf_ptr, buf_sz );
           if ( flist != 0 )
             w.add_flist( flist );
           if ( (status = w.convert_msg( *m, false )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
-            m = RwfMsg::unpack_field_list( msg, 0, msg_sz, 0, rdm_dict, mem );
+            m = RwfMsg::unpack_field_list( msg, 0, msg_sz, 0, dict.rdm_dict, mem );
           }
           break;
         }
@@ -655,7 +641,7 @@ main( int argc, char **argv )
           if ( (status = w.convert_msg( *m, true )) == 0 ) {
             msg    = w.buf;
             msg_sz = w.update_hdr();
-            m = TibMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+            m = TibMsg::unpack( msg, 0, msg_sz, 0, dict.cfile_dict, mem );
           }
           break;
         }
@@ -669,17 +655,17 @@ main( int argc, char **argv )
             if ( (status = w.convert_msg( *m, true )) == 0 ) {
               msg    = w.buf;
               msg_sz = w.update_hdr();
-              m = TibSassMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+              m = TibSassMsg::unpack( msg, 0, msg_sz, 0, dict.cfile_dict, mem );
             }
           }
           else {
-            TibSassMsgWriter w( mem, cfile_dict, buf_ptr, buf_sz );
+            TibSassMsgWriter w( mem, dict.cfile_dict, buf_ptr, buf_sz );
             append_sass_hdr<TibSassMsgWriter>( w, form, msg_type, rec_type,
                                                seqno, 0, subj, slen );
             if ( (status = w.convert_msg( *m, true )) == 0 ) {
               msg    = w.buf;
               msg_sz = w.update_hdr();
-              m = TibSassMsg::unpack( msg, 0, msg_sz, 0, cfile_dict, mem );
+              m = TibSassMsg::unpack( msg, 0, msg_sz, 0, dict.cfile_dict, mem );
             }
           }
           break;

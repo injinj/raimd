@@ -18,15 +18,16 @@ GeoMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch geomsg_match = {
-  .name        = GeoMsg_proto_string,
-  .off         = 0,
-  .len         = 1, /* cnt of buf[] */
-  .hint_size   = 0, /* cnt of hint[] */
-  .ftype       = MD_GEO,
-  .buf         = { GeoData::geo8_sig & 0xffU },
-  .hint        = { 0 },
-  .is_msg_type = GeoMsg::is_geomsg,
-  .unpack      = GeoMsg::unpack
+  .name          = GeoMsg_proto_string,
+  .off           = 0,
+  .len           = 1, /* cnt of buf[] */
+  .hint_size     = 0, /* cnt of hint[] */
+  .ftype         = MD_GEO,
+  .buf           = { GeoData::geo8_sig & 0xffU },
+  .hint          = { 0 },
+  .is_msg_type   = GeoMsg::is_geomsg,
+  .unpack        = GeoMsg::unpack,
+  .create_writer = 0
 };
 
 static bool

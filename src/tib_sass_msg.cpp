@@ -10,22 +10,34 @@ extern "C" {
 MDMsg_t *tib_sass_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
                               MDDict_t *d,  MDMsgMem_t *m )
 {
-  return TibSassMsg::unpack( bb, off, end, h, (MDDict *)d,  *(MDMsgMem *) m );
+  return TibSassMsg::unpack( bb, off, end, h, static_cast<MDDict *>( d ),
+                             *static_cast<MDMsgMem *>( m ) );
 }
 MDMsgWriter_t *
 tib_sass_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *d,
                             void *buf_ptr, size_t buf_sz )
 {
-  void * p = ((MDMsgMem *) mem)->make( sizeof( TibSassMsgWriter ) );
-  return new ( p ) TibSassMsgWriter( *(MDMsgMem *) mem, (MDDict *) d, buf_ptr, buf_sz );
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( TibSassMsgWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) TibSassMsgWriter( *static_cast<MDMsgMem *>( mem ),
+                                static_cast<MDDict *>( d ), buf_ptr, buf_sz );
 }
 MDMsgWriter_t *
 tib_sass_msg_writer_create_with_form( MDMsgMem_t *mem,  MDFormClass_t *form,
                                       void *buf_ptr, size_t buf_sz )
 {
-  void * p = ((MDMsgMem *) mem)->make( sizeof( TibSassMsgWriter ) );
-  return new ( p ) TibSassMsgWriter( *(MDMsgMem *) mem, *(MDFormClass *) form, buf_ptr, buf_sz );
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( TibSassMsgWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) TibSassMsgWriter( *static_cast<MDMsgMem *>( mem ),
+                                *reinterpret_cast<MDFormClass *>( form ), buf_ptr, buf_sz );
 }
+}
+int
+TibSassMsg::create_writer( MDMsgWriterBase *&wr,  MDMsgMem &mem,  MDDict *d,
+                           void *bb,  size_t len ) noexcept
+{
+  wr = static_cast<MDMsgWriterBase *>( tib_sass_msg_writer_create( &mem, d, bb, len ) );
+  return wr ? 0 : Err::ALLOC_FAIL;
 }
 
 static const char TibSassMsg_proto_string[] = "TIB_QFORM";
@@ -42,15 +54,16 @@ TibSassMsg::get_type_id( void ) noexcept
 }
 
 static MDMatch tibsassmsg_match = {
-  .name        = TibSassMsg_proto_string,
-  .off         = 0,
-  .len         = 4, /* cnt of buf[] */
-  .hint_size   = 2, /* cnt of hint[] */
-  .ftype       = (uint8_t) TIB_SASS_TYPE_ID,
-  .buf         = { 0x11, 0x11, 0x11, 0x12 },
-  .hint        = { TIB_SASS_TYPE_ID, 0xa08b0040 },
-  .is_msg_type = TibSassMsg::is_tibsassmsg,
-  .unpack      = (md_msg_unpack_f) TibSassMsg::unpack
+  .name          = TibSassMsg_proto_string,
+  .off           = 0,
+  .len           = 4, /* cnt of buf[] */
+  .hint_size     = 2, /* cnt of hint[] */
+  .ftype         = (uint8_t) TIB_SASS_TYPE_ID,
+  .buf           = { 0x11, 0x11, 0x11, 0x12 },
+  .hint          = { TIB_SASS_TYPE_ID, 0xa08b0040 },
+  .is_msg_type   = TibSassMsg::is_tibsassmsg,
+  .unpack        = (md_msg_unpack_f) TibSassMsg::unpack,
+  .create_writer = (md_create_writer_f) tib_sass_msg_writer_create
 };
 
 bool

@@ -13,15 +13,80 @@ MDMsgWriter_t * rwf_msg_writer_create( MDMsgMem_t *mem,  MDDict_t *d,
                                        RwfMsgClass cl, RdmDomainType dom,
                                        uint32_t id )
 {
-  void * p = ((MDMsgMem *) mem)->make( sizeof( RwfMsgWriter ) );
-  return new ( p ) RwfMsgWriter( *(MDMsgMem *) mem, (MDDict *) d, buf_ptr, buf_sz, cl, dom, id );
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( RwfMsgWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) RwfMsgWriter( *static_cast<MDMsgMem *>( mem ),
+                            static_cast<MDDict *>( d ), buf_ptr, buf_sz, cl, dom, id );
+}
+
+MDMsgWriter_t * rwf_msg_writer_create2( MDMsgMem_t *mem,  MDDict_t *d,
+                                        void *buf_ptr, size_t buf_sz )
+{
+  return rwf_msg_writer_create( mem, d, buf_ptr, buf_sz,
+                                UPDATE_MSG_CLASS, MARKET_BY_PRICE_DOMAIN, 0 );
 }
 
 MDMsgWriter_t * rwf_msg_writer_field_list_create( MDMsgMem_t *mem,  MDDict_t *d,
                                                   void *buf_ptr, size_t buf_sz )
 {
-  void * p = ((MDMsgMem *) mem)->make( sizeof( RwfFieldListWriter ) );
-  return new ( p ) RwfFieldListWriter( *(MDMsgMem *) mem, (MDDict *) d, buf_ptr, buf_sz );
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( RwfFieldListWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) RwfFieldListWriter( *static_cast<MDMsgMem *>( mem ),
+                                  static_cast<MDDict *>( d ), buf_ptr, buf_sz );
+}
+
+MDMsgWriter_t * rwf_msg_writer_msg_key_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                               void *buf_ptr, size_t buf_sz )
+{
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( RwfMsgKeyWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) RwfMsgKeyWriter( *static_cast<MDMsgMem *>( mem ),
+                               static_cast<MDDict *>( d ), buf_ptr, buf_sz );
+}
+
+MDMsgWriter_t * rwf_msg_writer_element_list_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                                    void *buf_ptr, size_t buf_sz )
+{
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( RwfElementListWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) RwfElementListWriter( *static_cast<MDMsgMem *>( mem ),
+                                    static_cast<MDDict *>( d ), buf_ptr, buf_sz );
+}
+
+MDMsgWriter_t * rwf_msg_writer_map_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                           void *buf_ptr, size_t buf_sz )
+{
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( RwfMapWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) RwfMapWriter( *static_cast<MDMsgMem *>( mem ),
+                            static_cast<MDDict *>( d ), buf_ptr, buf_sz );
+}
+
+MDMsgWriter_t * rwf_msg_writer_filter_list_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                                   void *buf_ptr, size_t buf_sz )
+{
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( RwfFilterListWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) RwfFilterListWriter( *static_cast<MDMsgMem *>( mem ),
+                                   static_cast<MDDict *>( d ), buf_ptr, buf_sz );
+}
+
+MDMsgWriter_t * rwf_msg_writer_series_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                              void *buf_ptr, size_t buf_sz )
+{
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( RwfSeriesWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) RwfSeriesWriter( *static_cast<MDMsgMem *>( mem ),
+                               static_cast<MDDict *>( d ), buf_ptr, buf_sz );
+}
+
+MDMsgWriter_t * rwf_msg_writer_vector_create( MDMsgMem_t *mem,  MDDict_t *d,
+                                              void *buf_ptr, size_t buf_sz )
+{
+  void * p = static_cast<MDMsgMem *>( mem )->make( sizeof( RwfVectorWriter ) );
+  return p == NULL ? 0 :
+    new ( p ) RwfVectorWriter( *static_cast<MDMsgMem *>( mem ),
+                               static_cast<MDDict *>( d ), buf_ptr, buf_sz );
 }
 
 int

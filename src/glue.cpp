@@ -27,7 +27,7 @@ struct BasicMsg : public MDMsg {
   BasicMsg( void *bb,  size_t off,  size_t end,  MDDict *d,
             MDMsgMem &m,  MDType t )
     : MDMsg( bb, off, end, d, m ), type( t ) {}
-  virtual int get_reference( MDReference &mref ) noexcept final {
+  virtual int get_reference( MDReference &mref ) noexcept override final {
     mref.fptr     = &((uint8_t *) this->msg_buf)[ this->msg_off ];
     mref.fsize    = this->msg_end - this->msg_off;
     mref.ftype    = type;
@@ -36,10 +36,10 @@ struct BasicMsg : public MDMsg {
     mref.fentrysz = 0;
     return 0;
   }
-  virtual const char *get_proto_string( void ) noexcept final {
+  virtual const char *get_proto_string( void ) noexcept override final {
     return md_type_str( this->type, this->msg_end - this->msg_off );
   }
-  virtual uint32_t get_type_id( void ) noexcept final {
+  virtual uint32_t get_type_id( void ) noexcept override final {
     return this->type;
   }
 };
@@ -152,23 +152,23 @@ unpack_decimal( void *bb,  size_t off,  size_t end,  uint32_t h,  MDDict *d,
 }
 
 static MDMatch basic_match[] = {
-  { "MESSAGE", 0,0,0, MD_MESSAGE, { 0 }, { 0 }, is_basic, unpack_basic },
-  { "STRING", 0,0,0, MD_STRING, { 0 }, { 0 }, is_string, unpack_string },
-  { "OPAQUE", 0,0,0, MD_OPAQUE, { 0 }, { 0 }, is_opaque, unpack_opaque },
-  { "BOOLEAN", 0,0,0, MD_BOOLEAN, { 0 }, { 0 }, is_boolean, unpack_boolean },
-  { "INT", 0,0,0, MD_INT, { 0 }, { 0 }, is_int, unpack_int },
-  { "UINT", 0,0,0, MD_UINT, { 0 }, { 0 }, is_uint, unpack_uint },
-  { "REAL", 0,0,0, MD_REAL, { 0 }, { 0 }, is_real, unpack_real },
-  { "ARRAY", 0,0,0, MD_ARRAY, { 0 }, { 0 }, is_basic, unpack_basic },
-  { "PARTIAL", 0,0,0, MD_PARTIAL, { 0 }, { 0 }, is_basic, unpack_basic },
-  { "IPDATA", 0,0,0, MD_IPDATA, { 0 }, { 0 }, is_ipdata, unpack_ipdata },
-  { "SUBJECT", 0,0,0, MD_SUBJECT, { 0 }, { 0 }, is_subject, unpack_subject },
-  { "ENUM", 0,0,0, MD_ENUM, { 0 }, { 0 }, is_enum, unpack_enum },
-  { "TIME", 0,0,0, MD_TIME, { 0 }, { 0 }, is_time, unpack_time },
-  { "DATE", 0,0,0, MD_DATE, { 0 }, { 0 }, is_date, unpack_date },
-  { "DATETIME", 0,0,0, MD_DATETIME, { 0 }, { 0 }, is_basic, unpack_basic },
-  { "STAMP", 0,0,0, MD_STAMP, { 0 }, { 0 }, is_basic, unpack_basic },
-  { "DECIMAL", 0,0,0, MD_DECIMAL, { 0 }, { 0 }, is_decimal, unpack_decimal }
+  { "MESSAGE", 0,0,0, MD_MESSAGE, { 0 }, { 0 }, is_basic, unpack_basic, 0 },
+  { "STRING", 0,0,0, MD_STRING, { 0 }, { 0 }, is_string, unpack_string, 0 },
+  { "OPAQUE", 0,0,0, MD_OPAQUE, { 0 }, { 0 }, is_opaque, unpack_opaque, 0 },
+  { "BOOLEAN", 0,0,0, MD_BOOLEAN, { 0 }, { 0 }, is_boolean, unpack_boolean, 0 },
+  { "INT", 0,0,0, MD_INT, { 0 }, { 0 }, is_int, unpack_int, 0 },
+  { "UINT", 0,0,0, MD_UINT, { 0 }, { 0 }, is_uint, unpack_uint, 0 },
+  { "REAL", 0,0,0, MD_REAL, { 0 }, { 0 }, is_real, unpack_real, 0 },
+  { "ARRAY", 0,0,0, MD_ARRAY, { 0 }, { 0 }, is_basic, unpack_basic, 0 },
+  { "PARTIAL", 0,0,0, MD_PARTIAL, { 0 }, { 0 }, is_basic, unpack_basic, 0 },
+  { "IPDATA", 0,0,0, MD_IPDATA, { 0 }, { 0 }, is_ipdata, unpack_ipdata, 0 },
+  { "SUBJECT", 0,0,0, MD_SUBJECT, { 0 }, { 0 }, is_subject, unpack_subject, 0 },
+  { "ENUM", 0,0,0, MD_ENUM, { 0 }, { 0 }, is_enum, unpack_enum, 0 },
+  { "TIME", 0,0,0, MD_TIME, { 0 }, { 0 }, is_time, unpack_time, 0 },
+  { "DATE", 0,0,0, MD_DATE, { 0 }, { 0 }, is_date, unpack_date, 0 },
+  { "DATETIME", 0,0,0, MD_DATETIME, { 0 }, { 0 }, is_basic, unpack_basic, 0 },
+  { "STAMP", 0,0,0, MD_STAMP, { 0 }, { 0 }, is_basic, unpack_basic, 0 },
+  { "DECIMAL", 0,0,0, MD_DECIMAL, { 0 }, { 0 }, is_decimal, unpack_decimal, 0 }
 };
 
 #ifdef _MSC_VER

@@ -17,14 +17,6 @@
 using namespace rai;
 using namespace md;
 
-struct MsgDict {
-  MDDict * dict,
-         * cfile_dict,
-         * rdm_dict,
-         * flist_dict;
-  MsgDict() : dict( 0 ), cfile_dict( 0 ), rdm_dict( 0 ), flist_dict( 0 ) {}
-};
-
 static const char *
 get_arg( int argc, char *argv[], int b, const char *f,
          const char *def ) noexcept
@@ -73,7 +65,7 @@ struct fmp_msg {
 int
 main( int argc, char *argv[] )
 {
-  MsgDict dict; /* dictinonaries, cfile and RDM/appendix_a */
+  MDMsgDict dict; /* dictinonaries, cfile and RDM/appendix_a */
   const char * fn     = get_arg( argc, argv, 1, "-f", NULL ),
              * path   = get_arg( argc, argv, 1, "-p", ::getenv( "cfile_path" ));
 
@@ -95,18 +87,7 @@ main( int argc, char *argv[] )
       "{ \"ten\" : 10 }\n", argv[ 0 ] );
     return 1;
   }
-  if ( path != NULL )
-    dict.dict = load_dict_files( path );
-  if ( dict.dict != NULL ) {
-    for ( MDDict *d = dict.dict; d != NULL; d = d->get_next() ) {
-      if ( d->dict_type[ 0 ] == 'c' )
-        dict.cfile_dict = d;
-      else if ( d->dict_type[ 0 ] == 'a' )
-        dict.rdm_dict = d;
-      else if ( d->dict_type[ 0 ] == 'f' )
-        dict.flist_dict = d;
-    }
-  }
+  dict.load( path );
   FILE *filep = ( fn == NULL ? stdin : fopen( fn, "rb" ) );
   if ( filep == NULL ) {
     perror( fn );
