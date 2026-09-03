@@ -8,8 +8,10 @@
 #include <stdlib.h>
 /* C bool */
 #include <stdbool.h>
-/* __BYTE_ORDER */
+/* __BYTE_ORDER (glibc); gcc/clang/mingw define __BYTE_ORDER__ without it */
+#if ! defined( __BYTE_ORDER__ ) && ! defined( _WIN32 )
 #include <endian.h>
+#endif
 
 #ifdef _MSC_VER
 #define strncasecmp _strnicmp
@@ -26,7 +28,13 @@ typedef enum {
 
 /* what is endian of the cpu */
 static const MDEndian md_endian =
-#if __BYTE_ORDER == __LITTLE_ENDIAN
+#if defined( __BYTE_ORDER__ )
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  MD_LITTLE;
+#else
+  MD_BIG;
+#endif
+#elif defined( _WIN32 ) || __BYTE_ORDER == __LITTLE_ENDIAN
   MD_LITTLE;
 #else
   MD_BIG;

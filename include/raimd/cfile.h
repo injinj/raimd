@@ -48,7 +48,6 @@ enum TSS_type {
   TSS_U_LONG     = 21
 };
 const char * tss_type_str( TSS_type tp ) noexcept;
-
 enum CFileTok {
   CFT_ERROR            = -2,
   CFT_EOF              = -1,
@@ -102,6 +101,9 @@ struct CFRecField {
 
 struct MDDictBuild;
 struct MDMsg;
+struct MDDict;
+struct TibMsgWriter;
+
 struct CFile : public DictParser {
   CFileTok stmt;
   bool     cf_includes;
@@ -164,6 +166,8 @@ struct CFile : public DictParser {
   static int parse_loop( MDDictBuild &dict_build,  CFile *p,
                          const char *path ) noexcept;
   static int unpack_sass( MDDictBuild &dict_build,  MDMsg *m ) noexcept;
+
+  static int pack_sass( MDDict *dict,  TibMsgWriter &wr ) noexcept;
 };
 
 }

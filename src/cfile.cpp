@@ -5,6 +5,7 @@
 #include <raimd/cfile.h>
 #include <raimd/md_msg.h>
 #include <raimd/tib_sass_msg.h>
+#include <raimd/tib_msg.h>
 
 using namespace rai;
 using namespace md;
@@ -195,6 +196,69 @@ tss_data_type_to_md_type( int data_type ) noexcept
   }
 }
 
+static rai::md::TSS_type
+md_to_tss_type( MDLookup &mentry,  uint32_t &size ) noexcept
+{
+  TSS_type tp;
+  switch ( mentry.ftype ) {
+    case MD_REAL:
+      size = mentry.fsize;
+      switch ( size ) {
+        case 4: tp = TSS_PRICE; break;
+        case 8: tp = TSS_DOUBLE_INT; break;
+        default: tp = TSS_FLOAT; break;
+      }
+      break;
+    case MD_PARTIAL:
+      tp   = TSS_STRING;
+      size = mentry.fsize;
+      break;
+    case MD_STRING:
+      tp   = TSS_STRING;
+      size = mentry.fsize;
+      break;
+    case MD_TIME:
+      tp   = TSS_STIME;
+      size = mentry.fsize;
+      break;
+    case MD_DATE:
+      tp   = TSS_SDATE;
+      size = mentry.fsize;
+      break;
+    case MD_INT:
+      size = mentry.fsize;
+      switch ( size ) {
+        case 2: tp = TSS_SHORT_INT; break;
+        case 8: tp = TSS_LONG; break;
+        default: tp = TSS_INTEGER; break;
+      }
+      break;
+    case MD_UINT:
+      size = mentry.fsize;
+      switch ( size ) {
+        case 1: tp = TSS_BYTE; break;
+        case 2: tp = TSS_U_SHORT; break;
+        case 4: tp = TSS_U_INT; break;
+        case 8: tp = TSS_U_LONG; break;
+        default: tp = TSS_INTEGER; break;
+      }
+      break;
+    case MD_DECIMAL:
+      tp   = TSS_GROCERY;
+      size = mentry.fsize;
+      break;
+    case MD_OPAQUE:
+      tp   = TSS_STRING;
+      size = mentry.fsize;
+      break;
+    default:
+      tp   = TSS_NODATA;
+      size = 0;
+      break;
+  }
+  return tp;
+}
+
 static MDType
 tss_to_md_type( CFile *p ) noexcept
 {
@@ -383,6 +447,7 @@ CFile::parse_loop( MDDictBuild &dict_build,  CFile *p,
           a.fid      = p->class_id;
           a.fsize    = p->data_size;
           a.ftype    = type;
+          a.tss_type = p->data_type;
           a.flags    = flags;
           a.fname    = p->ident;
           a.filename = p->fname;
@@ -833,6 +898,7 @@ CFile::unpack_sass( MDDictBuild &dict_build,  MDMsg *m ) noexcept
       a.fid      = class_id;
       a.fsize    = fsize;
       a.ftype    = (MDType) ftype;
+      a.tss_type = tss_type;
       a.flags    = flags;
       a.fname    = name.fname;
       a.filename = "msg";
@@ -854,6 +920,56 @@ CFile::unpack_sass( MDDictBuild &dict_build,  MDMsg *m ) noexcept
     fprintf( stderr, "Error iterating dict msg: %d\n", status );
     return status;
   }
+  return 0;
+}
+
+int
+CFile::pack_sass( MDDict *dict,  TibMsgWriter &wr ) noexcept
+{
+  for ( ; dict != NULL; dict = dict->get_next() )
+    if ( dict->dict_type[ 0 ] == 'c' ) /* need cfile type */
+      break;
+  if ( dict == NULL )
+    return Err::NO_DICTIONARY;
+
+  uint32_t count = 0;
+  for ( MDFid fid = dict->min_fid; fid <= dict->max_fid; fid++ ) {
+    MDLookup by( fid );
+    if ( dict->lookup( by ) ) {
+      uint32_t u32 = 0;
+      TSS_type tss = md_to_tss_type( by, u32 );
+      if ( tss != TSS_NODATA )
+        count += (uint32_t) by.fname_len;
+    }
+  }
+  static const char max_fid[]    = "MAX_FID";
+  static const char name_bytes[] = "NAME_BYTES";
+  static const char fids[]       = "FIDS";
+  wr.append_uint( max_fid, sizeof( max_fid ), (uint16_t) dict->max_fid );
+  wr.append_uint( name_bytes, sizeof( name_bytes ), (uint32_t) count );
+
+  TibMsgWriter sub( wr.mem(), NULL, 0 );
+  wr.append_msg( fids, sizeof( fids ), sub );
+  for ( MDFid fid = dict->min_fid; fid <= dict->max_fid; fid++ ) {
+    MDLookup by( fid );
+    if ( dict->lookup( by ) ) {
+      uint16_t u16     = (uint16_t) fid;
+      uint32_t is_part = ( by.ftype == MD_PARTIAL ),
+               u32     = 0;
+      TSS_type tss     = md_to_tss_type( by, u32 );
+      if ( tss != TSS_NODATA ) {
+        u32 |= ( is_part << 24 ) | ( tss << 16 );
+        MDReference ref( &u16, sizeof( u16 ), MD_UINT ),
+                    href( &u32, sizeof( u32 ), MD_UINT );
+        sub.append_ref( by.fname, by.fname_len, ref, href );
+      }
+    }
+  }
+  if ( sub.err != 0 )
+    return sub.err;
+  wr.update_hdr( sub );
+  if ( wr.err != 0 )
+    return wr.err;
   return 0;
 }
 
