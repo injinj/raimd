@@ -842,7 +842,27 @@ TibMsgWriter::append_ref( const char *fname,  size_t fname_len,
     ptr = &this->buf[ this->off + this->hdrlen ];
     ptr[ 0 ] = href.ftype;
     ptr[ 1 ] = (uint8_t) href.fsize;
-    ::memcpy( &ptr[ 2 ], href.fptr, href.fsize );
+    ptr = &ptr[ 2 ];
+    if ( href.fendian != MD_BIG && is_endian_type( href.ftype ) ) {
+      size_t off = href.fsize;
+      ptr[ 0 ] = href.fptr[ --off ];
+      if ( off > 0 ) {
+        ptr[ 1 ] = href.fptr[ --off ];
+        if ( off > 0 ) {
+          ptr[ 2 ] = href.fptr[ --off ];
+          ptr[ 3 ] = href.fptr[ --off ];
+          if ( off > 0 ) {
+            ptr[ 4 ] = href.fptr[ --off ];
+            ptr[ 5 ] = href.fptr[ --off ];
+            ptr[ 6 ] = href.fptr[ --off ];
+            ptr[ 7 ] = href.fptr[ --off ];
+          }
+        }
+      }
+    }
+    else {
+      ::memcpy( ptr, href.fptr, href.fsize );
+    }
     this->off += href.fsize + 2;
   }
   return *this;

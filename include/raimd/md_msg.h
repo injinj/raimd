@@ -193,6 +193,11 @@ struct MDFormClass;
 
 struct MDMsgWriterBase;
 struct MDMsgWriterDispatch {
+  /* writers are placement-new'd into MDMsgMem and never deleted; the
+   * class-level delete keeps the deleting dtor off the global operator
+   * delete (no libstdc++ in NO_STL / mingw builds) */
+  void * operator new( size_t, void *ptr ) { return ptr; }
+  void operator delete( void * ) {} /* arena owned, do nothing */
   virtual ~MDMsgWriterDispatch() {}
   virtual size_t update_hdr( void ) noexcept;
   virtual int    append_iter( MDFieldIter *iter ) noexcept;

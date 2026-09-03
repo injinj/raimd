@@ -382,6 +382,7 @@ MDDictEntry::update( MDDictAdd &a,  uint32_t h ) noexcept
     this->enum_len = a.enum_len;
   this->mf_type    = a.mf_type;
   this->rwf_type   = a.rwf_type;
+  this->tss_type   = a.tss_type;
   this->hash       = h;
   if ( a.name != NULL )
     this->fld_flags |= MD_HAS_NAME;

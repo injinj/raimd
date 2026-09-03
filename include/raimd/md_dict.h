@@ -370,7 +370,8 @@ struct MDDictAdd {
   MDType        ftype;    /* type of fid */
   uint8_t       flags,    /* type translations */
                 mf_type,  /* marketfeed type */
-                rwf_type; /* rwf type */
+                rwf_type, /* rwf type */
+                tss_type; /* tss type */
   uint32_t      fsize,    /* sass size */
                 mf_len,   /* marketfeed len */
                 rwf_len,  /* rwf length */
@@ -497,6 +498,7 @@ struct MDDictEntry {
                 enum_len,  /* len of enum string */
                 mf_type,   /* MF_TIME, MF_ALPHANUMERIC, .. */
                 rwf_type,  /* RWF_REAL, RWF_ENUM, ... */
+                tss_type,  /* TSS_INTEGER, ... */
                 fld_flags; /* is_primitive, is_fixed */
   uint16_t      mf_len;    /* size of field mf data (string length) */
   uint32_t      rwf_len,   /* size of field rwf data (binary coded) */
@@ -506,7 +508,7 @@ struct MDDictEntry {
   void * operator new( size_t, void *ptr ) { return ptr; }
   MDDictEntry() : next( 0 ), fid( 0 ), fsize( 0 ), fno( 0 ), hash( 0 ),
     ftype( MD_NODATA ), fnamelen( 0 ), namelen( 0 ),
-    ripplelen( 0 ), enum_len( 0 ), mf_type( 0 ), rwf_type( 0 ),
+    ripplelen( 0 ), enum_len( 0 ), mf_type( 0 ), rwf_type( 0 ), tss_type( 0 ),
     fld_flags( 0 ), mf_len( 0 ), rwf_len( 0 ), map_num( 0 ), tt_pos( 0 ) {}
   const char *fname( void ) const {
     return this->buf;
