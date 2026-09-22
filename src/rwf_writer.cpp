@@ -2266,20 +2266,36 @@ add_map_entry( RwfMapWriter &w,  RwfMapAction action,
 }
 
 void
+RwfMapWriter::start_entry( void ) noexcept
+{
+  if ( this->nitems++ == 0 ) {
+    this->off = 3 + this->summary_size + this->field_defn_size + 2;
+    if ( this->key_fid != 0 )
+      this->off += 2;
+    if ( this->hint_cnt != 0 )
+      this->off += 4;
+  }
+}
+
+void
 RwfMapWriter::add_action_entry( RwfMapAction action,  MDReference &key,
                                 RwfMsgWriterBase &base ) noexcept
 {
   if ( this->check_container( base, false ) ) {
-    if ( this->nitems++ == 0 ) {
-      this->off = 3 + this->summary_size + this->field_defn_size + 2;
-      if ( this->key_fid != 0 )
-        this->off += 2;
-      if ( this->hint_cnt != 0 )
-        this->off += 4;
-    }
+    this->start_entry();
     this->append_key( action, key );
     this->append_base( base, 16, NULL );
   }
+}
+
+RwfMapWriter &
+RwfMapWriter::add_delete_entry( MDReference &key ) noexcept
+{
+  if ( this->err == 0 && ! this->is_complete ) {
+    this->start_entry();
+    this->append_key( MAP_DELETE_ENTRY, key );
+  }
+  return *this;
 }
 
 RwfFieldListWriter   & RwfMapWriter::add_summary_field_list  ( void ) noexcept { return add_map_summary<RwfFieldListWriter>( *this ); }
