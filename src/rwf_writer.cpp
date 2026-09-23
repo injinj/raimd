@@ -627,6 +627,26 @@ add_msg_container( RwfMsgWriter &w ) noexcept
   return *container;
 }
 
+RwfMsgWriter &
+RwfMsgWriter::add_raw_container( uint8_t ct,  const void *data,
+                                 size_t len ) noexcept
+{
+  if ( this->container_type != RWF_CONTAINER_BASE ) {
+    this->error( Err::INVALID_MSG );
+    return *this;
+  }
+  this->container_type = ct;
+  this->container_off  = ( this->off += this->size_after_msg_key() );
+  if ( ! this->has_space( len ) ) {
+    this->error( Err::NO_SPACE );
+    return *this;
+  }
+  ::memcpy( &this->buf[ this->off ], data, len );
+  this->off += len;
+  this->container_size = len;
+  return *this;
+}
+
 RwfFieldListWriter   & RwfMsgWriter::add_field_list  ( void ) noexcept { return add_msg_container<RwfFieldListWriter>( *this ); }
 RwfElementListWriter & RwfMsgWriter::add_element_list( void ) noexcept { return add_msg_container<RwfElementListWriter>( *this ); }
 RwfMapWriter         & RwfMsgWriter::add_map( MDType key_ty ) noexcept { return add_msg_container<RwfMapWriter>( *this ).set_key_type( key_ty ); }
@@ -1704,6 +1724,23 @@ RwfFieldListWriter::convert_msg( MDMsg &msg,  bool skip_hdr ) noexcept
   if ( status != Err::NOT_FOUND )
     return status;
   return 0;
+}
+
+/* one field from an iterator (any codec); RWF -> RWF keeps the fid */
+int
+RwfFieldListWriter::append_iter( MDFieldIter *iter ) noexcept
+{
+  MDName      n;
+  MDReference mref;
+  int status;
+  if ( (status = iter->get_name( n )) != 0 ||
+       (status = iter->get_reference( mref )) != 0 )
+    return status;
+  if ( n.fid != 0 )
+    this->append_ref( n.fid, mref );
+  else
+    this->append_ref( n.fname, n.fnamelen, mref );
+  return this->err;
 }
 
 size_t

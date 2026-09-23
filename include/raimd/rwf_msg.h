@@ -113,6 +113,16 @@ enum RwfMapAction {
   MAP_DELETE_ENTRY = 3,
   MAP_SUMMARY      = 255
 };
+/* map entry header byte: flags:4 | action:4.  RWF defines only HAS_PERM
+ * (honoured when the map header also has per-entry perm data, as ETA
+ * does).  DEAD is a cache-image convention: the entry is a tombstone
+ * left in place by an in-place merge; the iterator skips it and the
+ * header's entry count excludes it.  A dead entry must never reach a
+ * wire consumer (ETA ignores the bit and would apply the entry). */
+enum RwfMapEntryFlags {
+  MAP_ENTRY_HAS_PERM = 1,   /* 0x10 in the header byte */
+  MAP_ENTRY_DEAD     = 8    /* 0x80 in the header byte */
+};
 struct RwfMapHdr : public RwfBase {
   enum {
     HAS_SET_DEFS     = 1,
