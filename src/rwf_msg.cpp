@@ -1028,47 +1028,56 @@ RwfFieldIter::unpack_map_entry( void ) noexcept
     it.action = MAP_SUMMARY;
     return 0;
   }
-  this->field_start = i;
-  if ( &buf[ i ] >= eob )
-    return Err::NOT_FOUND;
+  /* dead entries (MAP_ENTRY_DEAD, cache images) are parsed and skipped;
+   * the header count is the live count so the iterator terminates on it */
+  for (;;) {
+    this->field_start = i;
+    if ( &buf[ i ] >= eob )
+      return Err::NOT_FOUND;
 
-  it.flags   = buf[ i++ ];
-  it.action  = (RwfMapAction) ( it.flags & 0xf );
-  it.flags >>= 4;
+    it.flags   = buf[ i++ ];
+    it.action  = (RwfMapAction) ( it.flags & 0xf );
+    it.flags >>= 4;
 
-  keyoff = i; /* after action and perm data, if any */
-  if ( ((msg.map.flags | it.flags ) & RwfMapHdr::HAS_PERM_DATA) != 0 ) {
-    if ( (sz = unpack_perm( &buf[ i ], eob, it.perm )) == 0 )
+    keyoff = i; /* after action and perm data, if any */
+    /* per-entry perm data needs both the map flag and the entry flag
+     * (rsslDecodeMapEntry: HasPerEntryPermData && entry HasPermData) */
+    if ( ( msg.map.flags & RwfMapHdr::HAS_PERM_DATA ) != 0 &&
+         ( it.flags & MAP_ENTRY_HAS_PERM ) != 0 ) {
+      if ( (sz = unpack_perm( &buf[ i ], eob, it.perm )) == 0 )
+        return Err::BAD_FIELD_BOUNDS;
+      keyoff = i + sz + it.perm.len;
+    }
+    else {
+      ::memset( &it.perm, 0, sizeof( it.perm ) );
+    }
+    /* decode key len, is a primitive */
+    if ( (sz = get_u15_prefix( &buf[ keyoff ], eob, it.keylen ) ) == 0 )
       return Err::BAD_FIELD_BOUNDS;
-    keyoff = i + sz + it.perm.len;
-  }
-  else {
-    ::memset( &it.perm, 0, sizeof( it.perm ) );
-  }
-  /* decode key len, is a primitive */
-  if ( (sz = get_u15_prefix( &buf[ keyoff ], eob, it.keylen ) ) == 0 )
-    return Err::BAD_FIELD_BOUNDS;
 
-  it.key = &buf[ keyoff + sz ];
-  i      = keyoff + sz + (size_t) it.keylen;
+    it.key = &buf[ keyoff + sz ];
+    i      = keyoff + sz + (size_t) it.keylen;
 
-  this->fsize = 0; /* no data for delete */
-  this->ftype = MD_OPAQUE;
+    this->fsize = 0; /* no data for delete */
+    this->ftype = MD_OPAQUE;
 
-  if ( it.action != MAP_DELETE_ENTRY &&
-       msg.map.container_type != RWF_NO_DATA ) {
-    if ( (sz = get_fe_prefix( &buf[ i ], eob, this->fsize )) == 0 )
+    if ( it.action != MAP_DELETE_ENTRY &&
+         msg.map.container_type != RWF_NO_DATA ) {
+      if ( (sz = get_fe_prefix( &buf[ i ], eob, this->fsize )) == 0 )
+        return Err::BAD_FIELD_BOUNDS;
+      i += sz;
+      if ( this->fsize > 0 )
+        this->ftype = MD_MESSAGE;
+    }
+    this->field_end  = i + this->fsize;
+    this->data_start = i;
+
+    if ( &buf[ this->field_end ] > eob )
       return Err::BAD_FIELD_BOUNDS;
-    i += sz;
-    if ( this->fsize > 0 )
-      this->ftype = MD_MESSAGE;
+    if ( ( it.flags & MAP_ENTRY_DEAD ) == 0 )
+      return 0;
+    i = this->field_end; /* tombstone: next */
   }
-  this->field_end  = i + this->fsize;
-  this->data_start = i;
-
-  if ( &buf[ this->field_end ] > eob )
-    return Err::BAD_FIELD_BOUNDS;
-  return 0;
 }
 
 int

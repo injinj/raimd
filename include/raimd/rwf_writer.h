@@ -372,6 +372,10 @@ struct RwfMsgWriter : RwfMsgWriterBase {
   RwfFieldListWriter   & add_field_list  ( void ) noexcept;
   RwfElementListWriter & add_element_list( void ) noexcept;
   RwfMapWriter         & add_map         ( MDType key_type ) noexcept;
+  /* pre-encoded container (ct = RWF_FIELD_LIST, RWF_MAP, ...) copied in
+   * as the payload: an envelope around cached bytes */
+  RwfMsgWriter         & add_raw_container( uint8_t ct,  const void *data,
+                                            size_t len ) noexcept;
   RwfFilterListWriter  & add_filter_list ( void ) noexcept;
   RwfSeriesWriter      & add_series      ( void ) noexcept;
   RwfVectorWriter      & add_vector      ( void ) noexcept;
@@ -584,6 +588,7 @@ struct RwfFieldListWriter : public RwfMsgWriterBase {
   }
   virtual size_t update_hdr( void ) noexcept override;
   virtual int convert_msg( MDMsg &msg, bool skip_hdr ) noexcept override;
+  virtual int append_iter( MDFieldIter *iter ) noexcept override;
   virtual int append_sass_hdr( MDFormClass *form, uint16_t msg_type,
                                uint16_t rec_type, uint16_t seqno,
                                uint16_t status, const char *subj,
