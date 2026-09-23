@@ -591,6 +591,7 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
 
   MDDictEntry * fp;
   size_t  sz      = sizeof( MDDict ),
+          hash_sz = 0,
           nfids   = ( dict_idx->max_fid - dict_idx->min_fid ) + 1,
           httabsz = mkpow2( dict_idx->entry_count * 2 ),
           fidbits,
@@ -627,6 +628,7 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
   form_off  = sz;      /* form offset */
   sz       += dict_idx->form_cnt * sizeof( uint32_t ) +
               dict_idx->form_size; /* form size */
+  hash_sz   = sz;
   if ( ntags > 0 ) {
     tag_off = sz;
     sz     += tagsz;
@@ -762,8 +764,7 @@ MDDictBuild::index_dict( const char *dtype,  MDDict *&dict ) noexcept
   ((char *) ptr)[ sz - 3 ] = 'M';
   ((char *) ptr)[ sz - 2 ] = 'D';
   ((char *) ptr)[ sz - 1 ] = '0';
-  dict->dict_hash_id = hash32( dict->dict_type,
-                        ( &((char *) ptr)[ sz ] - (char *) dict->dict_type ), 0 );
+  dict->dict_hash_id = hash32( dict->dict_type, hash_sz, 0 );
   return 0;
 }
 

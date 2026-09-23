@@ -344,7 +344,6 @@ RwfMsg::decode_enum_dictionary( MDDictBuild &dict_build,
               * sumit;
   MDReference   mref;
   MDIterMap     map[ FIELD_ENUM_COUNT ];
-  size_t        enum_cnt = 0;
 
   EnumDictionaryEntry  enums;
   int status;
@@ -382,7 +381,7 @@ RwfMsg::decode_enum_dictionary( MDDictBuild &dict_build,
                                  enums.values, enums.num_values,
                                  (char *) enums.display,
                                  sizeof( enums.display[ 0 ] ),
-                                 enum_cnt++ );
+                                 dict_build.idx->map_cnt );
 
     enums.zero();
   } while ( (status = entries->next()) == 0 );
