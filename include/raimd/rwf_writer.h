@@ -413,6 +413,11 @@ struct RwfMsgWriter : RwfMsgWriterBase {
     this->seq_num = num;
     return this->set( X_HAS_SEQ_NUM );
   }
+  /* part_num, multipart refresh (first part 0, REFRESH_COMPLETE on last) */
+  RwfMsgWriter & add_part_num( uint16_t num ) {
+    this->part_num = num;
+    return this->set( X_HAS_PART_NUM );
+  }
   /* post_id */
   RwfMsgWriter & add_post_id( uint32_t id ) {
     this->post_id = id;
@@ -988,6 +993,9 @@ struct RwfMapWriter : RwfMsgWriterBase {
   }
   RwfMapWriter &set_key_type( MDType t ) { this->key_ftype = t; return *this; }
   RwfMapWriter &set_key_fid( MDFid f ) { this->key_fid = f; return *this; }
+  RwfMapWriter &set_hint_cnt( uint32_t n ) { this->hint_cnt = n; return *this; }
+  /* an update whose entries are all deletes has no container to infer from */
+  RwfMapWriter &set_container_type( uint8_t ct ) { this->container_type = ct; return *this; }
   virtual size_t update_hdr( void ) noexcept override;
   RwfFieldDefnWriter   & add_field_defn( void ) noexcept;
   bool check_container( RwfMsgWriterBase &base,  bool is_summary ) noexcept;
@@ -1061,6 +1069,22 @@ struct RwfMapWriter : RwfMsgWriterBase {
     MDReference key( (char *) str, ::strlen( str ), MD_STRING, md_endian );
     return this->add_vector( action, key );
   }
+  /* MAP_DELETE_ENTRY: key only, no data (RwfMapEntryHdr::parse skips the
+   * length for a delete) */
+  RwfMapWriter & add_delete_entry( MDReference &key ) noexcept;
+  template<class T>
+  RwfMapWriter & add_delete_entry( T val,  MDType t ) {
+    MDReference key( (void *) &val, sizeof( val ), t, md_endian );
+    return this->add_delete_entry( key );
+  }
+  RwfMapWriter & add_delete_entry( const char *str,  size_t len ) {
+    MDReference key( (char *) str, len, MD_STRING, md_endian );
+    return this->add_delete_entry( key );
+  }
+  RwfMapWriter & add_delete_entry( const char *str ) {
+    return this->add_delete_entry( str, ::strlen( str ) );
+  }
+  void start_entry( void ) noexcept; /* first entry positions off */
   int append_key( RwfMapAction action,  MDReference &mref ) noexcept;
   int key_ival( RwfMapAction action, int64_t i64 ) noexcept;
   int key_uval( RwfMapAction action, uint64_t i64 ) noexcept;

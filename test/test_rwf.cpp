@@ -291,12 +291,15 @@ test_mkdict( MDDict *dict ) noexcept
 {
   MDOutput mout;
   MDMsgMem mem;
+  MDDictBuild dict_build;
+  MDDict *dict2 = NULL;
   MDMsg  * m;
   char     buf[ 8 * 1024 ];
   MDFid    fid_start, fid_end;
   uint32_t start, end;
   bool add_summary;
   uint8_t verb = DICT_VERB_NORMAL;
+  int status = 0;
 
   add_summary = true;
   for ( fid_start = dict->min_fid; fid_start <= dict->max_fid; fid_start = fid_end ) {
@@ -307,8 +310,12 @@ test_mkdict( MDDict *dict ) noexcept
     printf( "-- Dictionary test: %u -> %u\n", fid_start, fid_end );
     /*mout.print_hex( fld.buf, fld.off );*/
     m = MDMsg::unpack( fld.buf, 0, fld.off, RWF_SERIES_TYPE_ID, dict, mem );
-    if ( m != NULL )
+    if ( m != NULL ) {
       m->print( &mout );
+      status = RwfMsg::decode_field_dictionary( dict_build, *(RwfMsg *) m );
+      if ( status != 0 )
+        printf( "decode field dict status %d\n", status );
+    }
     mem.reuse();
     add_summary = false;
   }
@@ -321,11 +328,26 @@ test_mkdict( MDDict *dict ) noexcept
     printf( "-- Enum test: %u -> %u\n", start, end );
     /*mout.print_hex( enu.buf, enu.off );*/
     m = MDMsg::unpack( enu.buf, 0, enu.off, RWF_SERIES_TYPE_ID, dict, mem );
-    if ( m != NULL )
+    if ( m != NULL ) {
       m->print( &mout );
+      status = RwfMsg::decode_enum_dictionary( dict_build, *(RwfMsg *) m );
+      if ( status != 0 )
+        printf( "decode enum dict status %d\n", status );
+    }
     mem.reuse();
     add_summary = false;
   }
+  dict_build.index_dict( "app_a", dict2 );
+  dict_build.clear_build();
+#if 0
+  const char *t;  size_t l;
+  if ( dict->get_enum_text( 3428, 1, t, l ) ) {
+    printf( "ORDER_SIDE %.*s\n", (int) l, t );
+  }
+  if ( dict2->get_enum_text( 3428, 1, t, l ) ) {
+    printf( "ORDER_SIDE(2) %.*s\n", (int) l, t );
+  }
+#endif
 }
 
 

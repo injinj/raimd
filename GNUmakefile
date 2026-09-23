@@ -424,61 +424,7 @@ all_depends +=  $(test_msg_c_deps)
 
 all_dirs := $(bind) $(libd) $(objd) $(dependd)
 
-all: $(all_libs) $(all_dlls) $(all_exes) cmake
-
-.PHONY: cmake
-cmake: CMakeLists.txt
-
-.ONESHELL: CMakeLists.txt
-CMakeLists.txt: .copr/Makefile
-	@cat <<'EOF' > $@
-	cmake_minimum_required (VERSION 3.9.0)
-	project (raimd)
-	include_directories (
-	  include
-	  $${CMAKE_SOURCE_DIR}/libdecnumber/include
-	)
-	if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-	  if ($$<CONFIG:Release>)
-	    add_compile_options (/arch:AVX2 /GL /std:c++latest)
-	  else ()
-	    add_compile_options (/arch:AVX2 /std:c++latest)
-	  endif ()
-	else ()
-	  add_compile_options ($(cflags))
-	endif ()
-	add_library (raimd STATIC $(libraimd_cfile))
-	if (NOT TARGET decnumber)
-	  add_library (decnumber STATIC IMPORTED)
-	  if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-	    set_property (TARGET decnumber PROPERTY IMPORTED_LOCATION_DEBUG ../libdecnumber/build/Debug/decnumber.lib)
-	    set_property (TARGET decnumber PROPERTY IMPORTED_LOCATION_RELEASE ../libdecnumber/build/Release/decnumber.lib)
-	    set_property (TARGET decnumber PROPERTY IMPORTED_LOCATION ../libdecnumber/build/decnumber.lib)
-	  else ()
-	    set_property (TARGET decnumber PROPERTY IMPORTED_LOCATION ../libdecnumber/build/libdecnumber.a)
-	  endif ()
-	endif ()
-	link_libraries (raimd decnumber)
-	add_definitions (-DMD_VER=$(ver_build))
-	add_executable (test_mddec $(test_mddec_cfile))
-	add_executable (test_json $(test_json_cfile))
-	add_executable (test_msg $(test_msg_cfile))
-	add_executable (test_list $(test_list_cfile))
-	add_executable (test_hash $(test_hash_cfile))
-	add_executable (test_set $(test_set_cfile))
-	add_executable (test_zset $(test_zset_cfile))
-	add_executable (test_geo $(test_geo_cfile))
-	add_executable (test_hll $(test_hll_cfile))
-	add_executable (test_stream $(test_stream_cfile))
-	add_executable (md_test_dict $(md_test_dict_cfile))
-	add_executable (md_read_msg $(md_read_msg_cfile))
-	add_executable (write_msg $(write_msg_cfile))
-	add_executable (basic_msg $(basic_msg_cfile))
-	add_executable (pretty_js $(pretty_js_cfile))
-	add_executable (cache_msg $(cache_msg_cfile))
-	add_executable (map_test $(map_test_cfile))
-	EOF
-
+all: $(all_libs) $(all_dlls) $(all_exes)
 
 # create directories
 $(dependd):
