@@ -12,6 +12,7 @@ extern "C" {
 const char * md_get_version( void ) { return md_stringify( MD_VER ); }
 MDMatch_t * md_msg_first_match( uint32_t *i ) { return (MDMatch_t *) MDMsg::first_match( *i ); }
 MDMatch_t * md_msg_next_match( uint32_t *i ) { return (MDMatch_t *) MDMsg::next_match( *i ); }
+uint32_t md_msg_type_id_of_ftype( uint8_t ftype ) { return MDMsg::type_id_of_ftype( ftype ); }
 
 MDMsg_t * md_msg_unpack( void *bb,  size_t off,  size_t end,  uint32_t h,
                          MDDict_t *d,  MDMsgMem_t *m )
@@ -91,6 +92,18 @@ MDMsg::next_match( uint32_t &i ) noexcept
   if ( ++i >= md_add_cnt )
     return NULL;
   return md_match_arr[ i ];
+}
+
+uint32_t
+MDMsg::type_id_of_ftype( uint8_t ftype ) noexcept
+{
+  if ( md_add_cnt == 0 )
+    md_init_auto_unpack();
+  uint32_t i = md_match_ftype[ ftype ]; /* 1-based index, add_match() */
+  if ( i == 0 )
+    return 0;
+  MDMatch & ma = *md_match_arr[ i - 1 ];
+  return ma.hint_size > 0 ? ma.hint[ 0 ] : 0;
 }
 
 void

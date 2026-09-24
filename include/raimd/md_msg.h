@@ -90,6 +90,7 @@ typedef struct MDMatch_s { /* match msg features in the header */
 
 MDMatch_t *md_msg_first_match( uint32_t *i );
 MDMatch_t *md_msg_next_match( uint32_t *i );
+uint32_t md_msg_type_id_of_ftype( uint8_t ftype );
 
 #ifdef __cplusplus
 }
@@ -349,6 +350,9 @@ struct MDMsg : public MDMsg_s {
   static void print_hex( MDOutput *out,  const void *msgBuf,
                          size_t offset,  size_t length ) noexcept;
   static MDMatch *first_match( uint32_t &i ) noexcept;
+  /* the 32-bit type id registered under a matcher's ftype byte (the byte
+   * a kv HashEntry / unpack hint carries); 0 when no codec owns the byte */
+  static uint32_t type_id_of_ftype( uint8_t ftype ) noexcept;
   static MDMatch *next_match( uint32_t &i ) noexcept;
   /* Used by field iterators to creae a sub message */
   virtual const char *get_proto_string( void ) noexcept;
