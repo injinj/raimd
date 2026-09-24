@@ -156,7 +156,7 @@ md_msg_defines := -DMD_VER=$(ver_build)
 $(objd)/md_msg.o : .copr/Makefile
 $(objd)/md_msg.fpic.o : .copr/Makefile
 libraimd_files := md_msg md_field_iter md_iter_map json json_msg rv_msg tib_msg \
-                  tib_sass_msg mf_msg rwf_msg rwf_writer rwf_dict md_dict cfile \
+                  tib_sass_msg mf_msg mf_writer rwf_msg rwf_writer rwf_dict md_dict cfile \
 		  app_a enum_def flistmap decimal md_list md_hash md_set md_zset \
 		  md_geo md_hll md_stream glue md_replay md_hash_tab dict_load \
 		  md_msg_writer
@@ -355,6 +355,17 @@ test_rwf_lnk   := $(lnk_lib)
 $(bind)/test_rwf$(exe): $(test_rwf_objs) $(test_rwf_libs)
 all_exes += $(bind)/test_rwf$(exe)
 all_depends +=  $(test_rwf_deps)
+
+test_mf_writer_files := test_mf_writer
+test_mf_writer_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_mf_writer_files)))
+test_mf_writer_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_mf_writer_files)))
+test_mf_writer_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_mf_writer_files)))
+test_mf_writer_libs  := $(raimd_lib)
+test_mf_writer_lnk   := $(lnk_lib)
+
+$(bind)/test_mf_writer$(exe): $(test_mf_writer_objs) $(test_mf_writer_libs)
+all_exes += $(bind)/test_mf_writer$(exe)
+all_depends +=  $(test_mf_writer_deps)
 
 test_ht_files := test_ht
 test_ht_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_ht_files)))

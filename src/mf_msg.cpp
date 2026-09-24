@@ -60,7 +60,7 @@ static MDMatch mktfd_match = {
   .hint          = { MARKETFEED_TYPE_ID },
   .is_msg_type   = MktfdMsg::is_marketfeed,
   .unpack        = (md_msg_unpack_f) MktfdMsg::unpack,
-  .create_writer = 0
+  .create_writer = (md_create_writer_f) mf_msg_writer_create
 };
 
 namespace rai {
