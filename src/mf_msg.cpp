@@ -443,10 +443,6 @@ MktfdFieldIter::get_reference( MDReference &mref ) noexcept
         mref.fptr  = NULL;
         return 0;
 
-      case MD_STRING:  /* default type when no dictionary */
-        mref.fptr  = buf;
-        return 0;
-
       case MD_PARTIAL: /* could have escape sequences for partial update */
         if ( mref.fsize > 3 ) {
           if ( ( buf[ 0 ] & 0x7fU ) == ESC ) {
@@ -481,11 +477,14 @@ MktfdFieldIter::get_reference( MDReference &mref ) noexcept
             }
           }
         }
-        else if ( mref.fsize == 0 ) {
-          static uint8_t nullchar[ 1 ] = { 0 };
-          mref.fsize = 1;
-          mref.fptr  = nullchar;
-          return 0;
+        else { /* FALLTHRU */
+      case MD_STRING:  /* default type when no dictionary */
+          if ( mref.fsize == 0 ) {
+            static uint8_t nullchar[ 1 ] = { 0 };
+            mref.fsize = 1;
+            mref.fptr  = nullchar;
+            return 0;
+          }
         }
         mref.fptr = buf;
         return 0;
