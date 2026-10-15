@@ -197,8 +197,8 @@ tss_data_type_to_md_type( int data_type ) noexcept
   }
 }
 
-static rai::md::TSS_type
-md_to_tss_type( MDLookup &mentry,  uint32_t &size ) noexcept
+rai::md::TSS_type
+CFile::md_to_tss_type( MDLookup &mentry,  uint32_t &size ) noexcept
 {
   TSS_type tp;
   switch ( mentry.ftype ) {
@@ -1055,7 +1055,7 @@ sass_fid_hint( MDLookup &by,  uint16_t &u16,  uint32_t &u32 ) noexcept
 {
   uint32_t is_part = ( by.ftype == MD_PARTIAL );
   u32 = 0;
-  TSS_type tss = md_to_tss_type( by, u32 );
+  TSS_type tss = CFile::md_to_tss_type( by, u32 );
   u16  = (uint16_t) by.fid;
   u32 |= ( is_part << 24 ) | ( (uint32_t) tss << 16 );
 }
