@@ -168,6 +168,15 @@ struct CFile : public DictParser {
   static int unpack_sass( MDDictBuild &dict_build,  MDMsg *m ) noexcept;
 
   static int pack_sass( MDDict *dict,  TibMsgWriter &wr ) noexcept;
+  /* sass3 dictionary: pack_sass FIDS + FORMS (cfile form classes) +
+   * MARKETFEED (app_a entries, enum maps, flist map); dict is the list
+   * from load_dict_files(), the app_a / flist parts are omitted when the
+   * list lacks them; unpack produces the same list (cfile [, app_a [, flist]]) */
+  static int pack_sass3( MDDict *dict,  TibMsgWriter &wr ) noexcept;
+  /* the TSS_type / size that pack_sass puts on the wire for a cfile entry */
+  static TSS_type md_to_tss_type( MDLookup &mentry,  uint32_t &size ) noexcept;
+  static int unpack_sass3( MDDictBuild &dict_build,  MDMsg *m,
+                           MDDict *&dict ) noexcept;
 };
 
 }

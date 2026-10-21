@@ -422,6 +422,17 @@ $(bind)/test_msg_c$(exe): $(test_msg_c_objs) $(test_msg_c_libs) $(lnk_dep)
 all_exes += $(bind)/test_msg_c$(exe)
 all_depends +=  $(test_msg_c_deps)
 
+test_sass3_files := test_sass3
+test_sass3_cfile := $(addprefix test/, $(addsuffix .cpp, $(test_sass3_files)))
+test_sass3_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(test_sass3_files)))
+test_sass3_deps  := $(addprefix $(dependd)/, $(addsuffix .d, $(test_sass3_files)))
+test_sass3_libs  := $(raimd_lib)
+test_sass3_lnk   := $(lnk_lib)
+
+$(bind)/test_sass3$(exe): $(test_sass3_objs) $(test_sass3_libs) $(lnk_dep)
+all_exes += $(bind)/test_sass3$(exe)
+all_depends +=  $(test_sass3_deps)
+
 #rename_msg_files := rename_msg
 #rename_msg_cfile := $(addprefix test/, $(addsuffix .cpp, $(rename_msg_files)))
 #rename_msg_objs  := $(addprefix $(objd)/, $(addsuffix .o, $(rename_msg_files)))
